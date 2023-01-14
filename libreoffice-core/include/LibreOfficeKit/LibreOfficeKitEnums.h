@@ -1217,9 +1217,10 @@ static inline const char* lokCallbackTypeToString(int nType)
         return "LOK_CALLBACK_CORE_LOG";
     case LOK_CALLBACK_TOOLTIP:
         return "LOK_CALLBACK_TOOLTIP";
+    default:
+        return "LOK_CALLBACK_UNKOWN";
     }
 
-    assert(!"Unknown LibreOfficeKitCallbackType type.");
     return nullptr;
 }
 
