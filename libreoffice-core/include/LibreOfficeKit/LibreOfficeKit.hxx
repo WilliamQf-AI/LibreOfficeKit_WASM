@@ -852,6 +852,11 @@ public:
         mpDoc->pClass->sendContentControlEvent(mpDoc, pArguments);
     }
 
+    void* getXComponent()
+    {
+        return mpDoc->pClass->getXComponent(mpDoc);
+    }
+
     /**
      * Set the timezone of the window with the specified nId.
      *
@@ -1147,6 +1152,11 @@ public:
     void dumpState(const char* pOption, char** pState)
     {
         mpThis->pClass->dumpState(mpThis, pOption, pState);
+    }
+
+    void* getXComponentContext()
+    {
+        return mpThis->pClass->getXComponentContext(mpThis);
     }
 
     char* extractRequest(const char* pFilePath)

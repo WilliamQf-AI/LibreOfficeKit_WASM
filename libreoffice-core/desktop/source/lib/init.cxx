@@ -1312,6 +1312,7 @@ static bool doc_renderSearchResult(LibreOfficeKitDocument* pThis,
                                  int* pWidth, int* pHeight, size_t* pByteSize);
 
 static void doc_sendContentControlEvent(LibreOfficeKitDocument* pThis, const char* pArguments);
+static void* doc_getXComponent(LibreOfficeKitDocument* pThis);
 
 static void doc_setViewTimezone(LibreOfficeKitDocument* pThis, int nId, const char* timezone);
 
@@ -1506,6 +1507,7 @@ LibLODocument_Impl::LibLODocument_Impl(uno::Reference <css::lang::XComponent> xC
         m_pDocumentClass->setBlockedCommandList = doc_setBlockedCommandList;
 
         m_pDocumentClass->sendContentControlEvent = doc_sendContentControlEvent;
+        m_pDocumentClass->getXComponent = doc_getXComponent;
 
         m_pDocumentClass->setViewTimezone = doc_setViewTimezone;
 
@@ -2660,6 +2662,8 @@ static void lo_setOption(LibreOfficeKit* pThis, const char* pOption, const char*
 
 static void lo_dumpState(LibreOfficeKit* pThis, const char* pOptions, char** pState);
 
+static void* lo_getXComponentContext(LibreOfficeKit* pThis);
+
 LibLibreOffice_Impl::LibLibreOffice_Impl()
     : m_pOfficeClass( gOfficeClass.lock() )
     , maThread(nullptr)
@@ -2687,6 +2691,7 @@ LibLibreOffice_Impl::LibLibreOffice_Impl()
         m_pOfficeClass->sendDialogEvent = lo_sendDialogEvent;
         m_pOfficeClass->setOption = lo_setOption;
         m_pOfficeClass->dumpState = lo_dumpState;
+        m_pOfficeClass->getXComponentContext = lo_getXComponentContext;
         m_pOfficeClass->extractRequest = lo_extractRequest;
         m_pOfficeClass->trimMemory = lo_trimMemory;
         m_pOfficeClass->startURP = lo_startURP;
@@ -5135,6 +5140,11 @@ static void lo_dumpState (LibreOfficeKit* pThis, const char* /* pOptions */, cha
     *pState = strdup(aStr.getStr());
 }
 
+static void* lo_getXComponentContext(LibreOfficeKit* pThis)
+{
+    return xContext.is() ? xContext.get() : nullptr;
+}
+
 void LibLibreOffice_Impl::dumpState(rtl::OStringBuffer &rState)
 {
     rState.append("LibreOfficeKit state:");
@@ -7230,6 +7240,14 @@ static void doc_sendContentControlEvent(LibreOfficeKitDocument* pThis, const cha
     }
 
     pDoc->executeContentControlEvent(aMap);
+}
+
+static void* doc_getXComponent(LibreOfficeKitDocument* pThis)
+{
+    SolarMutexGuard aGaurd;
+    LibLODocument_Impl* pDocument = static_cast<LibLODocument_Impl*>(pThis);
+
+    return pDocument->mxComponent.get();
 }
 
 static void doc_setViewTimezone(SAL_UNUSED_PARAMETER LibreOfficeKitDocument* /*pThis*/, int nId,

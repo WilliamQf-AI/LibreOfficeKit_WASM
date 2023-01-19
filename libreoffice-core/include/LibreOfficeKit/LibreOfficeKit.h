@@ -123,6 +123,8 @@ struct _LibreOfficeKitClass
     /// @since LibreOffice 7.5
     void (*dumpState) (LibreOfficeKit* pThis, const char* pOptions, char** pState);
 
+    void* (*getXComponentContext) (LibreOfficeKit* pThis);
+
     /** @see lok::Office::extractRequest.
      */
     char* (*extractRequest) (LibreOfficeKit* pThis,
@@ -495,6 +497,8 @@ struct _LibreOfficeKitDocumentClass
                          long nPart,
                          long* pCol,
                          long* pRow);
+
+    void* (*getXComponent) (LibreOfficeKitDocument* pThis);
 
     /// @see lok::Document::getEditMode().
     int (*getEditMode) (LibreOfficeKitDocument* pThis);
