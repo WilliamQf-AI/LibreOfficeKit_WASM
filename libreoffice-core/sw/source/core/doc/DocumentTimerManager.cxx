@@ -16,6 +16,7 @@
  *   except in compliance with the License. You may obtain a copy of
  *   the License at http://www.apache.org/licenses/LICENSE-2.0 .
  */
+#include "osl/interlck.h"
 #include <DocumentTimerManager.hxx>
 
 #include <doc.hxx>
@@ -49,8 +50,6 @@ DocumentTimerManager::DocumentTimerManager(SwDoc& i_rSwdoc)
     m_aDocIdle.SetPriority(TaskPriority::LOWEST);
     m_aDocIdle.SetInvokeHandler(LINK(this, DocumentTimerManager, DoIdleJobs));
 
-    m_aFireIdleJobsTimer.SetInvokeHandler(LINK(this, DocumentTimerManager, FireIdleJobsTimeout));
-    m_aFireIdleJobsTimer.SetTimeout(1000); // Enough time for LOK to render the first tiles.
 }
 
 void DocumentTimerManager::StartIdling()
@@ -60,7 +59,6 @@ void DocumentTimerManager::StartIdling()
         // Start the idle jobs only after a certain delay.
         m_bWaitForLokInit = false;
         StopIdling();
-        m_aFireIdleJobsTimer.Start();
         return;
     }
 
@@ -84,15 +82,14 @@ void DocumentTimerManager::StopIdling()
 void DocumentTimerManager::BlockIdling()
 {
     assert(SAL_MAX_UINT32 != m_nIdleBlockCount);
-    ++m_nIdleBlockCount;
+    osl_atomic_increment(&m_nIdleBlockCount);
 }
 
 void DocumentTimerManager::UnblockIdling()
 {
     assert(0 != m_nIdleBlockCount);
-    --m_nIdleBlockCount;
 
-    if ((0 == m_nIdleBlockCount) && m_bStartOnUnblock)
+    if ((0 == osl_atomic_decrement(&m_nIdleBlockCount)) && m_bStartOnUnblock)
     {
         if (!m_aDocIdle.IsActive())
             m_aDocIdle.Start();
@@ -101,11 +98,7 @@ void DocumentTimerManager::UnblockIdling()
     }
 }
 
-IMPL_LINK(DocumentTimerManager, FireIdleJobsTimeout, Timer*, , void)
-{
-    // Now we can run the idle jobs, assuming we finished LOK initialization.
-    StartIdling();
-}
+
 
 DocumentTimerManager::IdleJob DocumentTimerManager::GetNextIdleJob() const
 {
@@ -229,6 +222,12 @@ IMPL_LINK_NOARG( DocumentTimerManager, DoIdleJobs, Timer*, void )
 
 DocumentTimerManager::~DocumentTimerManager() {}
 
+}
+
+void sw::DocumentTimerManager::MarkLOKInitialized()
+{
+    m_bWaitForLokInit = false;
+    StartIdling();
 }
 
 
