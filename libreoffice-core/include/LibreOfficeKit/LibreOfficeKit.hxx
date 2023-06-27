@@ -366,6 +366,11 @@ public:
         return mpDoc->pClass->getPageMargins(mpDoc);
     }
 
+    char* getPageSize()
+    {
+        return mpDoc->pClass->getPageSize(mpDoc);
+    }
+
     char* hyperlinkInfoAtPosition(int x, int y)
     {
         return mpDoc->pClass->hyperlinkInfoAtPosition(mpDoc, x, y);

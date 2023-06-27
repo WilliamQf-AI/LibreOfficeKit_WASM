@@ -1234,6 +1234,7 @@ static void doc_setTextSelection (LibreOfficeKitDocument* pThis,
                                   int nX,
                                   int nY);
 static char* doc_getPageMargins(LibreOfficeKitDocument* pThis);
+static char* doc_getPageSize(LibreOfficeKitDocument* pThis);
 static char* doc_getTextSelection(LibreOfficeKitDocument* pThis,
                                   const char* pMimeType,
                                   char** pUsedMimeType);
@@ -1483,7 +1484,8 @@ LibLODocument_Impl::LibLODocument_Impl(uno::Reference <css::lang::XComponent> xC
         m_pDocumentClass->postUnoCommand = doc_postUnoCommand;
         m_pDocumentClass->setTextSelection = doc_setTextSelection;
         m_pDocumentClass->setWindowTextSelection = doc_setWindowTextSelection;
-        m_pDocumentClass->GetPageMargins = doc_getPageMargins;
+        m_pDocumentClass->getPageMargins = doc_getPageMargins;
+        m_pDocumentClass->getPageSize = doc_getPageSize;
         m_pDocumentClass->getTextSelection = doc_getTextSelection;
         m_pDocumentClass->getSelectionType = doc_getSelectionType;
         m_pDocumentClass->getSelectionTypeAndText = doc_getSelectionTypeAndText;
@@ -5215,10 +5217,6 @@ static void doc_postUnoCommand(LibreOfficeKitDocument* pThis, const char* pComma
     if (nView < 0)
         return;
 
-    else if (aCommand == ".uno:GetPageMargins")
-    {
-        return getPageMargins();
-    }
 
     if (gImpl && aCommand == ".uno:SetPageMargins")
     {
@@ -5596,6 +5594,27 @@ static void doc_setWindowTextSelection(LibreOfficeKitDocument* /*pThis*/, unsign
 static bool getFromTransferable(
     const css::uno::Reference<css::datatransfer::XTransferable> &xTransferable,
     const OString &aInMimeType, OString &aRet);
+
+static char* doc_getPageSize(LibreOfficeKitDocument* _pThis)
+{
+    tools::JsonWriter aJson;
+
+    SfxViewFrame* pViewFrm = SfxViewFrame::Current();
+    if (!pViewFrm)
+        return nullptr;
+
+    std::unique_ptr<SvxPageItem> pPageItem(new SvxPageItem(SID_ATTR_PAGE));
+    const SvxSizeItem* pSizeItem;
+    pViewFrm->GetBindings().GetDispatcher()->QueryState(SID_ATTR_PAGE_SIZE, pSizeItem);
+    std::unique_ptr<SvxSizeItem> pPageSizeItem(pSizeItem->Clone());
+
+    aJson.put("Width", pPageSizeItem->GetSize().Width());
+    aJson.put("Height", pPageSizeItem->GetSize().Height());
+
+    OString res = aJson.extractAsOString();
+
+    return convertOString(res);
+}
 
 static bool encodeImageAsHTML(
     const css::uno::Reference<css::datatransfer::XTransferable> &xTransferable,
