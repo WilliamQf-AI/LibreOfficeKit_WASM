@@ -931,36 +931,6 @@ void setPageMargins(
     ExecuteMarginULChange(PageTop, PageBottom, pULSpaceItem);
 }
 
-/// Returns json representations of the current page margins
-char* getPageMargins()
-{
-    tools::JsonWriter aJson;
-
-    SfxViewFrame* pViewFrm = SfxViewFrame::Current();
-    const SvxLongLRSpaceItem* pLRSpaceItem;
-    pViewFrm->GetBindings().GetDispatcher()->QueryState(SID_ATTR_PAGE_LRSPACE, pLRSpaceItem);
-    std::unique_ptr<SvxLongLRSpaceItem> pPageLRMarginItem(pLRSpaceItem->Clone());
-
-    const SvxLongULSpaceItem* pULSpaceItem;
-    pViewFrm->GetBindings().GetDispatcher()->QueryState(SID_ATTR_PAGE_ULSPACE, pULSpaceItem);
-    std::unique_ptr<SvxLongULSpaceItem> pPageULMarginItem(pULSpaceItem->Clone());
-
-    if (!pULSpaceItem)
-        SAL_WARN("sw::getPageMargins:", " pULSpaceItem is null");
-        return aJson.extractData();
-
-    if (!pLRSpaceItem)
-        SAL_WARN("sw::getPageMargins:", " pLRSpaceItem is null");
-        return aJson.extractData();
-
-
-    aJson.put("left", pPageLRMarginItem->GetLeft());
-    aJson.put("right", pPageLRMarginItem->GetRight());
-    aJson.put("top", pPageULMarginItem->GetUpper());
-    aJson.put("bottom", pPageULMarginItem->GetLower());
-
-    return aJson.extractData();
-}
 
 // Main function which toggles page orientation of the Writer doc. Needed by ToggleOrientation
 void ExecuteOrientationChange()
@@ -1263,6 +1233,7 @@ static void doc_setTextSelection (LibreOfficeKitDocument* pThis,
                                   int nType,
                                   int nX,
                                   int nY);
+static char* doc_getPageMargins(LibreOfficeKitDocument* pThis);
 static char* doc_getTextSelection(LibreOfficeKitDocument* pThis,
                                   const char* pMimeType,
                                   char** pUsedMimeType);
@@ -1512,6 +1483,7 @@ LibLODocument_Impl::LibLODocument_Impl(uno::Reference <css::lang::XComponent> xC
         m_pDocumentClass->postUnoCommand = doc_postUnoCommand;
         m_pDocumentClass->setTextSelection = doc_setTextSelection;
         m_pDocumentClass->setWindowTextSelection = doc_setWindowTextSelection;
+        m_pDocumentClass->GetPageMargins = doc_getPageMargins;
         m_pDocumentClass->getTextSelection = doc_getTextSelection;
         m_pDocumentClass->getSelectionType = doc_getSelectionType;
         m_pDocumentClass->getSelectionTypeAndText = doc_getSelectionTypeAndText;

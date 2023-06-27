@@ -361,6 +361,11 @@ public:
         mpDoc->pClass->setTextSelection(mpDoc, nType, nX, nY);
     }
 
+    char* getPageMargins()
+    {
+        return mpDoc->pClass->getPageMargins(mpDoc);
+    }
+
     char* hyperlinkInfoAtPosition(int x, int y)
     {
         return mpDoc->pClass->hyperlinkInfoAtPosition(mpDoc, x, y);
