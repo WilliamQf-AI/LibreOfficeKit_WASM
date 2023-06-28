@@ -13,6 +13,7 @@
 #include "svx/svdpage.hxx"
 #include "svx/svdpagv.hxx"
 #include <config_buildconfig.h>
+#include "svx/algitem.hxx"
 #include <config_cairo_rgba.h>
 #include <config_features.h>
 
@@ -921,7 +922,18 @@ void setPageSize(
     SfxDispatcher* pDispatcher = pViewFrm->GetDispatcher();
     const SvxSizeItem* pSizeItem = new SvxSizeItem( SID_ATTR_PAGE_SIZE, Size(Width, Height));
 
-    pDispatcher->ExecuteList(SID_ATTR_PAGE_SIZE, SfxCallMode::RECORD, { pSizeItem });
+    std::unique_ptr<SvxPageItem> pPageItem(new SvxPageItem(SID_ATTR_PAGE));
+
+    if (Width >= Height)
+    {
+        pPageItem->SetLandscape(true);
+    }
+    else
+    {
+        pPageItem->SetLandscape(false);
+    }
+
+    pDispatcher->ExecuteList(SID_ATTR_PAGE_SIZE, SfxCallMode::RECORD, { pSizeItem, pPageItem.get()});
 }
 
 
@@ -1252,6 +1264,7 @@ static void doc_setTextSelection (LibreOfficeKitDocument* pThis,
                                   int nX,
                                   int nY);
 static char* doc_getPageMargins(LibreOfficeKitDocument* pThis);
+static char* doc_getPageOrientation(LibreOfficeKitDocument* pthis);
 static char* doc_getPageSize(LibreOfficeKitDocument* pThis);
 static char* doc_getTextSelection(LibreOfficeKitDocument* pThis,
                                   const char* pMimeType,
@@ -1503,6 +1516,7 @@ LibLODocument_Impl::LibLODocument_Impl(uno::Reference <css::lang::XComponent> xC
         m_pDocumentClass->setTextSelection = doc_setTextSelection;
         m_pDocumentClass->setWindowTextSelection = doc_setWindowTextSelection;
         m_pDocumentClass->getPageMargins = doc_getPageMargins;
+        m_pDocumentClass->getPageOrientation(LibreOfficeKitDocument* pThis);
         m_pDocumentClass->getPageSize = doc_getPageSize;
         m_pDocumentClass->getTextSelection = doc_getTextSelection;
         m_pDocumentClass->getSelectionType = doc_getSelectionType;

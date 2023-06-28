@@ -248,6 +248,7 @@ struct _LibreOfficeKitDocumentClass
                                const char* pMimeType,
                                char** pUsedMimeType);
     char* (*getPageMargins) (LibreOfficeKitDocument* pThis);
+    char* (*getPageOrientation) (LibreOfficeKitDocument* pThis);
     char* (*getPageSize) (LibreOfficeKitDocument* pThis);
 
     /// @see lok::Document::paste().
