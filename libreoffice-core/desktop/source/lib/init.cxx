@@ -910,86 +910,126 @@ void ExecuteMarginULChange(
                                                           SfxCallMode::RECORD, { pPageULMarginItem });
 }
 
-void setPageColor(const OUString rColorHex)
+void setPageColor(LibreOfficeKitDocument* pThis, const OUString rColorHex)
 {
-
-    SfxViewShell* pViewShell = SfxViewShell::Current();
-    SfxViewFrame* pViewFrm = pViewShell ? pViewShell->GetViewFrame() : nullptr;;
-    if (!pViewFrm)
+    int pNumParts = pThis->pClass->getParts(pThis);
+    int pOriginalPart = pThis->pClass->getPart(pThis);
+    for (int i = 0; i < pNumParts; i++)
     {
-        return;
+        pThis->pClass->setPart(pThis, i);
+        SfxViewShell* pViewShell = SfxViewShell::Current();
+        SfxViewFrame* pViewFrm = pViewShell ? pViewShell->GetViewFrame() : nullptr;
+        if (!pViewFrm)
+        {
+            return;
+        }
+
+        // must be at least 6 (FF00FF) or 7 (#FF00FF)
+        if (rColorHex.getLength() < 6 || rColorHex.getLength() > 7) {
+            SetLastExceptionMsg("invalid hex string");
+            return;
+        }
+
+        Color pColor = Color::STRtoRGB(rColorHex);
+
+        // Set the page color
+        XFillColorItem aFillColorItem(OUString(), pColor);
+
+        pViewFrm->GetBindings().GetDispatcher()->ExecuteList(SID_ATTR_PAGE_COLOR, SfxCallMode::RECORD, { &aFillColorItem});
     }
 
-    // must be at least 6 (FF00FF) or 7 (#FF00FF)
-    if (rColorHex.getLength() < 6 || rColorHex.getLength() > 7) {
-        SetLastExceptionMsg("invalid hex string");
-        return;
-    }
-    Color pColor = Color::STRtoRGB(rColorHex);
-
-
-
-    // Set the page color
-    XFillColorItem aFillColorItem(OUString(), pColor);
-    pViewFrm->GetDispatcher()->ExecuteList(SID_ATTR_PAGE_COLOR, SfxCallMode::RECORD, { &aFillColorItem });
+    pThis->pClass->setPart(pThis, pOriginalPart);
 }
 
+
 void setPageSize(
+    LibreOfficeKitDocument* pThis,
     const tools::Long Width,
     const tools::Long Height
 )
 {
-
-    SfxViewShell* pViewShell = SfxViewShell::Current();
-    SfxViewFrame* pViewFrm = pViewShell ? pViewShell->GetViewFrame() : nullptr;;
-
-    if (!pViewFrm)
-        return;
-
-
-    SfxDispatcher* pDispatcher = pViewFrm->GetDispatcher();
-    const SvxSizeItem* pSizeItem = new SvxSizeItem( SID_ATTR_PAGE_SIZE, Size(Width, Height));
-
-
-    std::unique_ptr<SvxPageItem> pPageItem(new SvxPageItem(SID_ATTR_PAGE));
-
-    if (Width >= Height)
+    int pNumParts = pThis->pClass->getParts(pThis);
+    int pOriginalPart = pThis->pClass->getPart(pThis);
+    for (int i = 0; i < pNumParts; i++)
     {
-        pPageItem->SetLandscape(true);
-    }
-    else
-    {
-        pPageItem->SetLandscape(false);
-    }
+        pThis->pClass->setPart(pThis, i);
+        SfxViewShell* pViewShell = SfxViewShell::Current();
+        SfxViewFrame* pViewFrm = pViewShell ? pViewShell->GetViewFrame() : nullptr;
 
-    pDispatcher->ExecuteList(SID_ATTR_PAGE_SIZE, SfxCallMode::RECORD, { pSizeItem, pPageItem.get()});
+        if (!pViewFrm)
+            return;
+
+        SfxDispatcher* pDispatcher = pViewShell->GetDispatcher();
+        const SvxSizeItem* pSizeItem = new SvxSizeItem( SID_ATTR_PAGE_SIZE, Size(Width, Height));
+
+        std::unique_ptr<SvxPageItem> pPageItem(new SvxPageItem(SID_ATTR_PAGE));
+
+        if (Width >= Height)
+        {
+            pPageItem->SetLandscape(true);
+        }
+        else
+        {
+            pPageItem->SetLandscape(false);
+        }
+
+        pDispatcher->ExecuteList(SID_ATTR_PAGE_SIZE, SfxCallMode::RECORD, { pSizeItem, pPageItem.get()});
+    }
+    pThis->pClass->setPart(pThis, pOriginalPart);
 }
 
 
 void setPageMargins(
+    LibreOfficeKitDocument* pThis,
     const tools::Long PageLeft,
     const tools::Long PageRight,
     const tools::Long PageTop,
     const tools::Long PageBottom
 )
 {
-    SfxViewFrame* pViewFrm = SfxViewFrame::Current();
+    int pNumParts = pThis->pClass->getParts(pThis);
+    int pOriginalPart = pThis->pClass->getPart(pThis);
+    for (int i = 0; i < pNumParts; i++)
+    {
+        pThis->pClass->setPart(pThis, i);
+        SfxViewFrame* pViewFrm = SfxViewFrame::Current();
+        if (!pViewFrm)
+            return;
 
-    if (!pViewFrm)
-        return;
+        std::unique_ptr<SvxPageItem> pPageItem(new SvxPageItem(SID_ATTR_PAGE));
 
-    SvxLongLRSpaceItem* pLRSpaceItem = new SvxLongLRSpaceItem();
-    pLRSpaceItem->SetLeft(PageLeft);
-    pLRSpaceItem->SetRight(PageRight);
+        const SvxSizeItem* pSizeItem;
+        pViewFrm->GetBindings().GetDispatcher()->QueryState(SID_ATTR_PAGE_SIZE, pSizeItem);
+        std::unique_ptr<SvxSizeItem> pPageSizeItem(pSizeItem->Clone());
 
-    SvxLongULSpaceItem* pULSpaceItem = new SvxLongULSpaceItem();
-    pULSpaceItem->SetUpper(PageTop);
-    pULSpaceItem->SetLower(PageBottom);
+        const SvxLongLRSpaceItem* pLRSpaceItem;
+        pViewFrm->GetBindings().GetDispatcher()->QueryState(SID_ATTR_PAGE_LRSPACE, pLRSpaceItem);
+        std::unique_ptr<SvxLongLRSpaceItem> pPageLRMarginItem(pLRSpaceItem->Clone());
 
-    ExecuteMarginLRChange(PageLeft, PageRight, pLRSpaceItem);
-    ExecuteMarginULChange(PageTop, PageBottom, pULSpaceItem);
+        const SvxLongULSpaceItem* pULSpaceItem;
+        pViewFrm->GetBindings().GetDispatcher()->QueryState(SID_ATTR_PAGE_ULSPACE, pULSpaceItem);
+        std::unique_ptr<SvxLongULSpaceItem> pPageULMarginItem(pULSpaceItem->Clone());
+
+        ExecuteMarginLRChange(PageLeft, PageRight, pPageLRMarginItem.get());
+        ExecuteMarginULChange(PageTop, PageBottom, pPageULMarginItem.get());
+    }
+
+    pThis->pClass->setPart(pThis, pOriginalPart);
 }
 
+void toggleOrientation(
+    LibreOfficeKitDocument* pThis
+)
+{
+    SfxViewFrame* pViewFrm = SfxViewFrame::Current();
+    if (!pViewFrm)
+        return;
+    const SvxSizeItem* pSizeItem;
+    pViewFrm->GetBindings().GetDispatcher()->QueryState(SID_ATTR_PAGE_SIZE, pSizeItem);
+    std::unique_ptr<SvxSizeItem> pPageSizeItem(pSizeItem->Clone());
+
+    setPageSize(pThis, pSizeItem->GetSize().Height(), pSizeItem->GetSize().Width());
+}
 
 // Main function which toggles page orientation of the Writer doc. Needed by ToggleOrientation
 void ExecuteOrientationChange()
@@ -5323,7 +5363,7 @@ static void doc_postUnoCommand(LibreOfficeKitDocument* pThis, const char* pComma
             return;
         }
 
-        setPageMargins(pageLeft, pageRight, pageTop, pageBottom);
+        setPageMargins(pThis, pageLeft, pageRight, pageTop, pageBottom);
         return;
     }
 
@@ -5361,7 +5401,7 @@ static void doc_postUnoCommand(LibreOfficeKitDocument* pThis, const char* pComma
             return;
         }
 
-        setPageSize(width, height);
+        setPageSize(pThis, width, height);
         return;
     }
 
@@ -5379,7 +5419,12 @@ static void doc_postUnoCommand(LibreOfficeKitDocument* pThis, const char* pComma
             SetLastExceptionMsg("Missing ColorHex value in pArguments");
             return;
         }
-        setPageColor(ColorHex);
+        setPageColor(pThis, ColorHex);
+        return;
+    }
+    if (gImpl && aCommand == ".uno:ToggleOrientation")
+    {
+        toggleOrientation(pThis);
         return;
     }
 
