@@ -2277,22 +2277,16 @@ OUString SwRangeRedline::GetDescr(bool bSimplified)
     }
 
     // replace $1 in description by description of the redlines text
-    const OUString aTmpStr = ShortenString(sDescr, nUndoStringLength, SwResId(STR_LDOTS));
-
     if (!bSimplified)
     {
         SwRewriter aRewriter;
-        aRewriter.AddRule(UndoArg1, aTmpStr);
+        aRewriter.AddRule(UndoArg1, sDescr);
 
         aResult = aRewriter.Apply(aResult);
     }
     else
     {
-        aResult = aTmpStr;
-        // more shortening
-        sal_Int32 nPos = aTmpStr.indexOf(SwResId(STR_LDOTS));
-        if (nPos > 5)
-            aResult = aTmpStr.copy(0, nPos + SwResId(STR_LDOTS).getLength());
+        aResult = sDescr;
     }
 
     if (bDeletePaM)
@@ -2300,6 +2294,7 @@ OUString SwRangeRedline::GetDescr(bool bSimplified)
 
     return aResult;
 }
+
 
 void SwRangeRedline::dumpAsXml(xmlTextWriterPtr pWriter) const
 {
