@@ -1295,6 +1295,13 @@ DocumentRedlineManager::AppendRedline(SwRangeRedline* pNewRedl, bool const bCall
         return AppendResult::IGNORED;
     }
 
+    // MACRO-1266 - Do not create a comment added/deleted redline
+    if(pNewRedl->IsAnnotation()) {
+        pNewRedl = nullptr;
+        CHECK_REDLINE( *this )
+        return AppendResult::IGNORED;
+    }
+
     // Collect MoveID's of the redlines we delete.
     // If there is only 1, then we should use its ID. (continuing the move)
     std::set<sal_uInt32> deletedMoveIDs;
