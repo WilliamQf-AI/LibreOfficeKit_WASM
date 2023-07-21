@@ -248,6 +248,9 @@ struct _LibreOfficeKitDocumentClass
                                const char* pMimeType,
                                char** pUsedMimeType);
 
+    /// @see lok::Document::setAuthor
+    void (*setAuthor) (LibreOfficeKitDocument* pThis, const char* sAuthor);
+
     /// @see lok::Document::paste().
     bool (*paste) (LibreOfficeKitDocument* pThis,
                    const char* pMimeType,

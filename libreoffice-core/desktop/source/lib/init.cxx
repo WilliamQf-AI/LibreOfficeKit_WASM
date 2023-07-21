@@ -1268,6 +1268,8 @@ static void doc_getDataArea(LibreOfficeKitDocument* pThis,
 static void doc_initializeForRendering(LibreOfficeKitDocument* pThis,
                                        const char* pArguments);
 
+static void doc_setAuthor(LibreOfficeKitDocument* pThis, const char* sAuthor);
+
 static void doc_registerCallback(LibreOfficeKitDocument* pThis,
                                 LibreOfficeKitCallback pCallback,
                                 void* pData);
@@ -1569,6 +1571,7 @@ LibLODocument_Impl::LibLODocument_Impl(uno::Reference <css::lang::XComponent> xC
         m_pDocumentClass->getDocumentSize = doc_getDocumentSize;
         m_pDocumentClass->getDataArea = doc_getDataArea;
         m_pDocumentClass->initializeForRendering = doc_initializeForRendering;
+        m_pDocumentClass->setAuthor = doc_setAuthor;
         m_pDocumentClass->registerCallback = doc_registerCallback;
         m_pDocumentClass->postKeyEvent = doc_postKeyEvent;
         m_pDocumentClass->postWindowExtTextInputEvent = doc_postWindowExtTextInputEvent;
@@ -4726,6 +4729,26 @@ static void doc_initializeForRendering(LibreOfficeKitDocument* pThis,
         doc_iniUnoCommands();
         pDoc->initializeForTiledRendering(
                 comphelper::containerToSequence(jsonToPropertyValuesVector(pArguments)));
+    }
+}
+
+
+static void doc_setAuthor(LibreOfficeKitDocument* pThis,
+                                       const char* sAuthor)
+{
+    comphelper::ProfileZone aZone("doc_setAuthor");
+
+    SolarMutexGuard aGuard;
+    SetLastExceptionMsg();
+    if(sAuthor == nullptr) {
+        SetLastExceptionMsg("sAuthor was not provided");
+        return;
+    }
+
+    ITiledRenderable* pDoc = getTiledRenderable(pThis);
+    if (pDoc)
+    {
+        pDoc->setAuthor(OUString::fromUtf8(sAuthor));
     }
 }
 
