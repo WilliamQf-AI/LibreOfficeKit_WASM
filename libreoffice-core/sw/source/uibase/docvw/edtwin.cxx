@@ -623,8 +623,10 @@ void SwEditWin::UpdatePointer(const Point &rLPt, sal_uInt16 nModifier )
         }
 
         // which kind of text pointer have we to show - horz / vert - ?
-        // NOTE: @teo turning off show/hide whitespace between pages
 
+
+        // NOTE: @teo turning off show/hide whitespace between pages
+        // https://www.notion.so/macrocom/Rendering-Issues-clicking-between-Pages-9eef9ecf67c54542ad74adefdefd7315
 
         /* if( PointerStyle::Text == eStyle && rSh.IsInVerticalText( &rLPt )) */
         /*     eStyle = PointerStyle::TextVertical; */
@@ -3030,6 +3032,7 @@ void SwEditWin::MouseButtonDown(const MouseEvent& _rMEvt)
 
         // Toggle Hide-Whitespace if between pages.
         // NOTE: @teo turning off show/hide whitespaces
+        // https://www.notion.so/macrocom/Rendering-Issues-clicking-between-Pages-9eef9ecf67c54542ad74adefdefd7315
 
         /* if (rSh.GetViewOptions()->CanHideWhitespace() && */
         /*     rSh.GetLayout()->IsBetweenPages(aDocPos)) */
