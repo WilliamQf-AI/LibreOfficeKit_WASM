@@ -38,6 +38,9 @@
 #include <txtrfmrk.hxx>
 #include <ndtxt.hxx>
 #include <wrtsh.hxx>
+#include "redline.hxx"
+#include "IDocumentRedlineAccess.hxx"
+#include "swundo.hxx"
 
 using namespace ::com::sun::star;
 
@@ -487,6 +490,32 @@ void SwXTextDocument::getCommandValues(tools::JsonWriter& rJsonWriter, std::stri
     {
         GetField(rJsonWriter, m_pDocShell, aMap);
     }
+}
+
+// MACRO-1212: batch track change updates in a single action
+void SwXTextDocument::batchUpdateTrackChange( const css::uno::Sequence<sal_uInt32>& rArguments, bool accept)
+{
+    SwWrtShell* mrSh = m_pDocShell->GetWrtShell();
+    SwDoc *pDoc = mrSh->GetDoc();
+    SwUndoId undoId = accept ? SwUndoId::ACCEPT_REDLINE : SwUndoId::REJECT_REDLINE;
+    // make batch update a single undo/redo and layout action
+    mrSh->StartUndo(undoId, nullptr);
+    mrSh->StartAction();
+
+    for (sal_uInt32 id : rArguments) {
+        const SwRedlineTable& rRedlineTable = pDoc->getIDocumentRedlineAccess().GetRedlineTable();
+        bool found = false;
+        for (SwRedlineTable::size_type i = 0; !found && i < rRedlineTable.size(); ++i)
+        {
+            if (id == rRedlineTable[i]->GetId()) {
+                found = true;
+                mrSh->AcceptRedline(i);
+            }
+        }
+    }
+
+    mrSh->EndAction();
+    mrSh->EndUndo(undoId, nullptr);
 }
 
 /* vim:set shiftwidth=4 softtabstop=4 expandtab: */

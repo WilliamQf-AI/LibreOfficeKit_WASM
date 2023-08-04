@@ -416,6 +416,9 @@ public:
     virtual void initializeForTiledRendering(const css::uno::Sequence<css::beans::PropertyValue>& rArguments) override;
     /// @see vcl::ITiledRenderable::setAuthor().
     virtual void setAuthor(OUString sAuthor) override;
+    // For MACRO-1212
+    /// @see vcl::ITiledRenderable::batchUpdateTrackChange().
+    void batchUpdateTrackChange( const css::uno::Sequence<sal_uInt32>& rArguments, bool accept) override;
     /// @see vcl::ITiledRenderable::postKeyEvent().
     virtual void postKeyEvent(int nType, int nCharCode, int nKeyCode) override;
     /// @see vcl::ITiledRenderable::postMouseEvent().
