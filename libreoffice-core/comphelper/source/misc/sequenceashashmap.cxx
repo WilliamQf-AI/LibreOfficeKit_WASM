@@ -356,7 +356,6 @@ std::vector<css::beans::PropertyValue> JsonToPropertyValues(const OString& rJson
                 aValue.Value <<= aSeqByte;
             }
         }
-
         else if (rType == "[]uint32")
         {
             aNodeValue = rPair.second.get_child("value", aNodeNull);

@@ -5386,6 +5386,21 @@ static void doc_postUnoCommand(LibreOfficeKitDocument* pThis, const char* pComma
             return;
         }
 
+    // MACRO-1392: Request layout updates for redlines
+    if (gImpl && aCommand == ".uno:UpdateRedlines")
+    {
+        for (beans::PropertyValue& rPropValue : aPropertyValuesVector)
+        {
+            if (rPropValue.Name == "Ids")
+            {
+                ITiledRenderable* pDoc = getTiledRenderable(pThis);
+                pDoc->updateRedlines(rPropValue.Value.get<css::uno::Sequence<sal_uInt32>>());
+                return;
+            }
+        }
+        return;
+    }
+
         // MACRO-1212: batch track change updates in a single action
         if (gImpl && aCommand == ".uno:BatchTrackChange")
         {
