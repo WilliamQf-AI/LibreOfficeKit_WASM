@@ -354,6 +354,7 @@ void SwRedlineTable::LOKRedlineNotification(RedlineNotification nType, SwRangeRe
         return;
     }
 
+
     // do not notify for documents that don't have a shell/view
     SwDocShell* pDocSh = pRedline->GetDoc().GetDocShell();
     if (!pDocSh) {
