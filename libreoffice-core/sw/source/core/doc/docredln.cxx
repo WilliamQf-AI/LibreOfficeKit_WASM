@@ -348,13 +348,19 @@ void SwRedlineTable::setMovedIDIfNeeded(sal_uInt32 nMax)
 /// Emits LOK notification about one addition / removal of a redline item.
 void SwRedlineTable::LOKRedlineNotification(RedlineNotification nType, SwRangeRedline* pRedline)
 {
+    // MACRO-1384: prevent crash on load for some comment edgecases
+    SwView* pCurView = dynamic_cast<SwView*>(SfxViewShell::Current());
+    if (!pCurView) {
+        return;
+    }
+
     // do not notify for documents that don't have a shell/view
     SwDocShell* pDocSh = pRedline->GetDoc().GetDocShell();
     if (!pDocSh) {
         return;
     }
     SwView* pView = pDocSh->GetView();
-    if (!pView) {
+    if (!pView || pView != pCurView) {
         return;
     }
 
