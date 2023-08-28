@@ -3364,7 +3364,7 @@ void SwXTextDocument::getTrackedChanges(tools::JsonWriter& rJson)
                                        pD.GetType()));
         rJson.put("comment",
                            pD.GetComment());
-        rJson.put("description", rRedlineTable[i]->GetDescr());
+        rJson.put("description", rRedlineTable[i]->GetDescr(true));
         OUString sDateTime = utl::toISO8601(
             pD.GetTimeStamp().GetUNODateTime());
         rJson.put("dateTime", sDateTime);
