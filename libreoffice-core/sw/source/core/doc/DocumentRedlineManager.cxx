@@ -1423,7 +1423,7 @@ DocumentRedlineManager::AppendRedline(SwRangeRedline* pNewRedl, bool const bCall
                         }
 
                         bMerged = true;
-                        bDelete = true;
+                        bDelete = bMaybeNotify = true;
                     }
                     else if( (( SwComparePosition::Before == eCmpPos &&
                                 IsPrevPos( *pEnd, *pRStt ) ) ||
@@ -1439,7 +1439,7 @@ DocumentRedlineManager::AppendRedline(SwRangeRedline* pNewRedl, bool const bCall
                         maRedlineTable.Insert( pRedl );
 
                         bMerged = true;
-                        bDelete = true;
+                        bDelete = bMaybeNotify =true;
                     }
                     else if ( SwComparePosition::Outside == eCmpPos )
                     {
@@ -1523,6 +1523,8 @@ DocumentRedlineManager::AppendRedline(SwRangeRedline* pNewRedl, bool const bCall
                         delete pNewRedl;
                         pNewRedl = nullptr;
                         bCompress = true;
+
+                        MaybeNotifyRedlineModification(*pRedl, m_rDoc);
                     }
                 }
                 else if ( SwComparePosition::OverlapBehind == eCmpPos )
@@ -1585,6 +1587,8 @@ DocumentRedlineManager::AppendRedline(SwRangeRedline* pNewRedl, bool const bCall
                         delete pNewRedl;
                         pNewRedl = nullptr;
                         bCompress = true;
+
+                        MaybeNotifyRedlineModification(*pRedl, m_rDoc);
                     }
                 }
                 else if ( SwComparePosition::Equal == eCmpPos )
@@ -1826,6 +1830,8 @@ DocumentRedlineManager::AppendRedline(SwRangeRedline* pNewRedl, bool const bCall
                         }
                         delete pNewRedl;
                         pNewRedl = nullptr;
+
+                        MaybeNotifyRedlineModification(*pRedl, m_rDoc);
 
                         // No need to call MaybeNotifyRedlineModification, because a notification
                         // was already sent in DocumentRedlineManager::DeleteRedline
