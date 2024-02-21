@@ -19,9 +19,12 @@ git clone https://github.com/coparse-inc/libreofficekit
 # Building
 
 ```bash
+# Run configure.sh for the initial build or any configuration changes
+./scripts/configure.sh
+# Run build.sh for any code changes
 ./scripts/build.sh
 ```
 
-# Important files
+# Docs
 
-`libreoffice-core/solenv/gbuild/platform/EMSCRIPTEN_INTEL_GCC.mk` - where the compile flags are set for emscripten
+- [Important Files](./docs/important_files.md)

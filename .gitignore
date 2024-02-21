@@ -9,4 +9,4 @@ libreoffice-core/vs-code-template.code-workspace
 libreoffice-core/debug
 .vscode/**/*
 .idea/**/*
-/emsdk/*
+/emsdk
