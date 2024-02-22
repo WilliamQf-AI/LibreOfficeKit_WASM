@@ -14,6 +14,8 @@ Setup the repo:
 ```bash
 git clone https://github.com/coparse-inc/libreofficekit
 ./scripts/setup.sh
+# if you're using VS Code or clangd in vim, run this
+./scripts/prepare-clangd.sh
 ```
 
 # Building
