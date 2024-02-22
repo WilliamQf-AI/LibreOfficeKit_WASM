@@ -7912,7 +7912,20 @@ CXXFLAGS_INTRINSICS_AVX512F=
 CXXFLAGS_INTRINSICS_F16C=
 CXXFLAGS_INTRINSICS_FMA=
 
-if test "$GCC" = "yes" -o "$COM_IS_CLANG" = TRUE; then
+# MACRO: add WASM SIMD support {
+if test "$_os" = Emscripten; then
+    flag_sse2="-msse2 -msimd128"
+    flag_ssse3="-mssse3 -msimd128"
+    flag_sse41="-msse4.1 -msimd128"
+    flag_sse42="-msse4.2 -msimd128"
+    flag_avx="-mavx -msimd128"
+    flag_avx2=
+    flag_avx512=
+    flag_avx512f=
+    flag_f16c=
+    flag_fma=
+elif test "$GCC" = "yes" -o "$COM_IS_CLANG" = TRUE; then
+# MACRO: }
     # GCC, Clang or Clang-cl (clang-cl + MSVC's -arch options don't work well together)
     flag_sse2=-msse2
     flag_ssse3=-mssse3
