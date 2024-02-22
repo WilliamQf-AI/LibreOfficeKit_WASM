@@ -25,7 +25,7 @@
 ifneq ($(filter gbuildtojson,$(MAKECMDGOALS)),)
 
 # possibly recurse to ensure gbuildtojson was build before running the modded make
-gb_GbuildToJson_prep := $(shell $(MAKE) -f $(SRCDIR)/solenv/Makefile Executable_gbuildtojson)
+gb_GbuildToJson_prep :=
 gb_FULLDEPS:=
 
 gbuildtojson:
@@ -37,44 +37,44 @@ gb_GbuildToJson_PHONY := $(WORKDIR)/GBUILDTOJSONPHONY
 $(gb_GbuildToJson_PHONY):
 	@true
 
-
-
 define gb_LinkTarget__command
 mkdir -p $(WORKDIR)/GbuildToJson/$(dir $(2))
 mkdir -p $(WORKDIR)/LinkTarget/$(dir $(2))
-$(if $(GBUILDTOJSON_LD_LIBRARY_PATH),LD_LIBRARY_PATH=$(GBUILDTOJSON_LD_LIBRARY_PATH)) \
-$(call gb_Executable_get_command,gbuildtojson) \
---makefile=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(T_MAKEFILE)) \
---linktarget=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(2)) \
---ilibtarget=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(ILIBTARGET)) \
---cxxobjects=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(CXXOBJECTS)) \
---yaccobjects=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(YACCOBJECTS)) \
---objcobjects=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(OBJCOBJECTS)) \
---objcxxobjects=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(OBJCXXOBJECTS)) \
---cxxclrobjects=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(CXXCLROBJECTS)) \
---asmobjects=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(ASMOBJECTS)) \
---lexobjects=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(LEXOBJECTS)) \
---gencobjects=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(GENCOBJECTS)) \
---gencxxobjects=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(GENCXXOBJECTS)) \
---gencxxclrobjects=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(GENCXXCLROBJECTS)) \
---cobjects=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(COBJECTS)) \
---javaobjects=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(JAVAOBJECTS)) \
---pythonobjects=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(PYTHONOBJECTS)) \
---cflags=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(T_CFLAGS)) \
---cflagsappend=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(T_CFLAGS_APPEND)) \
---cxxflags=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(T_CXXFLAGS)) \
---cxxflagsappend=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(T_CXXFLAGS_APPEND)) \
---objcflags=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(T_OBJCFLAGS)) \
---objcflagsappend=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(T_OBJCFLAGS_APPEND)) \
---objcxxflags=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(T_OBJCXXFLAGS)) \
---objcxxflagsappend=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(T_OBJCXXFLAGS_APPEND)) \
---cxxclrflags=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(T_CXXCLRFLAGS)) \
---cxxclrflagsappend=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(T_CXXCLRFLAGS_APPEND)) \
---defs=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(DEFS)) \
---include=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(INCLUDE)) \
---linked_libs=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(LINKED_LIBS)) \
---linked_static_libs=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(LINKED_STATIC_LIBS)) \
-> $(WORKDIR)/GbuildToJson/$(2)
+(cd $(SRCDIR) && \
+	$(if $(GBUILDTOJSON_LD_LIBRARY_PATH),LD_LIBRARY_PATH=$(GBUILDTOJSON_LD_LIBRARY_PATH)) \
+	$(if $(filter MACOSX,$(OS_FOR_BUILD)),PATH="$(INSTROOT_FOR_BUILD)/Frameworks/LibreOfficePython.framework/Versions/Current/bin:$(PATH)") \
+	bin/gbuildtojson.py \
+	--makefile=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(T_MAKEFILE)) \
+	--linktarget=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(2)) \
+	--ilibtarget=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(ILIBTARGET)) \
+	--cxxobjects=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(CXXOBJECTS)) \
+	--yaccobjects=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(YACCOBJECTS)) \
+	--objcobjects=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(OBJCOBJECTS)) \
+	--objcxxobjects=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(OBJCXXOBJECTS)) \
+	--cxxclrobjects=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(CXXCLROBJECTS)) \
+	--asmobjects=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(ASMOBJECTS)) \
+	--lexobjects=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(LEXOBJECTS)) \
+	--gencobjects=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(GENCOBJECTS)) \
+	--gencxxobjects=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(GENCXXOBJECTS)) \
+	--gencxxclrobjects=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(GENCXXCLROBJECTS)) \
+	--cobjects=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(COBJECTS)) \
+	--javaobjects=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(JAVAOBJECTS)) \
+	--pythonobjects=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(PYTHONOBJECTS)) \
+	--cflags=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(T_CFLAGS)) \
+	--cflagsappend=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(T_CFLAGS_APPEND)) \
+	--cxxflags=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(T_CXXFLAGS)) \
+	--cxxflagsappend=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(T_CXXFLAGS_APPEND)) \
+	--objcflags=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(T_OBJCFLAGS)) \
+	--objcflagsappend=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(T_OBJCFLAGS_APPEND)) \
+	--objcxxflags=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(T_OBJCXXFLAGS)) \
+	--objcxxflagsappend=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(T_OBJCXXFLAGS_APPEND)) \
+	--cxxclrflags=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(T_CXXCLRFLAGS)) \
+	--cxxclrflagsappend=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(T_CXXCLRFLAGS_APPEND)) \
+	--defs=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(DEFS)) \
+	--include=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(INCLUDE)) \
+	--linked_libs=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(LINKED_LIBS)) \
+	--linked_static_libs=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(LINKED_STATIC_LIBS)) \
+	> $(WORKDIR)/GbuildToJson/$(2))
 endef
 
 define gb_Postprocess_register_target

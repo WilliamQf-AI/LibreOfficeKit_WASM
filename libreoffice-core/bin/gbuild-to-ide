@@ -196,10 +196,13 @@ class GbuildParser:
             with open(os.path.join(self.workdir, 'GbuildToJson', 'Executable', jsonfilename), 'r') as f:
                 exe = self.__exe_from_json(json.load(f))
                 self.exes.append(exe)
-        for jsonfilename in os.listdir(os.path.join(self.workdir, 'GbuildToJson', 'CppunitTest')):
-            with open(os.path.join(self.workdir, 'GbuildToJson', 'CppunitTest', jsonfilename), 'r') as f:
-                test = self.__test_from_json(json.load(f))
-                self.tests.append(test)
+        # in cross-platform builds like WASM, this won't exist
+        cppunit_test_path = os.path.join(self.workdir, 'GbuildToJson', 'CppunitTest')
+        if os.path.exists(cppunit_test_path):
+            for jsonfilename in os.listdir(cppunit_test_path):
+                with open(os.path.join(self.workdir, 'GbuildToJson', 'CppunitTest', jsonfilename), 'r') as f:
+                    test = self.__test_from_json(json.load(f))
+                    self.tests.append(test)
         for target in set(self.libs) | set(self.exes) | set(self.tests):
             if target.location not in self.target_by_location:
                 self.target_by_location[target.location] = set()
@@ -304,7 +307,7 @@ class EclipseCDTIntegrationGenerator(IdeIntegrationGenerator):
 </language>
 </section>
 </cdtprojectproperties>
-""" 
+"""
 
         for module in self.gbuildparser.modulenamelist:
             tempxml = []
@@ -329,7 +332,7 @@ class EclipseCDTIntegrationGenerator(IdeIntegrationGenerator):
                 macrokey = macroskeyvalue[0]
                 macrovalue = macroskeyvalue[1]
                 if macrovalue[-1:] == "\n":
-                    macrovalue = macrovalue[:-1] 
+                    macrovalue = macrovalue[:-1]
                 templine = "<macro><name>%s</name><value>%s</value></macro>\n" %(macrokey, macrovalue)
                 tempxml.insert(-13, templine)
             tempxml="".join(tempxml)
@@ -344,7 +347,7 @@ class EclipseCDTIntegrationGenerator(IdeIntegrationGenerator):
     def emit(self):
         self.create_include_paths()
         self.create_macros()
-        self.create_settings_file() 
+        self.create_settings_file()
 
 class CodeliteIntegrationGenerator(IdeIntegrationGenerator):
 
