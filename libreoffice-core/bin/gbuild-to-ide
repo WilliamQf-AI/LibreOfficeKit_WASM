@@ -25,6 +25,15 @@ from sys import platform
 import collections
 import urllib.parse
 
+# MACRO: fix emscripten includes {
+current_dir = os.path.dirname(__file__)
+module_dir = os.path.abspath(os.path.join(current_dir, '../../emsdk/upstream/emscripten'))
+sys.path.insert(0, module_dir)
+
+from emcc import get_cflags
+emscripten_cflags = ' '.join(get_cflags(['-msse', '-msse2', '-mssse3', '-msse4.1', '-msse4.2', '-msimd128'], True))
+
+# MACRO: }
 class GbuildLinkTarget:
     def __init__(self, name, location, include, include_sys, defs, cxxobjects, cxxflags, cobjects, cflags, linked_libs):
         (self.name, self.location, self.include, self.include_sys, self.defs, self.cxxobjects, self.cxxflags, self.cobjects, self.cflags, self.linked_libs) = (
@@ -575,6 +584,8 @@ class VimIntegrationGenerator(IdeIntegrationGenerator):
             command += cxxflag
         command += ' -c '
         command += file
+        # MACRO: fix emscripten includes
+        command += ' ' + emscripten_cflags
         return command
 
 
