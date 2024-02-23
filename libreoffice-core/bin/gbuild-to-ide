@@ -31,7 +31,7 @@ module_dir = os.path.abspath(os.path.join(current_dir, '../../emsdk/upstream/ems
 sys.path.insert(0, module_dir)
 
 from emcc import get_cflags
-emscripten_cflags = ' '.join(get_cflags(['-msse', '-msse2', '-mssse3', '-msse4.1', '-msse4.2', '-msimd128'], True))
+emscripten_cflags = ' '.join(get_cflags(['-msse', '-msse2', '-mssse3', '-msse4.1', '-msse4.2', '-msimd128'], True)) + ' -D__EMSCRIPTEN__'
 
 # MACRO: }
 class GbuildLinkTarget:
