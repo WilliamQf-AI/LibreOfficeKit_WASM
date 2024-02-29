@@ -1,8 +1,8 @@
-# Macro Open Source Project: LOK
+# Macro LOK
 
-This is a public project that forks LibreOffice to provide functionality and fixes that don't fit in [the upstream project](https://github.com/LibreOffice/core).
+This is a private project that forks LibreOffice to provide functionality and fixes that don't fit in [the upstream project](https://github.com/LibreOffice/core).
 
-This repository is open sourced under the [Mozilla Public License 2.0](LICENSE).
+This upstream changes are open sourced under the [Mozilla Public License 2.0](LICENSE), newly added files are considered proprietary.
 
 This project is not a part of the official LibreOffice project, nor endorsed by the Document Foundation.
 
