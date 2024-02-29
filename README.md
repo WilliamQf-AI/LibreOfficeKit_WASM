@@ -27,6 +27,19 @@ git clone https://github.com/coparse-inc/libreofficekit
 ./scripts/build.sh
 ```
 
+# QA Env
+
+Make a build first, then:
+
+```bash
+# change to the qa-env directory
+cd qa-env
+# install the qa-env dependencies
+npm install
+# run the qa-env
+npm run dev
+```
+
 # Docs
 
-- [Important Files](./docs/important_files.md)
+- [Important Files](./important_files.md)
