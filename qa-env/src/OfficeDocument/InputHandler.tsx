@@ -73,7 +73,6 @@ export function InputHandler(props: Props) {
   }
 
   function handleInsertText() {
-    console.log(inputValue(input), input);
     const content = stringToUtf16CodePoints(inputValue(input));
     const len = matchingLength(content, lastContent);
     const insertedCodePoints = len > 0 ? content.slice(len) : content;
