@@ -20,6 +20,7 @@
 #ifndef INCLUDED_SW_SOURCE_CORE_INC_DOCUMENTTIMERMANAGER_HXX
 #define INCLUDED_SW_SOURCE_CORE_INC_DOCUMENTTIMERMANAGER_HXX
 
+// MACRO:
 #include "osl/interlck.h"
 #include <IDocumentTimerAccess.hxx>
 #include <SwDocIdle.hxx>
@@ -56,6 +57,7 @@ public:
 
     bool IsDocIdle() const override;
 
+    // MACRO:
     void MarkLOKInitialized() override;
 
 private:
@@ -69,6 +71,7 @@ private:
 
     SwDoc& m_rDoc;
 
+    // MACRO:
     oslInterlockedCount m_nIdleBlockCount; ///< Don't run the Idle, if > 0
     bool m_bStartOnUnblock; ///< true, if the last unblock should start the timer
     SwDocIdle m_aDocIdle;

@@ -348,6 +348,7 @@ void SwRedlineTable::setMovedIDIfNeeded(sal_uInt32 nMax)
 /// Emits LOK notification about one addition / removal of a redline item.
 void SwRedlineTable::LOKRedlineNotification(RedlineNotification nType, SwRangeRedline* pRedline)
 {
+    // MACRO: {
     // MACRO-1384: prevent crash on load for some comment edgecases
     SwView* pCurView = dynamic_cast<SwView*>(SfxViewShell::Current());
     if (!pCurView) {
@@ -365,6 +366,8 @@ void SwRedlineTable::LOKRedlineNotification(RedlineNotification nType, SwRangeRe
         return;
     }
 
+    // MACRO: }
+
     // Disable since usability is very low beyond some small number of changes.
     if (!lcl_LOKRedlineNotificationEnabled())
         return;
@@ -377,6 +380,7 @@ void SwRedlineTable::LOKRedlineNotification(RedlineNotification nType, SwRangeRe
     aRedline.put("author", pRedline->GetAuthorString(1).toUtf8().getStr());
     aRedline.put("type", SwRedlineTypeToOUString(pRedline->GetRedlineData().GetType()).toUtf8().getStr());
     aRedline.put("comment", pRedline->GetRedlineData().GetComment().toUtf8().getStr());
+    // MACRO:
     aRedline.put("description", pRedline->GetDescr(true).toUtf8().getStr());
     OUString sDateTime = utl::toISO8601(pRedline->GetRedlineData().GetTimeStamp().GetUNODateTime());
     aRedline.put("dateTime", sDateTime.toUtf8().getStr());
@@ -2248,6 +2252,7 @@ const SwRedlineData & SwRangeRedline::GetRedlineData(const sal_uInt16 nPos) cons
         nP--;
     }
 
+    // MACRO:
     // This is commonly called in LOK and is in fact, not in error
     // SAL_WARN_IF( nP != 0, "sw.core", "Pos " << nPos << " is " << nP << " too big");
 
@@ -2256,6 +2261,7 @@ const SwRedlineData & SwRangeRedline::GetRedlineData(const sal_uInt16 nPos) cons
 
 OUString SwRangeRedline::GetDescr(bool bSimplified)
 {
+    // MACRO: {
     switch (GetType()) {
         case RedlineType::Insert:
         case RedlineType::Delete:
@@ -2272,6 +2278,7 @@ OUString SwRangeRedline::GetDescr(bool bSimplified)
         case RedlineType::Any:
             return OUString(GetRedlineData().GetDescr());
     }
+    // MACRO: }
 
     SwPaM * pPaM = nullptr;
     bool bDeletePaM = false;
@@ -2298,6 +2305,7 @@ OUString SwRangeRedline::GetDescr(bool bSimplified)
         }
     }
 
+    // MACRO: {
     OUString aResult;
 
     // replace $1 in description by description of the redlines text
@@ -2312,6 +2320,7 @@ OUString SwRangeRedline::GetDescr(bool bSimplified)
     {
         aResult = sDescr;
     }
+    // MACRO: }
 
     if (bDeletePaM)
         delete pPaM;

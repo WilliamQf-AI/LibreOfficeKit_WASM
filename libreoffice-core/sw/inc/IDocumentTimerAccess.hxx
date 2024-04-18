@@ -65,6 +65,7 @@ public:
      */
     virtual bool IsDocIdle() const = 0;
 
+    // MACRO:
     virtual void MarkLOKInitialized() = 0;
 
 protected:

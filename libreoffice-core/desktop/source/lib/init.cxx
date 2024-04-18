@@ -13,7 +13,9 @@
 #include "svx/svdpage.hxx"
 #include "svx/svdpagv.hxx"
 #include <config_buildconfig.h>
+// MACRO:
 #include "svx/algitem.hxx"
+// MACRO:
 #include "svx/xflclit.hxx"
 #include <config_cairo_rgba.h>
 #include <config_features.h>
@@ -910,6 +912,7 @@ void ExecuteMarginULChange(
                                                           SfxCallMode::RECORD, { pPageULMarginItem });
 }
 
+// MACRO: helpers for page setup {
 void setPageColor(LibreOfficeKitDocument* pThis, const OUString rColorHex)
 {
     int pNumParts = pThis->pClass->getParts(pThis);
@@ -1030,6 +1033,7 @@ void toggleOrientation(
 
     setPageSize(pThis, pSizeItem->GetSize().Height(), pSizeItem->GetSize().Width());
 }
+// MACRO: }
 
 // Main function which toggles page orientation of the Writer doc. Needed by ToggleOrientation
 void ExecuteOrientationChange()
@@ -1268,6 +1272,7 @@ static void doc_getDataArea(LibreOfficeKitDocument* pThis,
 static void doc_initializeForRendering(LibreOfficeKitDocument* pThis,
                                        const char* pArguments);
 
+// MACRO: add set doc author
 static void doc_setAuthor(LibreOfficeKitDocument* pThis, const char* sAuthor);
 
 static void doc_registerCallback(LibreOfficeKitDocument* pThis,
@@ -1438,6 +1443,7 @@ static bool doc_renderSearchResult(LibreOfficeKitDocument* pThis,
                                  int* pWidth, int* pHeight, size_t* pByteSize);
 
 static void doc_sendContentControlEvent(LibreOfficeKitDocument* pThis, const char* pArguments);
+// MACRO:
 static void* doc_getXComponent(LibreOfficeKitDocument* pThis);
 
 static void doc_setViewTimezone(LibreOfficeKitDocument* pThis, int nId, const char* timezone);
@@ -1571,6 +1577,7 @@ LibLODocument_Impl::LibLODocument_Impl(uno::Reference <css::lang::XComponent> xC
         m_pDocumentClass->getDocumentSize = doc_getDocumentSize;
         m_pDocumentClass->getDataArea = doc_getDataArea;
         m_pDocumentClass->initializeForRendering = doc_initializeForRendering;
+        // MACRO:
         m_pDocumentClass->setAuthor = doc_setAuthor;
         m_pDocumentClass->registerCallback = doc_registerCallback;
         m_pDocumentClass->postKeyEvent = doc_postKeyEvent;
@@ -1634,6 +1641,7 @@ LibLODocument_Impl::LibLODocument_Impl(uno::Reference <css::lang::XComponent> xC
         m_pDocumentClass->setBlockedCommandList = doc_setBlockedCommandList;
 
         m_pDocumentClass->sendContentControlEvent = doc_sendContentControlEvent;
+        // MACRO:
         m_pDocumentClass->getXComponent = doc_getXComponent;
 
         m_pDocumentClass->setViewTimezone = doc_setViewTimezone;
@@ -2789,6 +2797,7 @@ static void lo_setOption(LibreOfficeKit* pThis, const char* pOption, const char*
 
 static void lo_dumpState(LibreOfficeKit* pThis, const char* pOptions, char** pState);
 
+// MACRO:
 static void* lo_getXComponentContext(LibreOfficeKit* pThis);
 
 LibLibreOffice_Impl::LibLibreOffice_Impl()
@@ -2818,6 +2827,7 @@ LibLibreOffice_Impl::LibLibreOffice_Impl()
         m_pOfficeClass->sendDialogEvent = lo_sendDialogEvent;
         m_pOfficeClass->setOption = lo_setOption;
         m_pOfficeClass->dumpState = lo_dumpState;
+        // MACRO:
         m_pOfficeClass->getXComponentContext = lo_getXComponentContext;
         m_pOfficeClass->extractRequest = lo_extractRequest;
         m_pOfficeClass->trimMemory = lo_trimMemory;
@@ -3135,6 +3145,7 @@ static LibreOfficeKitDocument* lo_documentLoadWithOptions(LibreOfficeKit* pThis,
             pDocument->maFontsMissing.insert(aFontMappingUseData[i].mOriginalFont);
         }
 
+        // MACRO: handling readonly files {
         // [MACRO-2259] We don't respect the readonly flag.
         // If the document is loaded readonly, we need to set it to false.
         SfxBaseModel* pBaseModel = dynamic_cast<SfxBaseModel*>(pDocument->mxComponent.get());
@@ -3146,6 +3157,7 @@ static LibreOfficeKitDocument* lo_documentLoadWithOptions(LibreOfficeKit* pThis,
                 }
             }
         }
+        // MACRO: }
 
         return pDocument;
     }
@@ -3952,9 +3964,11 @@ static void doc_iniUnoCommands ()
         OUString(".uno:Watermark"),
         OUString(".uno:ResetAttributes"),
         OUString(".uno:Orientation"),
+        // MACRO: page setup commands {
         OUString(".uno:SetPageMargins"),
         OUString(".uno:SetPageColor"),
         OUString(".uno:GetPageMargins"),
+        // MACRO: }
         OUString(".uno:ObjectAlignLeft"),
         OUString(".uno:ObjectAlignRight"),
         OUString(".uno:AlignCenter"),
@@ -4745,6 +4759,7 @@ static void doc_initializeForRendering(LibreOfficeKitDocument* pThis,
 }
 
 
+// MACRO: set author {
 static void doc_setAuthor(LibreOfficeKitDocument* pThis,
                                        const char* sAuthor)
 {
@@ -4763,6 +4778,7 @@ static void doc_setAuthor(LibreOfficeKitDocument* pThis,
         pDoc->setAuthor(OUString::fromUtf8(sAuthor));
     }
 }
+// MACRO: }
 
 static void doc_registerCallback(LibreOfficeKitDocument* pThis,
                                  LibreOfficeKitCallback pCallback,
@@ -5302,6 +5318,7 @@ static void lo_dumpState (LibreOfficeKit* pThis, const char* /* pOptions */, cha
     *pState = strdup(aStr.getStr());
 }
 
+// MACRO:
 static void* lo_getXComponentContext(LibreOfficeKit* pThis)
 {
     return xContext.is() ? xContext.get() : nullptr;
@@ -5349,6 +5366,7 @@ static void doc_postUnoCommand(LibreOfficeKitDocument* pThis, const char* pComma
         return;
 
 
+    // MACRO: page setup commands {
     if (gImpl && aCommand == ".uno:SetPageMargins")
     {
         long pageLeft;
@@ -5398,7 +5416,12 @@ static void doc_postUnoCommand(LibreOfficeKitDocument* pThis, const char* pComma
             return;
         }
 
-    // MACRO-1392: Request layout updates for redlines
+        setPageMargins(pThis, pageLeft, pageRight, pageTop, pageBottom);
+        return;
+    }
+    // MACRO: }
+
+    // MACRO: MACRO-1392: Request layout updates for redlines {
     if (gImpl && aCommand == ".uno:UpdateRedlines")
     {
         for (beans::PropertyValue& rPropValue : aPropertyValuesVector)
@@ -5412,27 +5435,27 @@ static void doc_postUnoCommand(LibreOfficeKitDocument* pThis, const char* pComma
         }
         return;
     }
+    // MACRO: }
 
-        // MACRO-1212: batch track change updates in a single action
-        if (gImpl && aCommand == ".uno:BatchTrackChange")
+    // MACRO: MACRO-1212: batch track change updates in a single action {
+    if (gImpl && aCommand == ".uno:BatchTrackChange")
+    {
+        for (beans::PropertyValue& rPropValue : aPropertyValuesVector)
         {
-            for (beans::PropertyValue& rPropValue : aPropertyValuesVector)
+            if (rPropValue.Name == "Accept" || rPropValue.Name == "Reject")
             {
-                if (rPropValue.Name == "Accept" || rPropValue.Name == "Reject")
-                {
-                    ITiledRenderable* pDoc = getTiledRenderable(pThis);
-                    pDoc->batchUpdateTrackChange(rPropValue.Value.get<css::uno::Sequence<sal_uInt32>>(), rPropValue.Name == "Accept");
-                    return;
-                }
+                ITiledRenderable* pDoc = getTiledRenderable(pThis);
+                pDoc->batchUpdateTrackChange(rPropValue.Value.get<css::uno::Sequence<sal_uInt32>>(), rPropValue.Name == "Accept");
+                return;
             }
-            return;
         }
-
-        setPageMargins(pThis, pageLeft, pageRight, pageTop, pageBottom);
         return;
     }
+    // MACRO: }
 
 
+
+    // MACRO: page setup commands {
     if (gImpl && aCommand == ".uno:ToggleOrientation")
     {
         ExecuteOrientationChange();
@@ -5492,8 +5515,9 @@ static void doc_postUnoCommand(LibreOfficeKitDocument* pThis, const char* pComma
         toggleOrientation(pThis);
         return;
     }
+    // MACRO: }
 
-    // handle potential interaction
+    // MACRO: handle potential interaction {
     if (gImpl && aCommand == ".uno:SaveAs")
     {
         OUString aURL;
@@ -5515,6 +5539,7 @@ static void doc_postUnoCommand(LibreOfficeKitDocument* pThis, const char* pComma
             return;
         }
     }
+    // MACRO: }
     else if (gImpl && aCommand == ".uno:Save")
     {
         // Check if saving a PDF file
@@ -5831,6 +5856,7 @@ static bool getFromTransferable(
     const css::uno::Reference<css::datatransfer::XTransferable> &xTransferable,
     const OString &aInMimeType, OString &aRet);
 
+// MACRO: {
 namespace {
     char* leakyStrDup(const std::string_view& view) {
         char* pMemory = static_cast<char*>(malloc(view.size() + 1));
@@ -5840,8 +5866,10 @@ namespace {
         return pMemory;
     }
 }
+// MACRO: }
 
 
+// MACRO: getters for pagesetup commandValues {
 static char* getPageColor()
 {
     SfxViewShell* pViewShell = SfxViewShell::Current();
@@ -5928,6 +5956,7 @@ static char* getPageMargins()
 
     return aJson.extractData();
 }
+// MACRO: }
 
 
 static bool encodeImageAsHTML(
@@ -6807,6 +6836,7 @@ static char* doc_getCommandValues(LibreOfficeKitDocument* pThis, const char* pCo
         return nullptr;
     }
 
+    // MACRO: page setup {
     if (!strcmp(pCommand, ".uno:PageColor"))
     {
         return getPageColor();
@@ -6823,6 +6853,7 @@ static char* doc_getCommandValues(LibreOfficeKitDocument* pThis, const char* pCo
     {
         return getPageOrientation();
     }
+    // MACRO: }
 
     if (!strcmp(pCommand, ".uno:ReadOnly"))
     {
@@ -7689,6 +7720,7 @@ static void doc_sendContentControlEvent(LibreOfficeKitDocument* pThis, const cha
     pDoc->executeContentControlEvent(aMap);
 }
 
+// MACRO: {
 static void* doc_getXComponent(LibreOfficeKitDocument* pThis)
 {
     SolarMutexGuard aGaurd;
@@ -7696,6 +7728,7 @@ static void* doc_getXComponent(LibreOfficeKitDocument* pThis)
 
     return pDocument->mxComponent.get();
 }
+// MACRO: }
 
 static void doc_setViewTimezone(SAL_UNUSED_PARAMETER LibreOfficeKitDocument* /*pThis*/, int nId,
                                 const char* pTimezone)

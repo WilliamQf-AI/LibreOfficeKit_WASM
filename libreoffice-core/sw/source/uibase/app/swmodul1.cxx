@@ -469,6 +469,7 @@ static void lcl_FillAuthorAttr( Color aCol, SfxItemSet &rSet,
                         const AuthorCharAttr &rAttr )
 {
 
+    // MACRO:
     bool bBackGr = aCol == COL_NONE_COLOR || rAttr.m_nColor == COL_NONE_COLOR;
 
     switch (rAttr.m_nItemId)
@@ -520,6 +521,7 @@ static void lcl_FillAuthorAttr( Color aCol, SfxItemSet &rSet,
         rSet.Put( SvxColorItem( aCol, RES_CHRATR_COLOR ) );
 }
 
+// MACRO: {
 void SwModule::GetInsertAuthorAttr(SfxItemSet &rSet)
 {
     lcl_FillAuthorAttr(COL_BLUE_CLASSIC, rSet, m_pModuleConfig->GetInsertAuthorAttr());
@@ -535,6 +537,7 @@ void SwModule::GetFormatAuthorAttr( SfxItemSet &rSet )
 {
     lcl_FillAuthorAttr( COL_NONE_COLOR, rSet, m_pModuleConfig->GetFormatAuthorAttr() );
 }
+//MACRO: }
 
 sal_uInt16 SwModule::GetRedlineMarkPos() const
 {

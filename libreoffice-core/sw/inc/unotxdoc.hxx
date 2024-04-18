@@ -414,6 +414,9 @@ public:
     virtual VclPtr<vcl::Window> getDocWindow() override;
     /// @see vcl::ITiledRenderable::initializeForTiledRendering().
     virtual void initializeForTiledRendering(const css::uno::Sequence<css::beans::PropertyValue>& rArguments) override;
+
+    // MACRO: {
+
     /// @see vcl::ITiledRenderable::setAuthor().
     virtual void setAuthor(OUString sAuthor) override;
     // For MACRO-1212
@@ -421,6 +424,9 @@ public:
     void batchUpdateTrackChange( const css::uno::Sequence<sal_uInt32>& rArguments, bool accept) override;
     // MACRO-1392: Request layout updates for redlines
     void updateRedlines( const css::uno::Sequence<sal_uInt32>& rArguments) override;
+
+    // MACRO: }
+
     /// @see vcl::ITiledRenderable::postKeyEvent().
     virtual void postKeyEvent(int nType, int nCharCode, int nKeyCode) override;
     /// @see vcl::ITiledRenderable::postMouseEvent().

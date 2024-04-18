@@ -356,6 +356,7 @@ std::vector<css::beans::PropertyValue> JsonToPropertyValues(const OString& rJson
                 aValue.Value <<= aSeqByte;
             }
         }
+        // MACRO: uno batch track changes {
         else if (rType == "[]uint32")
         {
             aNodeValue = rPair.second.get_child("value", aNodeNull);
@@ -369,6 +370,7 @@ std::vector<css::beans::PropertyValue> JsonToPropertyValues(const OString& rJson
                 aValue.Value <<= comphelper::containerToSequence(aSeqUint32);
             }
         }
+        // MACRO: }
         else if (rType == "[]any")
         {
             aNodeValue = rPair.second.get_child("value", aNodeNull);

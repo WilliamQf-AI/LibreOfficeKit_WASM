@@ -1012,8 +1012,10 @@ SwNumberPortion *SwTextFormatter::NewFootnoteNumPortion( SwTextFormatInfo const 
 
 
             if ( RedlineType::Delete == pRedline->GetType() )
+                // MACRO:
                 SW_MOD()->GetDeletedAuthorAttr(aSet);
             else
+                // MACRO:
                 SW_MOD()->GetInsertAuthorAttr(aSet);
 
             if (const SvxColorItem* pItem = aSet.GetItemIfSet(RES_CHRATR_COLOR))

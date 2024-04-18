@@ -17,8 +17,8 @@
  *   the License at http://www.apache.org/licenses/LICENSE-2.0 .
  */
 
-#include "LibreOfficeKit/LibreOfficeKitEnums.h"
-#include "comphelper/lok.hxx"
+#include "LibreOfficeKit/LibreOfficeKitEnums.h" // MACRO:
+#include "comphelper/lok.hxx" // MACRO:
 #include <config_features.h>
 #include <config_fuzzers.h>
 
@@ -330,13 +330,13 @@ void SAL_CALL SwClipboardChangeListener::changedContents( const css::datatransfe
     rBind.Invalidate( SID_PASTE_SPECIAL );
     rBind.Invalidate( SID_CLIPBOARD_FORMAT_ITEMS );
 
-    // MACRO-1919: For empty docs and other edge cases, clipboard_changed never fires,
+    // MACRO: MACRO-1919: For empty docs and other edge cases, clipboard_changed never fires,
     // it also fires when it shouldn't. This has neither of those problems {
     if (comphelper::LibreOfficeKit::isActive())
     {
         m_pView->GetViewShell()->libreOfficeKitViewCallback(LOK_CALLBACK_CLIPBOARD_CHANGED, "{\"sw\":true}");
     }
-    // MACRO-1919: }
+    // MACRO: }
 }
 
 void SwClipboardChangeListener::AddRemoveListener( bool bAdd )

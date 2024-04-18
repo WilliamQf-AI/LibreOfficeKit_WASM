@@ -123,6 +123,7 @@ struct _LibreOfficeKitClass
     /// @since LibreOffice 7.5
     void (*dumpState) (LibreOfficeKit* pThis, const char* pOptions, char** pState);
 
+    // MACRO:
     void* (*getXComponentContext) (LibreOfficeKit* pThis);
 
     /** @see lok::Office::extractRequest.
@@ -248,6 +249,7 @@ struct _LibreOfficeKitDocumentClass
                                const char* pMimeType,
                                char** pUsedMimeType);
 
+    // MACRO:
     /// @see lok::Document::setAuthor
     void (*setAuthor) (LibreOfficeKitDocument* pThis, const char* sAuthor);
 
@@ -501,6 +503,7 @@ struct _LibreOfficeKitDocumentClass
                          long* pCol,
                          long* pRow);
 
+    // MACRO:
     void* (*getXComponent) (LibreOfficeKitDocument* pThis);
 
     /// @see lok::Document::getEditMode().

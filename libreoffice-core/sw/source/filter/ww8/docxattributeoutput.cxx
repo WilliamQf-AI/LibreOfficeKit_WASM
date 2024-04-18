@@ -8518,7 +8518,7 @@ void DocxAttributeOutput::WriteBookmarks_Impl( std::vector< OUString >& rStarts,
     rEnds.clear();
 }
 
-// MACRO-1786: remove unncessary vector allocation {
+// MACRO: MACRO-1786: remove unncessary vector allocation {
 void DocxAttributeOutput::WriteBookmark_Impl( const OUString& rName, const bool bIsEnd, const bool bIsFinal, const SwRedlineData* pRedlineData )
 {
     auto& rPermissions = bIsEnd ? m_rPermissionsEnd : m_rPermissionsStart;
@@ -8540,7 +8540,7 @@ void DocxAttributeOutput::WriteBookmark_Impl( const OUString& rName, const bool 
         }
     }
 }
-// MACRO-1786 }
+// MACRO: }
 
 void DocxAttributeOutput::WriteFinalBookmarks_Impl( std::vector< OUString >& rStarts, std::vector< OUString >& rEnds )
 {

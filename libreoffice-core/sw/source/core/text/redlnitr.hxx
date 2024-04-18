@@ -88,6 +88,7 @@ private:
 
     void Clear_( SwFont* pFnt );
     bool ChkSpecialUnderline_() const;
+    // MACRO:
     void FillHints( RedlineType eType );
     short EnterExtend(SwFont& rFnt, SwNodeOffset const nNode, sal_Int32 const nNew)
     {

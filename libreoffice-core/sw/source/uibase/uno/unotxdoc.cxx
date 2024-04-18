@@ -171,7 +171,7 @@
 #include <SearchResultLocator.hxx>
 #include <textcontentcontrol.hxx>
 #include <unocontentcontrol.hxx>
-#include <chrono>
+#include <chrono> // MACRO:
 
 using namespace ::com::sun::star;
 using namespace ::com::sun::star::text;
@@ -2246,6 +2246,7 @@ void SwXTextDocument::updateLinks(  )
     }
 }
 
+// MACRO: {
 void SAL_CALL SwXTextDocument::startBatchUpdate() {
     SolarMutexGuard aGuard;
     if(!IsValid())
@@ -2303,6 +2304,7 @@ void SAL_CALL SwXTextDocument::finishBatchUpdate() {
     pWorkWrtShell->GetViewOptions()->SetIdle( true );
     pWorkDoc->getIDocumentTimerAccess().UnblockIdling();
 }
+// MACRO: }
 
 //XPropertyState
 PropertyState SAL_CALL SwXTextDocument::getPropertyState( const OUString& rPropertyName )
@@ -3132,6 +3134,7 @@ void SAL_CALL SwXTextDocument::render(
         pDoc->getIDocumentTimerAccess().UnblockIdling();
         m_pRenderData.reset();
         m_pPrintUIOptions.reset();
+        // MACRO:
         m_pDocShell->GetDoc()->getIDocumentTimerAccess().MarkLOKInitialized();
     }
 }
@@ -3202,6 +3205,7 @@ void SwXTextDocument::paintTile( VirtualDevice &rDevice,
                                  tools::Long nTileWidth, tools::Long nTileHeight )
 {
     SwViewShell* pViewShell = m_pDocShell->GetWrtShell();
+    // MACRO:
     m_pDocShell->GetDoc()->getIDocumentTimerAccess().MarkLOKInitialized();
     pViewShell->PaintTile(rDevice, nOutputWidth, nOutputHeight,
                           nTilePosX, nTilePosY, nTileWidth, nTileHeight);
@@ -3355,6 +3359,7 @@ void SwXTextDocument::getTrackedChanges(tools::JsonWriter& rJson)
         = m_pDocShell->GetDoc()->getIDocumentRedlineAccess().GetRedlineTable();
     for (SwRedlineTable::size_type i = 0; i < rRedlineTable.size(); ++i)
     {
+        // MACRO: {
         SwRangeRedline* pR = rRedlineTable[i];
         auto redlineNode = rJson.startStruct();
         rJson.put("index", pR->GetId());
@@ -3398,6 +3403,7 @@ void SwXTextDocument::getTrackedChanges(tools::JsonWriter& rJson)
 
         const OString sRects = comphelper::string::join("; ", aRects);
         rJson.put("textRange", sRects);
+        // MACRO: }
     }
 }
 
@@ -3787,6 +3793,7 @@ void SwXTextDocument::initializeForTiledRendering(const css::uno::Sequence<css::
 }
 
 
+// MACRO : {
 void SwXTextDocument::setAuthor(OUString sAuthor)
 {
     SolarMutexGuard aGuard;
@@ -3817,6 +3824,7 @@ void SwXTextDocument::setAuthor(OUString sAuthor)
         }
     }
 }
+// MACRO: }
 
 void SwXTextDocument::postKeyEvent(int nType, int nCharCode, int nKeyCode)
 {

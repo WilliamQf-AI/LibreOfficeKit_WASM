@@ -58,6 +58,7 @@
           <info>
             <desc>Specifies the visibility of anchors (true = visible).</desc>
           </info>
+          <!-- MACRO: -->
           <value>false</value>
         </prop>
         <prop oor:name="Color" oor:type="xs:int">
@@ -100,6 +101,7 @@
           <info>
             <desc>Specifies the visibility of table boundaries (true = visible).</desc>
           </info>
+          <!-- MACRO: -->
           <value>false</value>
         </prop>
         <prop oor:name="Color" oor:type="xs:int">
@@ -272,6 +274,7 @@
           <info>
             <desc>Specifies the visibility of section boundaries (true = visible).</desc>
           </info>
+          <!-- MACRO: -->
           <value>false</value>
         </prop>
         <prop oor:name="Color" oor:type="xs:int">

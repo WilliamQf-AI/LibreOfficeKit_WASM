@@ -792,6 +792,7 @@ short SwRedlineItr::Seek(SwFont& rFnt,
                         m_pSet = std::make_unique<SfxItemSetFixed<RES_CHRATR_BEGIN, RES_CHRATR_END-1>>(rPool);
                     }
 
+                    // MACRO:
                     FillHints( pRed->GetType() );
 
                     SfxWhichIter aIter( *m_pSet );
@@ -864,6 +865,7 @@ short SwRedlineItr::Seek(SwFont& rFnt,
     return nRet + EnterExtend(rFnt, nNode, nNew);
 }
 
+// MACRO: always red/blue track changes author irrespective {
 void SwRedlineItr::FillHints(RedlineType eType )
 {
     switch ( eType )
@@ -882,6 +884,7 @@ void SwRedlineItr::FillHints(RedlineType eType )
             break;
     }
 }
+// MACRO: }
 
 void SwRedlineItr::ChangeTextAttr( SwFont* pFnt, SwTextAttr const &rHt, bool bChg )
 {

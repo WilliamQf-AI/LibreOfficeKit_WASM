@@ -2387,6 +2387,7 @@
                 </info>
               </enumeration>
             </constraints>
+            <!-- MACRO: -->
             <value>0</value>
           </prop>
           <prop oor:name="Color" oor:type="xs:int" oor:nillable="false">
@@ -2526,6 +2527,7 @@
                 </info>
               </enumeration>
             </constraints>
+            <!-- MACRO: Diable bold on lok changed attribute (since we disable coloring) -->
             <value>0</value>
           </prop>
           <prop oor:name="Color" oor:type="xs:int" oor:nillable="false">

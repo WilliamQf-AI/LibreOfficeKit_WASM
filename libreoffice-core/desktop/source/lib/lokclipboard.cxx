@@ -8,6 +8,7 @@
  */
 
 #include "lokclipboard.hxx"
+// MACRO:
 #include <LibreOfficeKit/LibreOfficeKitEnums.h>
 #include <unordered_map>
 #include <vcl/lazydelete.hxx>

@@ -17,7 +17,7 @@
  *   the License at http://www.apache.org/licenses/LICENSE-2.0 .
  */
 
-#include "i18nlangtag/lang.h"
+#include "i18nlangtag/lang.h" // MACRO:
 #include <SwRewriter.hxx>
 #include <cmdid.h>
 #include <strings.hrc>
@@ -292,7 +292,7 @@ SwSpellPopup::SwSpellPopup(
 
     m_xPopupMenu->EnableItem(m_nCorrectMenuId, bEnable);
 
-    // NOTE: [MACRO-1497] Language Guessing Breaks SpellPopUp
+    // MACRO: [MACRO-1497] Language Guessing Breaks SpellPopUp {
     // since we currently only support english just turning it off
 
     /* uno::Reference< linguistic2::XLanguageGuessing > xLG = SW_MOD()->GetLanguageGuesser(); */
@@ -311,6 +311,7 @@ SwSpellPopup::SwSpellPopup(
     /*     if (nGuessLangPara == LANGUAGE_NONE) */
     /*         nGuessLangPara = nGuessLangWord; */
     /* } */
+    // MACRO: }
 
     pMenu = m_xPopupMenu->GetPopupMenu(m_nAddMenuId);
     pMenu->SetMenuFlags(MenuFlags::NoAutoMnemonics);     //! necessary to retrieve the correct dictionary name in 'Execute' below
@@ -367,7 +368,7 @@ SwSpellPopup::SwSpellPopup(
     m_xPopupMenu->EnableItem(m_nAddMenuId, (nItemId - MN_DICTIONARIES_START) > 1);
     m_xPopupMenu->EnableItem(m_nAddId, (nItemId - MN_DICTIONARIES_START) == 1);
 
-    // NOTE: [MACRO-1497] Language Guessing Breaks SpellPopUp
+    // MACRO: [MACRO-1497] Language Guessing Breaks SpellPopUp {
     // since we currently only support english just turning it off
 
     /* OUString aScriptTypesInUse( OUString::number( static_cast<int>(pWrtSh->GetScriptType()) ) ); */
@@ -398,6 +399,7 @@ SwSpellPopup::SwSpellPopup(
     /* pMenu = m_xPopupMenu->GetPopupMenu(m_nLangParaMenuId); */
     /* fillLangPopupMenu( pMenu, MN_SET_LANGUAGE_PARAGRAPH_START, aSeq, pWrtSh, m_aLangTable_Paragraph ); */
     /* m_xPopupMenu->EnableItem(m_nLangParaMenuId); */
+    // MACRO: }
 
     if (bUseImagesInMenus)
         m_xPopupMenu->SetItemImage(m_nSpellDialogId,
@@ -506,6 +508,7 @@ SwSpellPopup::SwSpellPopup(
     m_xPopupMenu->EnableItem(m_nCorrectMenuId, false);
     m_xPopupMenu->EnableItem(m_nCorrectDialogId, false);
 
+    // MACRO: {
     /* uno::Reference< linguistic2::XLanguageGuessing > xLG = SW_MOD()->GetLanguageGuesser(); */
     /* LanguageType nGuessLangWord = LANGUAGE_ENGLISH; */
     /* LanguageType nGuessLangPara = LANGUAGE_ENGLISH; */
@@ -551,6 +554,7 @@ SwSpellPopup::SwSpellPopup(
     /* pMenu = m_xPopupMenu->GetPopupMenu(m_nLangParaMenuId); */
     /* fillLangPopupMenu( pMenu, MN_SET_LANGUAGE_PARAGRAPH_START, aSeq, pWrtSh, m_aLangTable_Paragraph ); */
     /* m_xPopupMenu->EnableItem(m_nLangParaMenuId); */
+    // MACRO: }
 
     if (bUseImagesInMenus)
         m_xPopupMenu->SetItemImage(m_nSpellDialogId,

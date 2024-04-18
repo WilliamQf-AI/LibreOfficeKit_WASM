@@ -16,6 +16,7 @@
  *   except in compliance with the License. You may obtain a copy of
  *   the License at http://www.apache.org/licenses/LICENSE-2.0 .
  */
+// MACRO:
 #include "osl/interlck.h"
 #include <DocumentTimerManager.hxx>
 
@@ -81,6 +82,7 @@ void DocumentTimerManager::StopIdling()
 void DocumentTimerManager::BlockIdling()
 {
     assert(SAL_MAX_UINT32 != m_nIdleBlockCount);
+    // MACRO:
     osl_atomic_increment(&m_nIdleBlockCount);
 }
 
@@ -88,6 +90,7 @@ void DocumentTimerManager::UnblockIdling()
 {
     assert(0 != m_nIdleBlockCount);
 
+    // MACRO:
     if ((0 == osl_atomic_decrement(&m_nIdleBlockCount)) && m_bStartOnUnblock)
     {
         if (!m_aDocIdle.IsActive())
@@ -223,6 +226,7 @@ DocumentTimerManager::~DocumentTimerManager() {}
 
 }
 
+// MACRO
 void sw::DocumentTimerManager::MarkLOKInitialized()
 {
     m_bWaitForLokInit = false;

@@ -48,7 +48,7 @@
 #include <windowdev.hxx>
 #include <units.hrc>
 #include <print.h>
-#include <rtl/no_destructor.hxx>
+#include <rtl/no_destructor.hxx> // MACRO:
 
 #include <com/sun/star/accessibility/MSAAService.hpp>
 
@@ -72,6 +72,7 @@ namespace
 
 }
 
+// MACRO:
 ImplSVData* ImplGetSVData() {
     static rtl::NoDestructor<ImplSVData> instance;
     return instance.get();

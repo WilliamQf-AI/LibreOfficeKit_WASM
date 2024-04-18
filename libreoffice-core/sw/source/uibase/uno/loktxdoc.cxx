@@ -38,9 +38,9 @@
 #include <txtrfmrk.hxx>
 #include <ndtxt.hxx>
 #include <wrtsh.hxx>
-#include "redline.hxx"
-#include "IDocumentRedlineAccess.hxx"
-#include "swundo.hxx"
+#include "redline.hxx" // MACRO:
+#include "IDocumentRedlineAccess.hxx" // MACRO:
+#include "swundo.hxx" // MACRO:
 
 using namespace ::com::sun::star;
 
@@ -418,7 +418,7 @@ bool SwXTextDocument::supportsCommand(std::u16string_view rCommand)
     static const std::initializer_list<std::u16string_view> vForward
         = { u"TextFormFields", u"TextFormField", u"SetDocumentProperties",
             u"Bookmarks",      u"Fields",        u"Sections",
-            u"Bookmark",       u"Field", u"GetOutline" };
+            u"Bookmark",       u"Field", u"GetOutline" }; // MACRO:
 
     return std::find(vForward.begin(), vForward.end(), rCommand) != vForward.end();
 }
