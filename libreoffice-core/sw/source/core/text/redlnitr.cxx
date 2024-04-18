@@ -46,6 +46,7 @@
 #include <ftnfrm.hxx>
 #include <vcl/svapp.hxx>
 #include "redlnitr.hxx"
+#include "tools/fontenum.hxx" // MACRO:
 #include <extinput.hxx>
 #include <fmtpdsc.hxx>
 #include <editeng/charhiddenitem.hxx>
@@ -805,7 +806,12 @@ short SwRedlineItr::Seek(SwFont& rFnt,
                             m_pSet->Put(SvxCrossedOutItem( STRIKEOUT_DOUBLE, RES_CHRATR_CROSSEDOUT ));
                         else
                             m_pSet->Put(SvxUnderlineItem( LINESTYLE_DOUBLE, RES_CHRATR_UNDERLINE ));
+                    // MACRO: make insertion underlined single {
+                    }else if (pRed->GetType() == RedlineType::Insert)
+                    {
+                        m_pSet->Put(SvxUnderlineItem(LINESTYLE_SINGLE, RES_CHRATR_UNDERLINE));
                     }
+                    // MACRO: }
 
                     sal_uInt16 nWhich = aIter.FirstWhich();
                     while( nWhich )
