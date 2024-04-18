@@ -492,7 +492,7 @@ void SwXTextDocument::getCommandValues(tools::JsonWriter& rJsonWriter, std::stri
     }
 }
 
-// MACRO-1212: batch track change updates in a single action
+// MACRO: MACRO-1212: batch track change updates in a single action
 void SwXTextDocument::batchUpdateTrackChange( const css::uno::Sequence<sal_uInt32>& rArguments, bool accept)
 {
     SwWrtShell* mrSh = m_pDocShell->GetWrtShell();
@@ -518,7 +518,7 @@ void SwXTextDocument::batchUpdateTrackChange( const css::uno::Sequence<sal_uInt3
     mrSh->EndUndo(undoId, nullptr);
 }
 
-// MACRO-1392: Request layout updates for redlines
+// MACRO: MACRO-1392: Request layout updates for redlines
 void SwXTextDocument::updateRedlines( const css::uno::Sequence<sal_uInt32>& rArguments) {
     SwWrtShell* mrSh = m_pDocShell->GetWrtShell();
     SwDoc *pDoc = mrSh->GetDoc();
