@@ -7,6 +7,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
+#include "comphelper/seqstream.hxx" // MACRO:
 #include "sal/types.h"
 #include "sfx2/lokhelper.hxx"
 #include "svx/sdr/contact/viewcontact.hxx"
@@ -1368,6 +1369,8 @@ static void doc_setGraphicSelection (LibreOfficeKitDocument* pThis,
                                   int nY);
 static void doc_resetSelection (LibreOfficeKitDocument* pThis);
 static char* doc_getCommandValues(LibreOfficeKitDocument* pThis, const char* pCommand);
+// MACRO:
+static size_t doc_saveToMemory(LibreOfficeKitDocument* pThis, char** pOutput, void *(*chrome_malloc)(size_t size), const char* pFormat);
 static void doc_setClientZoom(LibreOfficeKitDocument* pThis,
                                     int nTilePixelWidth,
                                     int nTilePixelHeight,
@@ -1600,6 +1603,8 @@ LibLODocument_Impl::LibLODocument_Impl(uno::Reference <css::lang::XComponent> xC
         m_pDocumentClass->setGraphicSelection = doc_setGraphicSelection;
         m_pDocumentClass->resetSelection = doc_resetSelection;
         m_pDocumentClass->getCommandValues = doc_getCommandValues;
+        // MACRO:
+        m_pDocumentClass->saveToMemory = doc_saveToMemory;
         m_pDocumentClass->setClientZoom = doc_setClientZoom;
         m_pDocumentClass->setClientVisibleArea = doc_setClientVisibleArea;
         m_pDocumentClass->setOutlineState = doc_setOutlineState;
@@ -2800,6 +2805,9 @@ static void lo_dumpState(LibreOfficeKit* pThis, const char* pOptions, char** pSt
 // MACRO:
 static void* lo_getXComponentContext(LibreOfficeKit* pThis);
 
+// MACRO
+static LibreOfficeKitDocument* lo_loadFromMemory(LibreOfficeKit* pThis, char *data, size_t size);
+
 LibLibreOffice_Impl::LibLibreOffice_Impl()
     : m_pOfficeClass( gOfficeClass.lock() )
     , maThread(nullptr)
@@ -2833,6 +2841,8 @@ LibLibreOffice_Impl::LibLibreOffice_Impl()
         m_pOfficeClass->trimMemory = lo_trimMemory;
         m_pOfficeClass->startURP = lo_startURP;
         m_pOfficeClass->stopURP = lo_stopURP;
+        // MACRO:
+        m_pOfficeClass->loadFromMemory = lo_loadFromMemory;
 
         gOfficeClass = m_pOfficeClass;
     }
@@ -2870,6 +2880,8 @@ void setFormatSpecificFilterData(std::u16string_view sFormat, comphelper::Sequen
 static uno::Reference<css::uno::XComponentContext> xContext;
 static uno::Reference<css::lang::XMultiServiceFactory> xSFactory;
 static uno::Reference<css::lang::XMultiComponentFactory> xFactory;
+// MACRO:
+static int nDocumentIdCounter = 0;
 
 static LibreOfficeKitDocument* lo_documentLoad(LibreOfficeKit* pThis, const char* pURL)
 {
@@ -2882,7 +2894,6 @@ static LibreOfficeKitDocument* lo_documentLoadWithOptions(LibreOfficeKit* pThis,
 
     SolarMutexGuard aGuard;
 
-    static int nDocumentIdCounter = 0;
 
     LibLibreOffice_Impl* pLib = static_cast<LibLibreOffice_Impl*>(pThis);
     pLib->maLastExceptionMsg.clear();
@@ -5298,6 +5309,62 @@ static void lo_setOption(LibreOfficeKit* /*pThis*/, const char *pOption, const c
     }
 #endif
 }
+// MACRO: {
+static LibreOfficeKitDocument* lo_loadFromMemory(LibreOfficeKit* /*pThis*/, char *data, size_t size)
+{
+    if (!xContext.is())
+    {
+        SAL_WARN("lok", "ComponentContext is not available");
+        return nullptr;
+    }
+
+    uno::Reference<frame::XDesktop2> xComponentLoader = frame::Desktop::create(xContext);
+
+    if (!xComponentLoader.is())
+    {
+        SAL_WARN("lok", "ComponentLoader is not available");
+        return nullptr;
+    }
+
+    auto aData = Sequence<sal_Int8>(reinterpret_cast<const sal_Int8*>(data), size);
+
+    uno::Reference<io::XInputStream> aInputStream(new comphelper::SequenceInputStream(aData));
+
+    utl::MediaDescriptor aMediaDescriptor;
+    aMediaDescriptor["FilterName"] <<= OUString("MS Word 2007 XML"); // just hardcode this for now
+    aMediaDescriptor["InputStream"] <<= aInputStream;
+    aMediaDescriptor["MacroExecutionMode"] <<= document::MacroExecMode::NEVER_EXECUTE;
+    aMediaDescriptor["Silent"] <<= true;
+    aMediaDescriptor["Hidden"] <<= true;
+
+    {
+        SolarMutexGuard aGuard;
+        try
+        {
+            Application::SetDialogCancelMode(DialogCancelMode::LOKSilent);
+            const int nThisDocumentId = nDocumentIdCounter++;
+            SfxViewShell::SetCurrentDocId(ViewShellDocId(nThisDocumentId));
+            uno::Reference<lang::XComponent> xComponent = xComponentLoader->loadComponentFromURL(
+                "private:stream", "_blank", 0, aMediaDescriptor.getAsConstPropertyValueList());
+
+            if (!xComponent.is()) {
+                SAL_WARN("lok", "Could not load in memory doc");
+                return nullptr;
+            }
+
+            return new LibLODocument_Impl(xComponent, nThisDocumentId);
+        }
+        catch (const uno::Exception& exception)
+        {
+            css::uno::Any exAny( cppu::getCaughtException() );
+            SetLastExceptionMsg(exception.Message);
+            SAL_WARN("lok", "Failed to load to in-memory stream: " + exceptionToString(exAny));
+        }
+    }
+    return nullptr;
+}
+
+// MACRO: }
 
 static void lo_dumpState (LibreOfficeKit* pThis, const char* /* pOptions */, char** pState)
 {
@@ -7027,6 +7094,72 @@ static char* doc_getCommandValues(LibreOfficeKitDocument* pThis, const char* pCo
         return nullptr;
     }
 }
+
+// MACRO: {
+static size_t doc_saveToMemory(LibreOfficeKitDocument* pThis, char** pOutput, void *(*chrome_malloc)(size_t size), const char* pFormat)
+{
+    if (!pOutput)
+    {
+        SAL_WARN("lok", "pOutput is not set");
+        return -1;
+    }
+    comphelper::ProfileZone aZone("doc_saveToMemory");
+    OUString filterName(pFormat == nullptr ? u"MS Word 2007 XML": OUString::fromUtf8(pFormat));
+
+    SolarMutexGuard aGuard;
+    SetLastExceptionMsg();
+    try
+    {
+        LibLODocument_Impl* pDocument = static_cast<LibLODocument_Impl*>(pThis);
+
+        if (!pDocument->mxComponent.is())
+        {
+            SAL_WARN("lok", "Document destroyed before saving to memory");
+            return -1;
+        }
+
+        uno::Reference<frame::XStorable> xStorable(pDocument->mxComponent, uno::UNO_QUERY_THROW);
+
+        SvMemoryStream aOutStream;
+        uno::Reference<io::XOutputStream> xOut = new utl::OOutputStreamWrapper(aOutStream);
+
+        utl::MediaDescriptor aMediaDescriptor;
+        switch (doc_getDocumentType(pThis))
+        {
+            case LOK_DOCTYPE_TEXT:
+                aMediaDescriptor["FilterName"] <<= filterName;
+                break;
+            default:
+                SAL_WARN("lok", "Failed to save to in-memory stream: Document type is not supported");
+                return -1;
+        }
+        aMediaDescriptor["OutputStream"] <<= xOut;
+
+        xStorable->storeToURL("private:stream", aMediaDescriptor.getAsConstPropertyValueList());
+
+        const size_t nOutputSize = aOutStream.GetEndOfData();
+
+        *pOutput = static_cast<char*>(chrome_malloc(nOutputSize));
+
+        if (!*pOutput)
+        {
+            SAL_WARN("lok", "Unable to allocate memory");
+            return -1;
+        }
+
+        std::memcpy(*pOutput, aOutStream.GetData(), nOutputSize);
+        return nOutputSize;
+    }
+    catch (const uno::Exception& exception)
+    {
+        css::uno::Any exAny( cppu::getCaughtException() );
+        SetLastExceptionMsg(exception.Message);
+        SAL_WARN("lok", "Failed to save to in-memory stream: " + exceptionToString(exAny));
+    }
+    return 0;
+}
+// MACRO: }
+
 
 static void doc_setClientZoom(LibreOfficeKitDocument* pThis, int nTilePixelWidth, int nTilePixelHeight,
         int nTileTwipWidth, int nTileTwipHeight)

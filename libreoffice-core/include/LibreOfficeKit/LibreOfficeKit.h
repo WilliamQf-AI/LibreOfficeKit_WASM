@@ -126,6 +126,11 @@ struct _LibreOfficeKitClass
     // MACRO:
     void* (*getXComponentContext) (LibreOfficeKit* pThis);
 
+    // MACRO:
+    LibreOfficeKitDocument* (*loadFromMemory) (LibreOfficeKit* pThis, char *data, size_t size);
+
+
+
     /** @see lok::Office::extractRequest.
      */
     char* (*extractRequest) (LibreOfficeKit* pThis,
@@ -270,6 +275,9 @@ struct _LibreOfficeKitDocumentClass
 
     /// @see lok::Document::getCommandValues().
     char* (*getCommandValues) (LibreOfficeKitDocument* pThis, const char* pCommand);
+
+    // MACRO:
+    size_t (*saveToMemory) (LibreOfficeKitDocument* pThis, char** pOutput, void *(*chrome_malloc)(size_t size), const char* pFormat);
 
     /// @see lok::Document::setClientZoom().
     void (*setClientZoom) (LibreOfficeKitDocument* pThis,
