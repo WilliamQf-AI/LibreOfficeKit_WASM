@@ -2246,66 +2246,6 @@ void SwXTextDocument::updateLinks(  )
     }
 }
 
-// MACRO: {
-void SAL_CALL SwXTextDocument::startBatchUpdate() {
-    SolarMutexGuard aGuard;
-    if(!IsValid())
-    {
-        throw DisposedException( OUString(), static_cast< XTextDocument* >(this) );
-    }
-
-    SwView* pWorkView = static_cast<SwView*>(m_pDocShell->GetViewShell());
-    SwWrtShell* pWorkWrtShell = pWorkView->GetWrtShellPtr();
-    auto* win = pWorkWrtShell->GetWin();
-    pWorkWrtShell->LockPaint(LockPaintReason::BatchUpdate);
-    pWorkWrtShell->LockView(true);
-    if (win) {
-        win->Hide();
-        win->Disable();
-    }
-    pWorkWrtShell->GetViewOptions()->SetIdle( false );
-    pWorkView->AttrChangedNotify(nullptr);
-    SwDoc* pWorkDoc = pWorkWrtShell->GetDoc();
-    pWorkDoc->GetIDocumentUndoRedo().DoUndo( false );
-    pWorkDoc->getIDocumentTimerAccess().BlockIdling();
-    pWorkDoc->getIDocumentTimerAccess().StopIdling();
-    for ( auto aLayout : pWorkDoc->GetAllLayouts() ) {
-        aLayout->ResetIdleFormat();
-        aLayout->FreezeLayout(true);
-    }
-    RedlineFlags eOld = pWorkDoc->getIDocumentRedlineAccess().GetRedlineFlags();
-    pWorkDoc->getIDocumentRedlineAccess().SetRedlineFlags_intern( eOld | RedlineFlags::Ignore );
-}
-
-void SAL_CALL SwXTextDocument::finishBatchUpdate() {
-    SwView* pWorkView = static_cast<SwView*>(m_pDocShell->GetViewShell());
-    SwWrtShell* pWorkWrtShell = pWorkView->GetWrtShellPtr();
-    SwDoc* pWorkDoc = pWorkWrtShell->GetDoc();
-
-    pWorkDoc->SetAllUniqueFlyNames();
-
-    // Unfreeze target document layouts and correct all PageDescs.
-    pWorkWrtShell->CalcLayout();
-    pWorkDoc->GetIDocumentUndoRedo().DoUndo( true );
-    for ( auto aLayout : pWorkWrtShell->GetDoc()->GetAllLayouts() )
-    {
-        aLayout->FreezeLayout(false);
-        aLayout->AllCheckPageDescs();
-    }
-    RedlineFlags eOld = pWorkDoc->getIDocumentRedlineAccess().GetRedlineFlags();
-    pWorkDoc->getIDocumentRedlineAccess().SetRedlineFlags_intern( eOld & ~RedlineFlags::Ignore );
-    auto* win = pWorkWrtShell->GetWin();
-    pWorkWrtShell->LockView(false);
-    pWorkWrtShell->UnlockPaint();
-    if (win) {
-        win->Enable();
-        win->Show();
-    }
-    pWorkWrtShell->GetViewOptions()->SetIdle( true );
-    pWorkDoc->getIDocumentTimerAccess().UnblockIdling();
-}
-// MACRO: }
-
 //XPropertyState
 PropertyState SAL_CALL SwXTextDocument::getPropertyState( const OUString& rPropertyName )
 {
