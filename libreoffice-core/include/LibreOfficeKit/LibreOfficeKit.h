@@ -123,6 +123,14 @@ struct _LibreOfficeKitClass
     /// @since LibreOffice 7.5
     void (*dumpState) (LibreOfficeKit* pThis, const char* pOptions, char** pState);
 
+    // MACRO:
+    void* (*getXComponentContext) (LibreOfficeKit* pThis);
+
+    // MACRO:
+    LibreOfficeKitDocument* (*loadFromMemory) (LibreOfficeKit* pThis, char *data, size_t size);
+
+
+
     /** @see lok::Office::extractRequest.
      */
     char* (*extractRequest) (LibreOfficeKit* pThis,
@@ -246,6 +254,10 @@ struct _LibreOfficeKitDocumentClass
                                const char* pMimeType,
                                char** pUsedMimeType);
 
+    // MACRO:
+    /// @see lok::Document::setAuthor
+    void (*setAuthor) (LibreOfficeKitDocument* pThis, const char* sAuthor);
+
     /// @see lok::Document::paste().
     bool (*paste) (LibreOfficeKitDocument* pThis,
                    const char* pMimeType,
@@ -263,6 +275,9 @@ struct _LibreOfficeKitDocumentClass
 
     /// @see lok::Document::getCommandValues().
     char* (*getCommandValues) (LibreOfficeKitDocument* pThis, const char* pCommand);
+
+    // MACRO:
+    size_t (*saveToMemory) (LibreOfficeKitDocument* pThis, char** pOutput, void *(*chrome_malloc)(size_t size), const char* pFormat);
 
     /// @see lok::Document::setClientZoom().
     void (*setClientZoom) (LibreOfficeKitDocument* pThis,
@@ -495,6 +510,9 @@ struct _LibreOfficeKitDocumentClass
                          long nPart,
                          long* pCol,
                          long* pRow);
+
+    // MACRO:
+    void* (*getXComponent) (LibreOfficeKitDocument* pThis);
 
     /// @see lok::Document::getEditMode().
     int (*getEditMode) (LibreOfficeKitDocument* pThis);

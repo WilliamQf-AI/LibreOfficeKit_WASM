@@ -1295,6 +1295,14 @@ DocumentRedlineManager::AppendRedline(SwRangeRedline* pNewRedl, bool const bCall
         return AppendResult::IGNORED;
     }
 
+    // MACRO: MACRO-1266 - Do not create a comment added/deleted redline {
+    if(pNewRedl->IsAnnotation()) {
+        pNewRedl = nullptr;
+        CHECK_REDLINE( *this )
+        return AppendResult::IGNORED;
+    }
+    // MACRO: }
+
     // Collect MoveID's of the redlines we delete.
     // If there is only 1, then we should use its ID. (continuing the move)
     std::set<sal_uInt32> deletedMoveIDs;
@@ -1416,7 +1424,8 @@ DocumentRedlineManager::AppendRedline(SwRangeRedline* pNewRedl, bool const bCall
                         }
 
                         bMerged = true;
-                        bDelete = true;
+                        // MACRO:
+                        bDelete = bMaybeNotify = true;
                     }
                     else if( (( SwComparePosition::Before == eCmpPos &&
                                 IsPrevPos( *pEnd, *pRStt ) ) ||
@@ -1432,7 +1441,8 @@ DocumentRedlineManager::AppendRedline(SwRangeRedline* pNewRedl, bool const bCall
                         maRedlineTable.Insert( pRedl );
 
                         bMerged = true;
-                        bDelete = true;
+                        // MACRO:
+                        bDelete = bMaybeNotify =true;
                     }
                     else if ( SwComparePosition::Outside == eCmpPos )
                     {
@@ -1516,6 +1526,9 @@ DocumentRedlineManager::AppendRedline(SwRangeRedline* pNewRedl, bool const bCall
                         delete pNewRedl;
                         pNewRedl = nullptr;
                         bCompress = true;
+
+                        // MACRO:
+                        MaybeNotifyRedlineModification(*pRedl, m_rDoc);
                     }
                 }
                 else if ( SwComparePosition::OverlapBehind == eCmpPos )
@@ -1578,6 +1591,9 @@ DocumentRedlineManager::AppendRedline(SwRangeRedline* pNewRedl, bool const bCall
                         delete pNewRedl;
                         pNewRedl = nullptr;
                         bCompress = true;
+
+                        // MACRO:
+                        MaybeNotifyRedlineModification(*pRedl, m_rDoc);
                     }
                 }
                 else if ( SwComparePosition::Equal == eCmpPos )
@@ -1819,6 +1835,9 @@ DocumentRedlineManager::AppendRedline(SwRangeRedline* pNewRedl, bool const bCall
                         }
                         delete pNewRedl;
                         pNewRedl = nullptr;
+
+                        // MACRO:
+                        MaybeNotifyRedlineModification(*pRedl, m_rDoc);
 
                         // No need to call MaybeNotifyRedlineModification, because a notification
                         // was already sent in DocumentRedlineManager::DeleteRedline

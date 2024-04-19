@@ -145,6 +145,14 @@ public:
      */
     virtual void initializeForTiledRendering(const css::uno::Sequence<css::beans::PropertyValue>& rArguments) = 0;
 
+    // MACRO: {
+
+    /**
+     * Sets the author for the document
+     */
+    virtual void setAuthor(OUString sAuthor) = 0;
+    // MACRO: }
+
     /**
      * Posts a keyboard event on the document.
      *
@@ -390,6 +398,18 @@ public:
      * @param pViewShell the view to get the options from, if nullptr the current view shell is used
      */
     virtual OString getViewRenderState(SfxViewShell* = nullptr) { return rtl::OString(); }
+
+    // MACRO: {
+
+    /**
+    * Accept/reject a series of track change ids
+    */
+    virtual void batchUpdateTrackChange( const css::uno::Sequence<sal_uInt32>& /*rArguments*/, bool /*accept*/) {}
+
+    /// MACRO-1392: Request layout updates for redlines
+    virtual void updateRedlines( const css::uno::Sequence<sal_uInt32>& /*rArguments*/) {}
+
+    // MACRO: }
 };
 } // namespace vcl
 

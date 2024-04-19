@@ -2387,7 +2387,8 @@
                 </info>
               </enumeration>
             </constraints>
-            <value>3</value>
+            <!-- MACRO: -->
+            <value>0</value>
           </prop>
           <prop oor:name="Color" oor:type="xs:int" oor:nillable="false">
             <!-- UIHints: Tools - Options - Text document - Changes - [Section] Text display -->
@@ -2526,7 +2527,8 @@
                 </info>
               </enumeration>
             </constraints>
-            <value>0</value><!-- MACRO: Disable bold on LOK changed attribute (since we disabled coloring) -->
+            <!-- MACRO: Diable bold on lok changed attribute (since we disable coloring) -->
+            <value>0</value>
           </prop>
           <prop oor:name="Color" oor:type="xs:int" oor:nillable="false">
             <!-- UIHints: Tools - Options - Text document - Changes - [Section] Text display -->

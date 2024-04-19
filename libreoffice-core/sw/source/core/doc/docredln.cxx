@@ -348,6 +348,26 @@ void SwRedlineTable::setMovedIDIfNeeded(sal_uInt32 nMax)
 /// Emits LOK notification about one addition / removal of a redline item.
 void SwRedlineTable::LOKRedlineNotification(RedlineNotification nType, SwRangeRedline* pRedline)
 {
+    // MACRO: {
+    // MACRO-1384: prevent crash on load for some comment edgecases
+    SwView* pCurView = dynamic_cast<SwView*>(SfxViewShell::Current());
+    if (!pCurView) {
+        return;
+    }
+
+
+    // do not notify for documents that don't have a shell/view
+    SwDocShell* pDocSh = pRedline->GetDoc().GetDocShell();
+    if (!pDocSh) {
+        return;
+    }
+    SwView* pView = pDocSh->GetView();
+    if (!pView || pView != pCurView) {
+        return;
+    }
+
+    // MACRO: }
+
     // Disable since usability is very low beyond some small number of changes.
     if (!lcl_LOKRedlineNotificationEnabled())
         return;
@@ -360,13 +380,13 @@ void SwRedlineTable::LOKRedlineNotification(RedlineNotification nType, SwRangeRe
     aRedline.put("author", pRedline->GetAuthorString(1).toUtf8().getStr());
     aRedline.put("type", SwRedlineTypeToOUString(pRedline->GetRedlineData().GetType()).toUtf8().getStr());
     aRedline.put("comment", pRedline->GetRedlineData().GetComment().toUtf8().getStr());
-    aRedline.put("description", pRedline->GetDescr().toUtf8().getStr());
+    // MACRO:
+    aRedline.put("description", pRedline->GetDescr(true).toUtf8().getStr());
     OUString sDateTime = utl::toISO8601(pRedline->GetRedlineData().GetTimeStamp().GetUNODateTime());
     aRedline.put("dateTime", sDateTime.toUtf8().getStr());
 
     auto [pStartPos, pEndPos] = pRedline->StartEnd(); // SwPosition*
     SwContentNode* pContentNd = pRedline->GetPointContentNode();
-    SwView* pView = dynamic_cast<SwView*>(SfxViewShell::Current());
     if (pView && pContentNd)
     {
         SwShellCursor aCursor(pView->GetWrtShell(), *pStartPos);
@@ -2232,15 +2252,33 @@ const SwRedlineData & SwRangeRedline::GetRedlineData(const sal_uInt16 nPos) cons
         nP--;
     }
 
-    SAL_WARN_IF( nP != 0, "sw.core", "Pos " << nPos << " is " << nP << " too big");
+    // MACRO:
+    // This is commonly called in LOK and is in fact, not in error
+    // SAL_WARN_IF( nP != 0, "sw.core", "Pos " << nPos << " is " << nP << " too big");
 
     return *pCur;
 }
 
 OUString SwRangeRedline::GetDescr(bool bSimplified)
 {
-    // get description of redline data (e.g.: "insert $1")
-    OUString aResult = GetRedlineData().GetDescr();
+    // MACRO: {
+    switch (GetType()) {
+        case RedlineType::Insert:
+        case RedlineType::Delete:
+            break;
+        case RedlineType::Format:
+        case RedlineType::FmtColl:
+        case RedlineType::Table:
+        case RedlineType::ParagraphFormat:
+        case RedlineType::TableRowInsert:
+        case RedlineType::TableRowDelete:
+        case RedlineType::TableCellInsert:
+        case RedlineType::TableCellDelete:
+        case RedlineType::None:
+        case RedlineType::Any:
+            return OUString(GetRedlineData().GetDescr());
+    }
+    // MACRO: }
 
     SwPaM * pPaM = nullptr;
     bool bDeletePaM = false;
@@ -2267,30 +2305,29 @@ OUString SwRangeRedline::GetDescr(bool bSimplified)
         }
     }
 
-    // replace $1 in description by description of the redlines text
-    const OUString aTmpStr = ShortenString(sDescr, nUndoStringLength, SwResId(STR_LDOTS));
+    // MACRO: {
+    OUString aResult;
 
+    // replace $1 in description by description of the redlines text
     if (!bSimplified)
     {
         SwRewriter aRewriter;
-        aRewriter.AddRule(UndoArg1, aTmpStr);
+        aRewriter.AddRule(UndoArg1, sDescr);
 
-        aResult = aRewriter.Apply(aResult);
+        aResult = aRewriter.Apply(GetRedlineData().GetDescr());
     }
     else
     {
-        aResult = aTmpStr;
-        // more shortening
-        sal_Int32 nPos = aTmpStr.indexOf(SwResId(STR_LDOTS));
-        if (nPos > 5)
-            aResult = aTmpStr.copy(0, nPos + SwResId(STR_LDOTS).getLength());
+        aResult = sDescr;
     }
+    // MACRO: }
 
     if (bDeletePaM)
         delete pPaM;
 
     return aResult;
 }
+
 
 void SwRangeRedline::dumpAsXml(xmlTextWriterPtr pWriter) const
 {

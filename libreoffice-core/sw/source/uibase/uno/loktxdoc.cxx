@@ -38,6 +38,9 @@
 #include <txtrfmrk.hxx>
 #include <ndtxt.hxx>
 #include <wrtsh.hxx>
+#include "redline.hxx" // MACRO:
+#include "IDocumentRedlineAccess.hxx" // MACRO:
+#include "swundo.hxx" // MACRO:
 
 using namespace ::com::sun::star;
 
@@ -415,7 +418,7 @@ bool SwXTextDocument::supportsCommand(std::u16string_view rCommand)
     static const std::initializer_list<std::u16string_view> vForward
         = { u"TextFormFields", u"TextFormField", u"SetDocumentProperties",
             u"Bookmarks",      u"Fields",        u"Sections",
-            u"Bookmark",       u"Field" };
+            u"Bookmark",       u"Field", u"GetOutline" }; // MACRO:
 
     return std::find(vForward.begin(), vForward.end(), rCommand) != vForward.end();
 }
@@ -486,6 +489,50 @@ void SwXTextDocument::getCommandValues(tools::JsonWriter& rJsonWriter, std::stri
     else if (o3tl::starts_with(rCommand, aField))
     {
         GetField(rJsonWriter, m_pDocShell, aMap);
+    }
+}
+
+// MACRO: MACRO-1212: batch track change updates in a single action
+void SwXTextDocument::batchUpdateTrackChange( const css::uno::Sequence<sal_uInt32>& rArguments, bool accept)
+{
+    SwWrtShell* mrSh = m_pDocShell->GetWrtShell();
+    SwDoc *pDoc = mrSh->GetDoc();
+    SwUndoId undoId = accept ? SwUndoId::ACCEPT_REDLINE : SwUndoId::REJECT_REDLINE;
+    // make batch update a single undo/redo and layout action
+    mrSh->StartUndo(undoId, nullptr);
+    mrSh->StartAllAction();
+
+    for (sal_uInt32 id : rArguments) {
+        const SwRedlineTable& rRedlineTable = pDoc->getIDocumentRedlineAccess().GetRedlineTable();
+        bool found = false;
+        for (SwRedlineTable::size_type i = 0; !found && i < rRedlineTable.size(); ++i)
+        {
+            if (id == rRedlineTable[i]->GetId()) {
+                found = true;
+                mrSh->AcceptRedline(i);
+            }
+        }
+    }
+
+    mrSh->EndAllAction();
+    mrSh->EndUndo(undoId, nullptr);
+}
+
+// MACRO: MACRO-1392: Request layout updates for redlines
+void SwXTextDocument::updateRedlines( const css::uno::Sequence<sal_uInt32>& rArguments) {
+    SwWrtShell* mrSh = m_pDocShell->GetWrtShell();
+    SwDoc *pDoc = mrSh->GetDoc();
+
+    for (sal_uInt32 id : rArguments) {
+        const SwRedlineTable& rRedlineTable = pDoc->getIDocumentRedlineAccess().GetRedlineTable();
+        bool found = false;
+        for (SwRedlineTable::size_type i = 0; !found && i < rRedlineTable.size(); ++i)
+        {
+            if (id == rRedlineTable[i]->GetId()) {
+                found = true;
+                SwRedlineTable::LOKRedlineNotification(RedlineNotification::Modify, rRedlineTable[i]);
+            }
+        }
     }
 }
 

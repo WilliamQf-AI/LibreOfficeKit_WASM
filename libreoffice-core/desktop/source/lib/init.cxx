@@ -7,12 +7,17 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
+#include "comphelper/seqstream.hxx" // MACRO:
 #include "sal/types.h"
 #include "sfx2/lokhelper.hxx"
 #include "svx/sdr/contact/viewcontact.hxx"
 #include "svx/svdpage.hxx"
 #include "svx/svdpagv.hxx"
 #include <config_buildconfig.h>
+// MACRO:
+#include "svx/algitem.hxx"
+// MACRO:
+#include "svx/xflclit.hxx"
 #include <config_cairo_rgba.h>
 #include <config_features.h>
 
@@ -886,6 +891,7 @@ css::uno::Reference< css::document::XUndoManager > getUndoManager( const css::un
 // Adjusts page margins for Writer doc. Needed by ToggleOrientation
 void ExecuteMarginLRChange(
     const tools::Long nPageLeftMargin,
+
     const tools::Long nPageRightMargin,
     SvxLongLRSpaceItem* pPageLRMarginItem)
 {
@@ -906,6 +912,129 @@ void ExecuteMarginULChange(
     SfxViewShell::Current()->GetDispatcher()->ExecuteList(SID_ATTR_PAGE_ULSPACE,
                                                           SfxCallMode::RECORD, { pPageULMarginItem });
 }
+
+// MACRO: helpers for page setup {
+void setPageColor(LibreOfficeKitDocument* pThis, const OUString rColorHex)
+{
+    int pNumParts = pThis->pClass->getParts(pThis);
+    int pOriginalPart = pThis->pClass->getPart(pThis);
+    for (int i = 0; i < pNumParts; i++)
+    {
+        pThis->pClass->setPart(pThis, i);
+        SfxViewShell* pViewShell = SfxViewShell::Current();
+        SfxViewFrame* pViewFrm = pViewShell ? pViewShell->GetViewFrame() : nullptr;
+        if (!pViewFrm)
+        {
+            return;
+        }
+
+        // must be at least 6 (FF00FF) or 7 (#FF00FF)
+        if (rColorHex.getLength() < 6 || rColorHex.getLength() > 7) {
+            SetLastExceptionMsg("invalid hex string");
+            return;
+        }
+
+        Color pColor = Color::STRtoRGB(rColorHex);
+
+        // Set the page color
+        XFillColorItem aFillColorItem(OUString(), pColor);
+
+        pViewFrm->GetBindings().GetDispatcher()->ExecuteList(SID_ATTR_PAGE_COLOR, SfxCallMode::RECORD, { &aFillColorItem});
+    }
+
+    pThis->pClass->setPart(pThis, pOriginalPart);
+}
+
+
+void setPageSize(
+    LibreOfficeKitDocument* pThis,
+    const tools::Long Width,
+    const tools::Long Height
+)
+{
+    int pNumParts = pThis->pClass->getParts(pThis);
+    int pOriginalPart = pThis->pClass->getPart(pThis);
+    for (int i = 0; i < pNumParts; i++)
+    {
+        pThis->pClass->setPart(pThis, i);
+        SfxViewShell* pViewShell = SfxViewShell::Current();
+        SfxViewFrame* pViewFrm = pViewShell ? pViewShell->GetViewFrame() : nullptr;
+
+        if (!pViewFrm)
+            return;
+
+        SfxDispatcher* pDispatcher = pViewShell->GetDispatcher();
+        const SvxSizeItem* pSizeItem = new SvxSizeItem( SID_ATTR_PAGE_SIZE, Size(Width, Height));
+
+        std::unique_ptr<SvxPageItem> pPageItem(new SvxPageItem(SID_ATTR_PAGE));
+
+        if (Width >= Height)
+        {
+            pPageItem->SetLandscape(true);
+        }
+        else
+        {
+            pPageItem->SetLandscape(false);
+        }
+
+        pDispatcher->ExecuteList(SID_ATTR_PAGE_SIZE, SfxCallMode::RECORD, { pSizeItem, pPageItem.get()});
+    }
+    pThis->pClass->setPart(pThis, pOriginalPart);
+}
+
+
+void setPageMargins(
+    LibreOfficeKitDocument* pThis,
+    const tools::Long PageLeft,
+    const tools::Long PageRight,
+    const tools::Long PageTop,
+    const tools::Long PageBottom
+)
+{
+    int pNumParts = pThis->pClass->getParts(pThis);
+    int pOriginalPart = pThis->pClass->getPart(pThis);
+    for (int i = 0; i < pNumParts; i++)
+    {
+        pThis->pClass->setPart(pThis, i);
+        SfxViewFrame* pViewFrm = SfxViewFrame::Current();
+        if (!pViewFrm)
+            return;
+
+        std::unique_ptr<SvxPageItem> pPageItem(new SvxPageItem(SID_ATTR_PAGE));
+
+        const SvxSizeItem* pSizeItem;
+        pViewFrm->GetBindings().GetDispatcher()->QueryState(SID_ATTR_PAGE_SIZE, pSizeItem);
+        std::unique_ptr<SvxSizeItem> pPageSizeItem(pSizeItem->Clone());
+
+        const SvxLongLRSpaceItem* pLRSpaceItem;
+        pViewFrm->GetBindings().GetDispatcher()->QueryState(SID_ATTR_PAGE_LRSPACE, pLRSpaceItem);
+        std::unique_ptr<SvxLongLRSpaceItem> pPageLRMarginItem(pLRSpaceItem->Clone());
+
+        const SvxLongULSpaceItem* pULSpaceItem;
+        pViewFrm->GetBindings().GetDispatcher()->QueryState(SID_ATTR_PAGE_ULSPACE, pULSpaceItem);
+        std::unique_ptr<SvxLongULSpaceItem> pPageULMarginItem(pULSpaceItem->Clone());
+
+        ExecuteMarginLRChange(PageLeft, PageRight, pPageLRMarginItem.get());
+        ExecuteMarginULChange(PageTop, PageBottom, pPageULMarginItem.get());
+    }
+
+    pThis->pClass->setPart(pThis, pOriginalPart);
+}
+
+void toggleOrientation(
+    LibreOfficeKitDocument* pThis
+)
+{
+    SfxViewFrame* pViewFrm = SfxViewFrame::Current();
+    if (!pViewFrm)
+        return;
+    const SvxSizeItem* pSizeItem;
+    pViewFrm->GetBindings().GetDispatcher()->QueryState(SID_ATTR_PAGE_SIZE, pSizeItem);
+    std::unique_ptr<SvxSizeItem> pPageSizeItem(pSizeItem->Clone());
+
+    setPageSize(pThis, pSizeItem->GetSize().Height(), pSizeItem->GetSize().Width());
+}
+// MACRO: }
 
 // Main function which toggles page orientation of the Writer doc. Needed by ToggleOrientation
 void ExecuteOrientationChange()
@@ -1144,6 +1273,9 @@ static void doc_getDataArea(LibreOfficeKitDocument* pThis,
 static void doc_initializeForRendering(LibreOfficeKitDocument* pThis,
                                        const char* pArguments);
 
+// MACRO: add set doc author
+static void doc_setAuthor(LibreOfficeKitDocument* pThis, const char* sAuthor);
+
 static void doc_registerCallback(LibreOfficeKitDocument* pThis,
                                 LibreOfficeKitCallback pCallback,
                                 void* pData);
@@ -1237,6 +1369,8 @@ static void doc_setGraphicSelection (LibreOfficeKitDocument* pThis,
                                   int nY);
 static void doc_resetSelection (LibreOfficeKitDocument* pThis);
 static char* doc_getCommandValues(LibreOfficeKitDocument* pThis, const char* pCommand);
+// MACRO:
+static size_t doc_saveToMemory(LibreOfficeKitDocument* pThis, char** pOutput, void *(*chrome_malloc)(size_t size), const char* pFormat);
 static void doc_setClientZoom(LibreOfficeKitDocument* pThis,
                                     int nTilePixelWidth,
                                     int nTilePixelHeight,
@@ -1312,6 +1446,8 @@ static bool doc_renderSearchResult(LibreOfficeKitDocument* pThis,
                                  int* pWidth, int* pHeight, size_t* pByteSize);
 
 static void doc_sendContentControlEvent(LibreOfficeKitDocument* pThis, const char* pArguments);
+// MACRO:
+static void* doc_getXComponent(LibreOfficeKitDocument* pThis);
 
 static void doc_setViewTimezone(LibreOfficeKitDocument* pThis, int nId, const char* timezone);
 
@@ -1444,6 +1580,8 @@ LibLODocument_Impl::LibLODocument_Impl(uno::Reference <css::lang::XComponent> xC
         m_pDocumentClass->getDocumentSize = doc_getDocumentSize;
         m_pDocumentClass->getDataArea = doc_getDataArea;
         m_pDocumentClass->initializeForRendering = doc_initializeForRendering;
+        // MACRO:
+        m_pDocumentClass->setAuthor = doc_setAuthor;
         m_pDocumentClass->registerCallback = doc_registerCallback;
         m_pDocumentClass->postKeyEvent = doc_postKeyEvent;
         m_pDocumentClass->postWindowExtTextInputEvent = doc_postWindowExtTextInputEvent;
@@ -1465,6 +1603,8 @@ LibLODocument_Impl::LibLODocument_Impl(uno::Reference <css::lang::XComponent> xC
         m_pDocumentClass->setGraphicSelection = doc_setGraphicSelection;
         m_pDocumentClass->resetSelection = doc_resetSelection;
         m_pDocumentClass->getCommandValues = doc_getCommandValues;
+        // MACRO:
+        m_pDocumentClass->saveToMemory = doc_saveToMemory;
         m_pDocumentClass->setClientZoom = doc_setClientZoom;
         m_pDocumentClass->setClientVisibleArea = doc_setClientVisibleArea;
         m_pDocumentClass->setOutlineState = doc_setOutlineState;
@@ -1506,6 +1646,8 @@ LibLODocument_Impl::LibLODocument_Impl(uno::Reference <css::lang::XComponent> xC
         m_pDocumentClass->setBlockedCommandList = doc_setBlockedCommandList;
 
         m_pDocumentClass->sendContentControlEvent = doc_sendContentControlEvent;
+        // MACRO:
+        m_pDocumentClass->getXComponent = doc_getXComponent;
 
         m_pDocumentClass->setViewTimezone = doc_setViewTimezone;
 
@@ -2660,6 +2802,12 @@ static void lo_setOption(LibreOfficeKit* pThis, const char* pOption, const char*
 
 static void lo_dumpState(LibreOfficeKit* pThis, const char* pOptions, char** pState);
 
+// MACRO:
+static void* lo_getXComponentContext(LibreOfficeKit* pThis);
+
+// MACRO
+static LibreOfficeKitDocument* lo_loadFromMemory(LibreOfficeKit* pThis, char *data, size_t size);
+
 LibLibreOffice_Impl::LibLibreOffice_Impl()
     : m_pOfficeClass( gOfficeClass.lock() )
     , maThread(nullptr)
@@ -2687,10 +2835,14 @@ LibLibreOffice_Impl::LibLibreOffice_Impl()
         m_pOfficeClass->sendDialogEvent = lo_sendDialogEvent;
         m_pOfficeClass->setOption = lo_setOption;
         m_pOfficeClass->dumpState = lo_dumpState;
+        // MACRO:
+        m_pOfficeClass->getXComponentContext = lo_getXComponentContext;
         m_pOfficeClass->extractRequest = lo_extractRequest;
         m_pOfficeClass->trimMemory = lo_trimMemory;
         m_pOfficeClass->startURP = lo_startURP;
         m_pOfficeClass->stopURP = lo_stopURP;
+        // MACRO:
+        m_pOfficeClass->loadFromMemory = lo_loadFromMemory;
 
         gOfficeClass = m_pOfficeClass;
     }
@@ -2728,6 +2880,8 @@ void setFormatSpecificFilterData(std::u16string_view sFormat, comphelper::Sequen
 static uno::Reference<css::uno::XComponentContext> xContext;
 static uno::Reference<css::lang::XMultiServiceFactory> xSFactory;
 static uno::Reference<css::lang::XMultiComponentFactory> xFactory;
+// MACRO:
+static int nDocumentIdCounter = 0;
 
 static LibreOfficeKitDocument* lo_documentLoad(LibreOfficeKit* pThis, const char* pURL)
 {
@@ -2740,7 +2894,6 @@ static LibreOfficeKitDocument* lo_documentLoadWithOptions(LibreOfficeKit* pThis,
 
     SolarMutexGuard aGuard;
 
-    static int nDocumentIdCounter = 0;
 
     LibLibreOffice_Impl* pLib = static_cast<LibLibreOffice_Impl*>(pThis);
     pLib->maLastExceptionMsg.clear();
@@ -3002,6 +3155,20 @@ static LibreOfficeKitDocument* lo_documentLoadWithOptions(LibreOfficeKit* pThis,
         {
             pDocument->maFontsMissing.insert(aFontMappingUseData[i].mOriginalFont);
         }
+
+        // MACRO: handling readonly files {
+        // [MACRO-2259] We don't respect the readonly flag.
+        // If the document is loaded readonly, we need to set it to false.
+        SfxBaseModel* pBaseModel = dynamic_cast<SfxBaseModel*>(pDocument->mxComponent.get());
+        if (pBaseModel != nullptr) {
+            SfxObjectShell* pObjectShell = pBaseModel->GetObjectShell();
+            if (pObjectShell != nullptr) {
+                if (pObjectShell->IsLoadReadonly()) {
+                    pObjectShell->SetReadOnlyUI(false);
+                }
+            }
+        }
+        // MACRO: }
 
         return pDocument;
     }
@@ -3808,6 +3975,11 @@ static void doc_iniUnoCommands ()
         OUString(".uno:Watermark"),
         OUString(".uno:ResetAttributes"),
         OUString(".uno:Orientation"),
+        // MACRO: page setup commands {
+        OUString(".uno:SetPageMargins"),
+        OUString(".uno:SetPageColor"),
+        OUString(".uno:GetPageMargins"),
+        // MACRO: }
         OUString(".uno:ObjectAlignLeft"),
         OUString(".uno:ObjectAlignRight"),
         OUString(".uno:AlignCenter"),
@@ -4597,6 +4769,28 @@ static void doc_initializeForRendering(LibreOfficeKitDocument* pThis,
     }
 }
 
+
+// MACRO: set author {
+static void doc_setAuthor(LibreOfficeKitDocument* pThis,
+                                       const char* sAuthor)
+{
+    comphelper::ProfileZone aZone("doc_setAuthor");
+
+    SolarMutexGuard aGuard;
+    SetLastExceptionMsg();
+    if(sAuthor == nullptr) {
+        SetLastExceptionMsg("sAuthor was not provided");
+        return;
+    }
+
+    ITiledRenderable* pDoc = getTiledRenderable(pThis);
+    if (pDoc)
+    {
+        pDoc->setAuthor(OUString::fromUtf8(sAuthor));
+    }
+}
+// MACRO: }
+
 static void doc_registerCallback(LibreOfficeKitDocument* pThis,
                                  LibreOfficeKitCallback pCallback,
                                  void* pData)
@@ -5115,6 +5309,62 @@ static void lo_setOption(LibreOfficeKit* /*pThis*/, const char *pOption, const c
     }
 #endif
 }
+// MACRO: {
+static LibreOfficeKitDocument* lo_loadFromMemory(LibreOfficeKit* /*pThis*/, char *data, size_t size)
+{
+    if (!xContext.is())
+    {
+        SAL_WARN("lok", "ComponentContext is not available");
+        return nullptr;
+    }
+
+    uno::Reference<frame::XDesktop2> xComponentLoader = frame::Desktop::create(xContext);
+
+    if (!xComponentLoader.is())
+    {
+        SAL_WARN("lok", "ComponentLoader is not available");
+        return nullptr;
+    }
+
+    auto aData = Sequence<sal_Int8>(reinterpret_cast<const sal_Int8*>(data), size);
+
+    uno::Reference<io::XInputStream> aInputStream(new comphelper::SequenceInputStream(aData));
+
+    utl::MediaDescriptor aMediaDescriptor;
+    aMediaDescriptor["FilterName"] <<= OUString("MS Word 2007 XML"); // just hardcode this for now
+    aMediaDescriptor["InputStream"] <<= aInputStream;
+    aMediaDescriptor["MacroExecutionMode"] <<= document::MacroExecMode::NEVER_EXECUTE;
+    aMediaDescriptor["Silent"] <<= true;
+    aMediaDescriptor["Hidden"] <<= true;
+
+    {
+        SolarMutexGuard aGuard;
+        try
+        {
+            Application::SetDialogCancelMode(DialogCancelMode::LOKSilent);
+            const int nThisDocumentId = nDocumentIdCounter++;
+            SfxViewShell::SetCurrentDocId(ViewShellDocId(nThisDocumentId));
+            uno::Reference<lang::XComponent> xComponent = xComponentLoader->loadComponentFromURL(
+                "private:stream", "_blank", 0, aMediaDescriptor.getAsConstPropertyValueList());
+
+            if (!xComponent.is()) {
+                SAL_WARN("lok", "Could not load in memory doc");
+                return nullptr;
+            }
+
+            return new LibLODocument_Impl(xComponent, nThisDocumentId);
+        }
+        catch (const uno::Exception& exception)
+        {
+            css::uno::Any exAny( cppu::getCaughtException() );
+            SetLastExceptionMsg(exception.Message);
+            SAL_WARN("lok", "Failed to load to in-memory stream: " + exceptionToString(exAny));
+        }
+    }
+    return nullptr;
+}
+
+// MACRO: }
 
 static void lo_dumpState (LibreOfficeKit* pThis, const char* /* pOptions */, char** pState)
 {
@@ -5133,6 +5383,12 @@ static void lo_dumpState (LibreOfficeKit* pThis, const char* /* pOptions */, cha
 
     OString aStr = aState.makeStringAndClear();
     *pState = strdup(aStr.getStr());
+}
+
+// MACRO:
+static void* lo_getXComponentContext(LibreOfficeKit* pThis)
+{
+    return xContext.is() ? xContext.get() : nullptr;
 }
 
 void LibLibreOffice_Impl::dumpState(rtl::OStringBuffer &rState)
@@ -5176,14 +5432,182 @@ static void doc_postUnoCommand(LibreOfficeKitDocument* pThis, const char* pComma
     if (nView < 0)
         return;
 
+
+    // MACRO: page setup commands {
+    if (gImpl && aCommand == ".uno:SetPageMargins")
+    {
+        long pageLeft;
+        long pageRight;
+        long pageTop;
+        long pageBottom;
+
+        for (beans::PropertyValue& rPropValue : aPropertyValuesVector)
+        {
+            if (rPropValue.Name == "PageLeft")
+            {
+                 pageLeft = rPropValue.Value.get<long>();
+            }
+            if (rPropValue.Name == "PageRight")
+            {
+                pageRight = rPropValue.Value.get<long>();
+            }
+
+            if (rPropValue.Name == "PageTop")
+            {
+                pageTop = rPropValue.Value.get<long>();
+            }
+
+            if (rPropValue.Name == "PageBottom")
+            {
+                pageBottom = rPropValue.Value.get<long>();
+            }
+        }
+
+        if (pageLeft == 0) {
+            SetLastExceptionMsg("Missing PageLeft value in pArguments");
+            return;
+        }
+
+        if (pageRight == 0) {
+            SetLastExceptionMsg("Missing PageRight value in pArguments");
+            return;
+        }
+
+        if (pageTop == 0) {
+            SetLastExceptionMsg("Missing PageTop value in pArguments");
+            return;
+        }
+
+        if (pageBottom == 0) {
+            SetLastExceptionMsg("Missing PageBottom value in pArguments");
+            return;
+        }
+
+        setPageMargins(pThis, pageLeft, pageRight, pageTop, pageBottom);
+        return;
+    }
+    // MACRO: }
+
+    // MACRO: MACRO-1392: Request layout updates for redlines {
+    if (gImpl && aCommand == ".uno:UpdateRedlines")
+    {
+        for (beans::PropertyValue& rPropValue : aPropertyValuesVector)
+        {
+            if (rPropValue.Name == "Ids")
+            {
+                ITiledRenderable* pDoc = getTiledRenderable(pThis);
+                pDoc->updateRedlines(rPropValue.Value.get<css::uno::Sequence<sal_uInt32>>());
+                return;
+            }
+        }
+        return;
+    }
+    // MACRO: }
+
+    // MACRO: MACRO-1212: batch track change updates in a single action {
+    if (gImpl && aCommand == ".uno:BatchTrackChange")
+    {
+        for (beans::PropertyValue& rPropValue : aPropertyValuesVector)
+        {
+            if (rPropValue.Name == "Accept" || rPropValue.Name == "Reject")
+            {
+                ITiledRenderable* pDoc = getTiledRenderable(pThis);
+                pDoc->batchUpdateTrackChange(rPropValue.Value.get<css::uno::Sequence<sal_uInt32>>(), rPropValue.Name == "Accept");
+                return;
+            }
+        }
+        return;
+    }
+    // MACRO: }
+
+
+
+    // MACRO: page setup commands {
     if (gImpl && aCommand == ".uno:ToggleOrientation")
     {
         ExecuteOrientationChange();
         return;
     }
 
-    // handle potential interaction
-    if (gImpl && aCommand == ".uno:Save")
+    if (gImpl && aCommand == ".uno:SetPageSize")
+    {
+        long width;
+        long height;
+
+        for (beans::PropertyValue& rPropValue : aPropertyValuesVector)
+        {
+            if (rPropValue.Name == "Height")
+            {
+                 height = rPropValue.Value.get<long>();
+            }
+            if (rPropValue.Name == "Width")
+            {
+                width = rPropValue.Value.get<long>();
+            }
+        }
+
+        if (height == 0) {
+            SetLastExceptionMsg("Missing PageTop value in pArguments");
+            return;
+        }
+
+        if (width == 0) {
+            SetLastExceptionMsg("Missing PageBottom value in pArguments");
+            return;
+        }
+
+        setPageSize(pThis, width, height);
+        return;
+    }
+
+    if (gImpl && aCommand == ".uno:SetPageColor")
+    {
+        OUString ColorHex;
+        for (beans::PropertyValue& rPropValue : aPropertyValuesVector)
+        {
+            if (rPropValue.Name == "ColorHex")
+            {
+                 ColorHex = rPropValue.Value.get<OUString>();
+            }
+        }
+        if (ColorHex.isEmpty()) {
+            SetLastExceptionMsg("Missing ColorHex value in pArguments");
+            return;
+        }
+        setPageColor(pThis, ColorHex);
+        return;
+    }
+    if (gImpl && aCommand == ".uno:ToggleOrientation")
+    {
+        toggleOrientation(pThis);
+        return;
+    }
+    // MACRO: }
+
+    // MACRO: handle potential interaction {
+    if (gImpl && aCommand == ".uno:SaveAs")
+    {
+        OUString aURL;
+        for (beans::PropertyValue& rPropValue : aPropertyValuesVector)
+        {
+            if (rPropValue.Name == "URL")
+            {
+                aURL = rPropValue.Value.get<OUString>();
+            }
+        }
+
+        OString aURLUtf8 = OUStringToOString(aURL, RTL_TEXTENCODING_UTF8);
+        if(pDocSh && pDocSh->IsModified()) {
+            bool bResult = doc_saveAs(pThis, aURLUtf8.getStr(), "docx", nullptr);
+            tools::JsonWriter aJson;
+            aJson.put("commandName", pCommand);
+            aJson.put("success", bResult);
+            pDocument->mpCallbackFlushHandlers[nView]->queue(LOK_CALLBACK_UNO_COMMAND_RESULT, aJson.extractData());
+            return;
+        }
+    }
+    // MACRO: }
+    else if (gImpl && aCommand == ".uno:Save")
     {
         // Check if saving a PDF file
         OUString aMimeType = lcl_getCurrentDocumentMimeType(pDocument);
@@ -5499,6 +5923,109 @@ static bool getFromTransferable(
     const css::uno::Reference<css::datatransfer::XTransferable> &xTransferable,
     const OString &aInMimeType, OString &aRet);
 
+// MACRO: {
+namespace {
+    char* leakyStrDup(const std::string_view& view) {
+        char* pMemory = static_cast<char*>(malloc(view.size() + 1));
+        assert(pMemory); // don't tolerate failed allocations.
+        std::memcpy(pMemory, view.data(), view.size());
+        pMemory[view.size()] = '\0';
+        return pMemory;
+    }
+}
+// MACRO: }
+
+
+// MACRO: getters for pagesetup commandValues {
+static char* getPageColor()
+{
+    SfxViewShell* pViewShell = SfxViewShell::Current();
+    SfxViewFrame* pViewFrm = pViewShell ? pViewShell->GetViewFrame() : nullptr;
+    if (!pViewFrm)
+    {
+        return nullptr;
+    }
+
+    static constexpr std::string_view defaultColorHex = "\"#ffffff\"";
+
+    std::unique_ptr<SfxPoolItem> pState;
+    const SfxItemState eState (pViewFrm->GetBindings().QueryState(SID_ATTR_PAGE_COLOR, pState));
+    if (eState < SfxItemState::DEFAULT) {
+        return leakyStrDup(defaultColorHex);
+    }
+    if (pState)
+    {
+        OUString aColorHex = u"\"" + static_cast<XFillColorItem*>(pState->Clone())->GetColorValue().AsRGBHEXString() + u"\"";
+        return convertOUString(aColorHex);
+    }
+    return leakyStrDup(defaultColorHex);
+}
+
+
+static char* getPageSize()
+{
+    tools::JsonWriter aJson;
+
+    SfxViewFrame* pViewFrm = SfxViewFrame::Current();
+    if (!pViewFrm)
+    {
+        return nullptr;
+    }
+
+    std::unique_ptr<SvxPageItem> pPageItem(new SvxPageItem(SID_ATTR_PAGE));
+    const SvxSizeItem* pSizeItem;
+    pViewFrm->GetBindings().GetDispatcher()->QueryState(SID_ATTR_PAGE_SIZE, pSizeItem);
+    std::unique_ptr<SvxSizeItem> pPageSizeItem(pSizeItem->Clone());
+
+    aJson.put("Width", pPageSizeItem->GetSize().Width());
+    aJson.put("Height", pPageSizeItem->GetSize().Height());
+
+    return aJson.extractData();
+}
+
+static char* getPageOrientation ()
+{
+    SfxViewFrame* pViewFrm = SfxViewFrame::Current();
+    if (!pViewFrm)
+    {
+        return nullptr;
+    }
+    const SvxSizeItem* pSizeItem;
+    pViewFrm->GetBindings().GetDispatcher()->QueryState(SID_ATTR_PAGE_SIZE, pSizeItem);
+
+    bool bIsLandscape = (pSizeItem->GetSize().Width() >= pSizeItem->GetSize().Height());
+
+    return bIsLandscape ? leakyStrDup("\"landscape\"") : leakyStrDup("\"portrait\"");
+}
+
+static char* getPageMargins()
+{
+    tools::JsonWriter aJson;
+
+    SfxViewFrame* pViewFrm = SfxViewFrame::Current();
+
+    if (!pViewFrm) {
+        return nullptr;
+    }
+
+    const SvxLongLRSpaceItem* pLRSpaceItem;
+    pViewFrm->GetBindings().GetDispatcher()->QueryState(SID_ATTR_PAGE_LRSPACE, pLRSpaceItem);
+    std::unique_ptr<SvxLongLRSpaceItem> pPageLRMarginItem(pLRSpaceItem->Clone());
+
+    const SvxLongULSpaceItem* pULSpaceItem;
+    pViewFrm->GetBindings().GetDispatcher()->QueryState(SID_ATTR_PAGE_ULSPACE, pULSpaceItem);
+    std::unique_ptr<SvxLongULSpaceItem> pPageULMarginItem(pULSpaceItem->Clone());
+
+    aJson.put("PageLeft", pPageLRMarginItem->GetLeft());
+    aJson.put("PageRight", pPageLRMarginItem->GetRight());
+    aJson.put("PageTop", pPageULMarginItem->GetUpper());
+    aJson.put("PageBottom", pPageULMarginItem->GetLower());
+
+    return aJson.extractData();
+}
+// MACRO: }
+
+
 static bool encodeImageAsHTML(
     const css::uno::Reference<css::datatransfer::XTransferable> &xTransferable,
     const OString &aMimeType, OString &aRet)
@@ -5531,6 +6058,11 @@ static bool encodeTextAsHTML(
 {
     if (!getFromTransferable(xTransferable, aMimeType, aRet))
         return false;
+
+    // MACRO-1919: do not encode an empty string as HTML {
+    if (aRet.getLength() == 0)
+        return false;
+    // MACRO-1919: }
 
     // Embed in HTML - FIXME: needs some escaping.
     aRet = "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0 Transitional//EN\">\n"
@@ -5984,6 +6516,7 @@ static char* getDocReadOnly(LibreOfficeKitDocument* pThis)
     if (!pObjectShell)
         return nullptr;
 
+
     boost::property_tree::ptree aTree;
     aTree.put("commandName", ".uno:ReadOnly");
     aTree.put("success", pObjectShell->IsLoadReadonly());
@@ -6370,6 +6903,25 @@ static char* doc_getCommandValues(LibreOfficeKitDocument* pThis, const char* pCo
         return nullptr;
     }
 
+    // MACRO: page setup {
+    if (!strcmp(pCommand, ".uno:PageColor"))
+    {
+        return getPageColor();
+    }
+    if (!strcmp(pCommand, ".uno:PageSize"))
+    {
+        return getPageSize();
+    }
+    if (!strcmp(pCommand, ".uno:PageMargins"))
+    {
+        return getPageMargins();
+    }
+    if (!strcmp(pCommand, ".uno:PageOrientation"))
+    {
+        return getPageOrientation();
+    }
+    // MACRO: }
+
     if (!strcmp(pCommand, ".uno:ReadOnly"))
     {
         return getDocReadOnly(pThis);
@@ -6398,6 +6950,7 @@ static char* doc_getCommandValues(LibreOfficeKitDocument* pThis, const char* pCo
     {
         return getTrackedChanges(pThis);
     }
+
     else if (aCommand == ".uno:TrackedChangeAuthors")
     {
         return getTrackedChangeAuthors(pThis);
@@ -6541,6 +7094,72 @@ static char* doc_getCommandValues(LibreOfficeKitDocument* pThis, const char* pCo
         return nullptr;
     }
 }
+
+// MACRO: {
+static size_t doc_saveToMemory(LibreOfficeKitDocument* pThis, char** pOutput, void *(*chrome_malloc)(size_t size), const char* pFormat)
+{
+    if (!pOutput)
+    {
+        SAL_WARN("lok", "pOutput is not set");
+        return -1;
+    }
+    comphelper::ProfileZone aZone("doc_saveToMemory");
+    OUString filterName(pFormat == nullptr ? u"MS Word 2007 XML": OUString::fromUtf8(pFormat));
+
+    SolarMutexGuard aGuard;
+    SetLastExceptionMsg();
+    try
+    {
+        LibLODocument_Impl* pDocument = static_cast<LibLODocument_Impl*>(pThis);
+
+        if (!pDocument->mxComponent.is())
+        {
+            SAL_WARN("lok", "Document destroyed before saving to memory");
+            return -1;
+        }
+
+        uno::Reference<frame::XStorable> xStorable(pDocument->mxComponent, uno::UNO_QUERY_THROW);
+
+        SvMemoryStream aOutStream;
+        uno::Reference<io::XOutputStream> xOut = new utl::OOutputStreamWrapper(aOutStream);
+
+        utl::MediaDescriptor aMediaDescriptor;
+        switch (doc_getDocumentType(pThis))
+        {
+            case LOK_DOCTYPE_TEXT:
+                aMediaDescriptor["FilterName"] <<= filterName;
+                break;
+            default:
+                SAL_WARN("lok", "Failed to save to in-memory stream: Document type is not supported");
+                return -1;
+        }
+        aMediaDescriptor["OutputStream"] <<= xOut;
+
+        xStorable->storeToURL("private:stream", aMediaDescriptor.getAsConstPropertyValueList());
+
+        const size_t nOutputSize = aOutStream.GetEndOfData();
+
+        *pOutput = static_cast<char*>(chrome_malloc(nOutputSize));
+
+        if (!*pOutput)
+        {
+            SAL_WARN("lok", "Unable to allocate memory");
+            return -1;
+        }
+
+        std::memcpy(*pOutput, aOutStream.GetData(), nOutputSize);
+        return nOutputSize;
+    }
+    catch (const uno::Exception& exception)
+    {
+        css::uno::Any exAny( cppu::getCaughtException() );
+        SetLastExceptionMsg(exception.Message);
+        SAL_WARN("lok", "Failed to save to in-memory stream: " + exceptionToString(exAny));
+    }
+    return 0;
+}
+// MACRO: }
+
 
 static void doc_setClientZoom(LibreOfficeKitDocument* pThis, int nTilePixelWidth, int nTilePixelHeight,
         int nTileTwipWidth, int nTileTwipHeight)
@@ -6923,7 +7542,9 @@ static void doc_postWindow(LibreOfficeKitDocument* /*pThis*/, unsigned nLOKWindo
         if (!aMimeType.isEmpty() && aData.hasElements())
         {
             uno::Reference<datatransfer::XTransferable> xTransferable(new LOKTransferable(aMimeType, aData));
-            uno::Reference<datatransfer::clipboard::XClipboard> xClipboard(new LOKClipboard);
+            // MACRO-1919: This won't have an associated view id, so -1 is used {
+            uno::Reference<datatransfer::clipboard::XClipboard> xClipboard(new LOKClipboard(-1));
+            // MACRO-1919 }
             xClipboard->setContents(xTransferable, uno::Reference<datatransfer::clipboard::XClipboardOwner>());
             pWindow->SetClipboard(xClipboard);
 
@@ -7231,6 +7852,16 @@ static void doc_sendContentControlEvent(LibreOfficeKitDocument* pThis, const cha
 
     pDoc->executeContentControlEvent(aMap);
 }
+
+// MACRO: {
+static void* doc_getXComponent(LibreOfficeKitDocument* pThis)
+{
+    SolarMutexGuard aGaurd;
+    LibLODocument_Impl* pDocument = static_cast<LibLODocument_Impl*>(pThis);
+
+    return pDocument->mxComponent.get();
+}
+// MACRO: }
 
 static void doc_setViewTimezone(SAL_UNUSED_PARAMETER LibreOfficeKitDocument* /*pThis*/, int nId,
                                 const char* pTimezone)

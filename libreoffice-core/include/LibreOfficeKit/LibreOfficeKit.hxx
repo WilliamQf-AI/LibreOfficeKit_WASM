@@ -244,6 +244,17 @@ public:
         mpDoc->pClass->initializeForRendering(mpDoc, pArguments);
     }
 
+    // MACRO: {
+
+    /**
+     * Sets the author for the document
+     */
+    void setAuthor(const char* sAuthor)
+    {
+        mpDoc->pClass->setAuthor(mpDoc, sAuthor);
+    }
+    // MACRO: }
+
     /**
      * Registers a callback. LOK will invoke this function when it wants to
      * inform the client about events.
@@ -495,6 +506,17 @@ public:
     {
         return mpDoc->pClass->getCommandValues(mpDoc, pCommand);
     }
+    // MACRO: {
+    /**
+     * Saves the document to a memory buffer
+     * @param pOutput the data of the file
+     * @return size_t the size of the data
+    */
+    size_t saveToMemory(char** pOutput, void *(*chrome_malloc)(size_t size), const char* pFormat)
+    {
+        return mpDoc->pClass->saveToMemory(mpDoc,pOutput,chrome_malloc, pFormat);
+    }
+    // MACRO: }
 
     /**
      * Save the client's view so that we can compute the right zoom level
@@ -852,6 +874,13 @@ public:
         mpDoc->pClass->sendContentControlEvent(mpDoc, pArguments);
     }
 
+    // MACRO: {
+    void* getXComponent()
+    {
+        return mpDoc->pClass->getXComponent(mpDoc);
+    }
+    // MACRO: }
+
     /**
      * Set the timezone of the window with the specified nId.
      *
@@ -1134,6 +1163,30 @@ public:
         mpThis->pClass->setOption(mpThis, pOption, pValue);
     }
 
+
+    // MACRO: {
+
+    /**
+     * Loads a document from an array buffer
+     * @param data the array buffer of the files contents
+     * @param size the size of the array buffer
+     * @return XTextDocument
+    */
+    Document* loadFromMemory(char *data, size_t size)
+    {
+        LibreOfficeKitDocument* pDoc = NULL;
+
+        pDoc = mpThis->pClass->loadFromMemory(mpThis, data, size);
+        if (pDoc == NULL) {
+            return NULL;
+        }
+
+        return new Document(pDoc);
+    }
+
+
+    //MACRO: }
+
     /**
      * Debugging tool for triggering a dump of internal state.
      *
@@ -1148,6 +1201,13 @@ public:
     {
         mpThis->pClass->dumpState(mpThis, pOption, pState);
     }
+
+    // MACRO: {
+    void* getXComponentContext()
+    {
+        return mpThis->pClass->getXComponentContext(mpThis);
+    }
+    // MACRO: }
 
     char* extractRequest(const char* pFilePath)
     {

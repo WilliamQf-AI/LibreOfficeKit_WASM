@@ -73,6 +73,24 @@ static bool lcl_IsInBody( SwFrame const *pFrame )
     }
 }
 
+// MACRO: {
+static OUString redlineNumberBuilder(OUString aHiddenText)
+{
+    OUStringLiteral REDLINE_NUMBER_BUILDER_STRIKETHROUGH = u"\u0336";
+    sal_Int32 length = aHiddenText.getLength();
+    OUString result = "";
+
+    // Iterate through each character
+    for (int i = 0; i < length; i++)
+    {
+        result = result + OUString(aHiddenText[i])
+                 + REDLINE_NUMBER_BUILDER_STRIKETHROUGH;
+    }
+
+    return result;
+}
+// MACRO: }
+
 SwExpandPortion *SwTextFormatter::NewFieldPortion( SwTextFormatInfo &rInf,
                                                 const SwTextAttr *pHint ) const
 {
@@ -615,14 +633,12 @@ static bool lcl_setRedlineAttr( SwTextFormatInfo &rInf, const SwTextNode& rTextN
     SwAttrPool& rPool = rInf.GetVsh()->GetDoc()->GetAttrPool();
     SfxItemSetFixed<RES_CHRATR_BEGIN, RES_CHRATR_END-1> aSet(rPool);
 
-    std::size_t aAuthor = (1 < pRedlineNum->GetStackCount())
-            ? pRedlineNum->GetAuthor( 1 )
-            : pRedlineNum->GetAuthor();
-
     if ( RedlineType::Delete == pRedlineNum->GetType() )
-        SW_MOD()->GetDeletedAuthorAttr(aAuthor, aSet);
+        // MACRO:
+        SW_MOD()->GetDeletedAuthorAttr(aSet);
     else
-        SW_MOD()->GetInsertAuthorAttr(aAuthor, aSet);
+        // MACRO:
+        SW_MOD()->GetInsertAuthorAttr(aSet);
 
     if (const SvxColorItem* pItem = aSet.GetItemIfSet(RES_CHRATR_COLOR))
         pNumFnt->SetColor(pItem->GetValue());
@@ -765,23 +781,53 @@ SwNumberPortion *SwTextFormatter::NewNumberPortion( SwTextFormatInfo &rInf ) con
                 // (SwListRedlineType::SHOW, which counts removed and inserted numbered paragraphs
                 // in a single list)
                 bool bHasHiddenNum = false;
-                OUString aText( pTextNd->GetNumString(true, MAXLEVEL, m_pFrame->getRootFrame(), SwListRedlineType::HIDDEN) );
                 const SwDoc& rDoc = pTextNd->GetDoc();
+                // MACRO: {
+                bool bColorBlack = false;
+                OUString aText(pTextNd->GetNumString(true, MAXLEVEL, m_pFrame->getRootFrame(),
+                                                     SwListRedlineType::HIDDEN));
+                // MACRO: }
                 const SwRedlineTable& rTable = rDoc.getIDocumentRedlineAccess().GetRedlineTable();
                 if ( rTable.size() && !rInf.GetVsh()->GetLayout()->IsHideRedlines() )
                 {
                     OUString aHiddenText( pTextNd->GetNumString(true, MAXLEVEL, m_pFrame->getRootFrame(), SwListRedlineType::ORIGTEXT) );
 
-                    if ( !aText.isEmpty() || !aHiddenText.isEmpty() )
+
+
+                    // MACRO: {
+                    // Case 1: aText is empty and aHiddenText is not empty
+                    // We want to have a standard number
+                    if (aText.isEmpty() && !aHiddenText.isEmpty())
+                    {
+                        aText = aHiddenText + pTextNd->GetLabelFollowedBy().replaceAll("\t", " ");
+                    }
+                    // Case 2: aText is not empty and aHiddenText is empty
+                    else if (!aText.isEmpty() && aHiddenText.isEmpty())
+                    {
+                        aText = aText + pTextNd->GetLabelFollowedBy().replaceAll("\t", " ");
+                    }
+                    // Case 3-4: aText && aHiddenText
+                    else if (!aText.isEmpty() && !aHiddenText.isEmpty())
+                    // MACRO : }
                     {
                         if (aText != aHiddenText && !aHiddenText.isEmpty())
                         {
                             bHasHiddenNum = true;
-                            // show also original number after the actual one enclosed in [ and ],
-                            // and replace tabulator with space to avoid messy indentation
-                            // resulted by the longer numbering, e.g. "1.[2.]" instead of "1.".
-                            aText = aText +  "[" + aHiddenText + "]"
-                                     + pTextNd->GetLabelFollowedBy().replaceAll("\t", " ");
+                            // MACRO: {
+                            // Case 3: aText != aHiddenText
+                            if (aText != aHiddenText)
+                            {
+                                OUString aPreviousValue = redlineNumberBuilder(aHiddenText);
+                                aText = aPreviousValue + " " + aText
+                                    + pTextNd->GetLabelFollowedBy().replaceAll("\t", " ");
+                            }
+                            // Case 4: aText != aHiddenText
+                            else
+                            {
+                                bColorBlack = true;
+                                aText = aText + pTextNd->GetLabelFollowedBy().replaceAll("\t", " ");
+                            }
+                            // MACRO: }
                         }
                         else if (!aText.isEmpty())
                             aText += pTextNd->GetLabelFollowedBy();
@@ -840,8 +886,9 @@ SwNumberPortion *SwTextFormatter::NewNumberPortion( SwTextFormatInfo &rInf ) con
 
                     checkApplyParagraphMarkFormatToNumbering(pNumFnt.get(), rInf, pIDSA, pFormat);
 
-                    if ( !lcl_setRedlineAttr( rInf, *pTextNd, pNumFnt ) && bHasHiddenNum )
-                        pNumFnt->SetColor(NON_PRINTING_CHARACTER_COLOR);
+                    // MACRO
+                    if ( !lcl_setRedlineAttr( rInf, *pTextNd, pNumFnt ) && bHasHiddenNum && !bColorBlack)
+                        pNumFnt->SetColor(COL_GREEN);
 
                     // we do not allow a vertical font
                     pNumFnt->SetVertical( pNumFnt->GetOrientation(), m_pFrame->IsVertical() );

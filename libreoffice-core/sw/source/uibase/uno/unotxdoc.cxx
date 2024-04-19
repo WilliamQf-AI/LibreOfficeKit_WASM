@@ -171,6 +171,7 @@
 #include <SearchResultLocator.hxx>
 #include <textcontentcontrol.hxx>
 #include <unocontentcontrol.hxx>
+#include <chrono> // MACRO:
 
 using namespace ::com::sun::star;
 using namespace ::com::sun::star::text;
@@ -3073,6 +3074,8 @@ void SAL_CALL SwXTextDocument::render(
         pDoc->getIDocumentTimerAccess().UnblockIdling();
         m_pRenderData.reset();
         m_pPrintUIOptions.reset();
+        // MACRO:
+        m_pDocShell->GetDoc()->getIDocumentTimerAccess().MarkLOKInitialized();
     }
 }
 
@@ -3142,6 +3145,8 @@ void SwXTextDocument::paintTile( VirtualDevice &rDevice,
                                  tools::Long nTileWidth, tools::Long nTileHeight )
 {
     SwViewShell* pViewShell = m_pDocShell->GetWrtShell();
+    // MACRO:
+    m_pDocShell->GetDoc()->getIDocumentTimerAccess().MarkLOKInitialized();
     pViewShell->PaintTile(rDevice, nOutputWidth, nOutputHeight,
                           nTilePosX, nTilePosY, nTileWidth, nTileHeight);
 
@@ -3294,36 +3299,51 @@ void SwXTextDocument::getTrackedChanges(tools::JsonWriter& rJson)
         = m_pDocShell->GetDoc()->getIDocumentRedlineAccess().GetRedlineTable();
     for (SwRedlineTable::size_type i = 0; i < rRedlineTable.size(); ++i)
     {
+        // MACRO: {
+        SwRangeRedline* pR = rRedlineTable[i];
         auto redlineNode = rJson.startStruct();
-        rJson.put("index", rRedlineTable[i]->GetId());
-        rJson.put("author", rRedlineTable[i]->GetAuthorString(1));
+        rJson.put("index", pR->GetId());
+        rJson.put("author", pR->GetAuthorString(1));
+        const SwRedlineData& pD = pR->GetRedlineData();
         rJson.put("type", SwRedlineTypeToOUString(
-                                       rRedlineTable[i]->GetRedlineData().GetType()));
+                                       pD.GetType()));
         rJson.put("comment",
-                           rRedlineTable[i]->GetRedlineData().GetComment());
-        rJson.put("description", rRedlineTable[i]->GetDescr());
+                           pD.GetComment());
+        rJson.put("description", rRedlineTable[i]->GetDescr(true));
         OUString sDateTime = utl::toISO8601(
-            rRedlineTable[i]->GetRedlineData().GetTimeStamp().GetUNODateTime());
+            pD.GetTimeStamp().GetUNODateTime());
         rJson.put("dateTime", sDateTime);
 
-        SwContentNode* pContentNd = rRedlineTable[i]->GetPointContentNode();
-        SwView* pView = dynamic_cast<SwView*>(SfxViewShell::Current());
-        if (pView && pContentNd)
+        SwContentNode* pContentNd = pR->GetPointContentNode();
+        SwDocShell* pDocSh = pR->GetDoc().GetDocShell();
+        if (!pDocSh) {
+            rJson.put("textRange", OString());
+            continue;
+        }
+        SwView* pView = pDocSh->GetView();
+        if (!pView) {
+            rJson.put("textRange", OString());
+            continue;
+        }
+
+        std::vector<OString> aRects;
         {
-            SwShellCursor aCursor(pView->GetWrtShell(), *(rRedlineTable[i]->Start()));
+            CurrShell aCurr( pDocSh->GetWrtShell() );
+            SwShellCursor aCursor(pView->GetWrtShell(), *(pR->Start()));
             aCursor.SetMark();
-            aCursor.GetMark()->Assign(*pContentNd, rRedlineTable[i]->End()->GetContentIndex());
+            aCursor.GetMark()->Assign(*pContentNd, pR->End()->GetContentIndex());
 
             aCursor.FillRects();
 
             SwRects* pRects(&aCursor);
-            std::vector<OString> aRects;
             for (const SwRect& rNextRect : *pRects)
                 aRects.push_back(rNextRect.SVRect().toString());
 
-            const OString sRects = comphelper::string::join("; ", aRects);
-            rJson.put("textRange", sRects);
         }
+
+        const OString sRects = comphelper::string::join("; ", aRects);
+        rJson.put("textRange", sRects);
+        // MACRO: }
     }
 }
 
@@ -3711,6 +3731,40 @@ void SwXTextDocument::initializeForTiledRendering(const css::uno::Sequence<css::
     // annoying when taking minutes without further formatting
     SwEditShell::GetAutoFormatFlags()->bAFormatByInpDelSpacesAtSttEnd = false;
 }
+
+
+// MACRO : {
+void SwXTextDocument::setAuthor(OUString sAuthor)
+{
+    SolarMutexGuard aGuard;
+
+    SwView* pView = m_pDocShell->GetView();
+    if (!pView)
+        return;
+
+    OUString sOrigAuthor = SW_MOD()->GetRedlineAuthor(SW_MOD()->GetRedlineAuthor());
+    // Store the author name in the view.
+    pView->SetRedlineAuthor(sAuthor);
+    // Let the actual author name pick up the value from the current
+    // view, which would normally happen only during the next view
+    // switch.
+    pView->SetRedlineAuthor(sAuthor);
+    m_pDocShell->SetView(pView);
+
+    if (sAuthor != sOrigAuthor)
+    {
+        SwView* pFirstView = static_cast<SwView*>(SfxViewShell::GetFirst());
+        if (pFirstView && SfxViewShell::GetNext(*pFirstView) == nullptr)
+        {
+            if (SwEditShell* pShell = &pFirstView->GetWrtShell())
+            {
+                pShell->SwViewShell::UpdateFields(true);
+                pShell->ResetModified();
+            }
+        }
+    }
+}
+// MACRO: }
 
 void SwXTextDocument::postKeyEvent(int nType, int nCharCode, int nKeyCode)
 {

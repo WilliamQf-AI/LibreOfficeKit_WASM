@@ -500,6 +500,10 @@ inline constexpr ::Color COL_AUTHOR9_NORMAL          ( 0xFF, 0xE2, 0xB9 );
 inline constexpr ::Color COL_AUTHOR9_LIGHT           ( 0xFF, 0xE7, 0xC7 );
 inline constexpr ::Color COL_AUTHOR_TABLE_INS        ( 0xE1, 0xF2, 0xFA );
 inline constexpr ::Color COL_AUTHOR_TABLE_DEL        ( 0xFC, 0xE6, 0xF4 );
+// MACRO: red / blue track changes {
+inline constexpr ::Color COL_RED_CLASSIC             ( 0xFF, 0x00, 0x00 );
+inline constexpr ::Color COL_BLUE_CLASSIC            ( 0x00, 0x00, 0xFF );
+// MACRO: }
 
 template<typename charT, typename traits>
 inline std::basic_ostream<charT, traits>& operator <<(std::basic_ostream<charT, traits>& rStream, const Color& rColor)
