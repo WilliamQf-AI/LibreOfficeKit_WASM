@@ -311,8 +311,11 @@ public:
       */
     bool IsDark() const
     {
-        // 62 is the number that means it also triggers on Ubuntu in dark mode
-        return GetLuminance() <= 62;
+        // tdf#156182, and band aid for follow-up issues
+        if (mValue == 0x729fcf) // COL_DEFAULT_SHAPE_FILLING
+            return GetLuminance() <= 62;
+        else
+            return GetLuminance() <= 156;
     }
 
     /** Comparison with luminance thresholds.
@@ -452,6 +455,10 @@ static_assert (sal_uInt32(Color(0x12, 0x34, 0x56)) == 0x00123456);
 
 inline constexpr ::Color COL_TRANSPARENT             ( ColorTransparency, 0xFF, 0xFF, 0xFF, 0xFF );
 inline constexpr ::Color COL_AUTO                    ( ColorTransparency, 0xFF, 0xFF, 0xFF, 0xFF );
+// These are used when drawing to the separate alpha channel we use in vcl
+inline constexpr ::Color COL_ALPHA_TRANSPARENT       ( 0x00, 0x00, 0x00 );
+inline constexpr ::Color COL_ALPHA_OPAQUE            ( 0xff, 0xff, 0xff );
+
 inline constexpr ::Color COL_BLACK                   ( 0x00, 0x00, 0x00 );
 inline constexpr ::Color COL_BLUE                    ( 0x00, 0x00, 0x80 );
 inline constexpr ::Color COL_GREEN                   ( 0x00, 0x80, 0x00 );

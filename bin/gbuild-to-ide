@@ -26,9 +26,9 @@ import collections
 import urllib.parse
 
 class GbuildLinkTarget:
-    def __init__(self, name, location, include, include_sys, defs, cxxobjects, cxxflags, cobjects, cflags, linked_libs):
-        (self.name, self.location, self.include, self.include_sys, self.defs, self.cxxobjects, self.cxxflags, self.cobjects, self.cflags, self.linked_libs) = (
-            name, location, include, include_sys, defs, cxxobjects, cxxflags, cobjects, cflags, linked_libs)
+    def __init__(self, name, location, include, include_sys, defs, cxxobjects, cxxflags, cobjects, objcxxobjects, cflags, linked_libs, link_target):
+        (self.name, self.location, self.include, self.include_sys, self.defs, self.cxxobjects, self.cxxflags, self.cobjects, self.objcxxobjects, self.cflags, self.linked_libs, self.link_target) = (
+            name, location, include, include_sys, defs, cxxobjects, cxxflags, cobjects, objcxxobjects, cflags, linked_libs, link_target)
 
     def short_name(self):
         return self.name
@@ -43,8 +43,8 @@ class GbuildLinkTarget:
 
 
 class GbuildLib(GbuildLinkTarget):
-    def __init__(self, name, location, include, include_sys, defs, cxxobjects, cxxflags, cobjects, cflags, linked_libs):
-        GbuildLinkTarget.__init__(self, name, location, include, include_sys, defs, cxxobjects, cxxflags, cobjects, cflags, linked_libs)
+    def __init__(self, name, location, include, include_sys, defs, cxxobjects, cxxflags, cobjects, objcxxobjects, cflags, linked_libs, link_target):
+        GbuildLinkTarget.__init__(self, name, location, include, include_sys, defs, cxxobjects, cxxflags, cobjects, objcxxobjects, cflags, linked_libs, link_target)
 
     def short_name(self):
         """Return the short name of target based on the Library_* makefile name"""
@@ -57,8 +57,8 @@ class GbuildLib(GbuildLinkTarget):
         return self.name
 
 class GbuildTest(GbuildLinkTarget):
-    def __init__(self, name, location, include, include_sys, defs, cxxobjects, cxxflags, cobjects, cflags, linked_libs):
-        GbuildLinkTarget.__init__(self, name, location, include, include_sys, defs, cxxobjects, cxxflags, cobjects, cflags, linked_libs)
+    def __init__(self, name, location, include, include_sys, defs, cxxobjects, cxxflags, cobjects, objcxxobjects, cflags, linked_libs, link_target):
+        GbuildLinkTarget.__init__(self, name, location, include, include_sys, defs, cxxobjects, cxxflags, cobjects, objcxxobjects, cflags, linked_libs, link_target)
 
     def short_name(self):
         """Return the short name of target based n the CppunitTest_* makefile names"""
@@ -68,8 +68,8 @@ class GbuildTest(GbuildLinkTarget):
         return 'CppunitTest_%s' % self.name
 
 class GbuildExe(GbuildLinkTarget):
-    def __init__(self, name, location, include, include_sys, defs, cxxobjects, cxxflags, cobjects, cflags, linked_libs):
-        GbuildLinkTarget.__init__(self, name, location, include, include_sys, defs, cxxobjects, cxxflags, cobjects, cflags, linked_libs)
+    def __init__(self, name, location, include, include_sys, defs, cxxobjects, cxxflags, cobjects, objcxxobjects, cflags, linked_libs, link_target):
+        GbuildLinkTarget.__init__(self, name, location, include, include_sys, defs, cxxobjects, cxxflags, cobjects, objcxxobjects, cflags, linked_libs, link_target)
 
     def short_name(self):
         """Return the short name of target based on the Executable_* makefile name"""
@@ -111,7 +111,7 @@ class GbuildParser:
 
     @staticmethod
     def __split_objs(objsline):
-        return [obj for obj in objsline.strip().split(' ') if len(obj) > 0 and obj != 'CXXOBJECTS' and obj != 'COBJECTS' and obj != '+=']
+        return [obj for obj in objsline.strip().split(' ') if len(obj) > 0 and obj != 'CXXOBJECTS' and obj != 'COBJECTS' and obj != 'OBJCXXOBJECTS' and obj != '+=']
 
     @staticmethod
     def __split_defs(defsline):
@@ -146,8 +146,10 @@ class GbuildParser:
             GbuildParser.__split_objs(json['CXXOBJECTS']),
             GbuildParser.__split_flags(json['CXXFLAGS'], json['CXXFLAGSAPPEND']),
             GbuildParser.__split_objs(json['COBJECTS']),
+            GbuildParser.__split_objs(json['OBJCXXOBJECTS']),
             GbuildParser.__split_flags(json['CFLAGS'], json['CFLAGSAPPEND']),
-            json['LINKED_LIBS'].strip().split(' '))
+            json['LINKED_LIBS'].strip().split(' '),
+            json['LINKTARGET'].strip())
 
     @staticmethod
     def __test_from_json(json):
@@ -169,8 +171,10 @@ class GbuildParser:
             GbuildParser.__split_objs(json['CXXOBJECTS']),
             GbuildParser.__split_flags(json['CXXFLAGS'], json['CXXFLAGSAPPEND']),
             GbuildParser.__split_objs(json['COBJECTS']),
+            GbuildParser.__split_objs(json['OBJCXXOBJECTS']),
             GbuildParser.__split_flags(json['CFLAGS'], json['CFLAGSAPPEND']),
-            json['LINKED_LIBS'].strip().split(' '))
+            json['LINKED_LIBS'].strip().split(' '),
+            json['LINKTARGET'].strip())
 
     @staticmethod
     def __exe_from_json(json):
@@ -184,8 +188,10 @@ class GbuildParser:
             GbuildParser.__split_objs(json['CXXOBJECTS']),
             GbuildParser.__split_flags(json['CXXFLAGS'], json['CXXFLAGSAPPEND']),
             GbuildParser.__split_objs(json['COBJECTS']),
+            GbuildParser.__split_objs(json['OBJCXXOBJECTS']),
             GbuildParser.__split_flags(json['CFLAGS'], json['CFLAGSAPPEND']),
-            json['LINKED_LIBS'].strip().split(' '))
+            json['LINKED_LIBS'].strip().split(' '),
+            json['LINKTARGET'].strip())
 
     def parse(self):
         for jsonfilename in os.listdir(os.path.join(self.workdir, 'GbuildToJson', 'Library')):
@@ -304,7 +310,7 @@ class EclipseCDTIntegrationGenerator(IdeIntegrationGenerator):
 </language>
 </section>
 </cdtprojectproperties>
-""" 
+"""
 
         for module in self.gbuildparser.modulenamelist:
             tempxml = []
@@ -329,7 +335,7 @@ class EclipseCDTIntegrationGenerator(IdeIntegrationGenerator):
                 macrokey = macroskeyvalue[0]
                 macrovalue = macroskeyvalue[1]
                 if macrovalue[-1:] == "\n":
-                    macrovalue = macrovalue[:-1] 
+                    macrovalue = macrovalue[:-1]
                 templine = "<macro><name>%s</name><value>%s</value></macro>\n" %(macrokey, macrovalue)
                 tempxml.insert(-13, templine)
             tempxml="".join(tempxml)
@@ -344,7 +350,7 @@ class EclipseCDTIntegrationGenerator(IdeIntegrationGenerator):
     def emit(self):
         self.create_include_paths()
         self.create_macros()
-        self.create_settings_file() 
+        self.create_settings_file()
 
 class CodeliteIntegrationGenerator(IdeIntegrationGenerator):
 
@@ -962,6 +968,9 @@ class VisualStudioIntegrationGenerator(IdeIntegrationGenerator):
             all_projects += projects
 
         self.write_solution(os.path.join(self.solution_directory, 'LibreOffice.sln'), all_projects)
+        # this enables Python GDB pretty printers when debugging a WSL Linux build from VS
+        MIEngine_options_path = os.path.join(gbuildparser.srcdir, 'solenv/vs/Microsoft.MIEngine.Options.xml')
+        shutil.copy(MIEngine_options_path, self.solution_directory)
 
     @staticmethod
     def gen_guid(category, name):
@@ -1142,9 +1151,13 @@ class VisualStudioIntegrationGenerator(IdeIntegrationGenerator):
             nmake_rebuild_node = ET.SubElement(conf_node, '{%s}NMakeReBuildCommandLine' % ns)
             nmake_rebuild_node.text = cfg_targets['rebuild'] % nmake_params
             nmake_output_node = ET.SubElement(conf_node, '{%s}NMakeOutput' % ns)
-            nmake_output_node.text = os.path.join(self.gbuildparser.instdir, 'program', 'soffice.bin')
+            nmake_output_node.text = os.path.join(self.gbuildparser.workdir, 'LinkTarget', target.link_target)
             nmake_defs_node = ET.SubElement(conf_node, '{%s}NMakePreprocessorDefinitions' % ns)
             nmake_defs_node.text = ';'.join(self.defs_list(target.defs) + ['$(NMakePreprocessorDefinitions)'])
+            nmake_debug_command_node = ET.SubElement(conf_node, '{%s}LocalDebuggerCommand' % ns)
+            nmake_debug_command_node.text = os.path.join(self.gbuildparser.instdir, 'program', 'soffice.bin')
+            nmake_debug_flavor_node = ET.SubElement(conf_node, '{%s}DebuggerFlavor' % ns)
+            nmake_debug_flavor_node.text = 'WindowsLocalDebugger'
             include_path_node = ET.SubElement(conf_node, '{%s}IncludePath' % ns)
             include_path_node.text = include_path_node_text
             additional_options_node = ET.SubElement(conf_node, '{%s}AdditionalOptions' % ns)
@@ -1472,9 +1485,10 @@ class QtCreatorIntegrationGenerator(IdeIntegrationGenerator):
 
     def generate_run_configs(self, lib_folder):
 
-        # If we use 'soffice', it's ok only for "Run", not for "Debug".
-        # So we put "soffice.bin" that is ok for both.
-        loexec = "%s/instdir/program/soffice.bin" % self.base_folder
+        if platform == 'darwin':
+            loexec = "%s/instdir/LibreOfficeDev.app/Contents/MacOS/soffice" % self.base_folder
+        else:
+            loexec = "%s/instdir/program/soffice.bin" % self.base_folder
         xml = QtCreatorIntegrationGenerator.run_configs_template % {
             'loexec': loexec,
             'workdir': self.base_folder
@@ -1699,6 +1713,7 @@ class QtCreatorIntegrationGenerator(IdeIntegrationGenerator):
 
             defines_list = []
             sources_list = []
+            objcxx_sources_list = []
             includepath_list = []
             # The explicit headers list is not mandatory :
             # QtCreator just needs 'include_path_list' to find all headers files.
@@ -1706,6 +1721,7 @@ class QtCreatorIntegrationGenerator(IdeIntegrationGenerator):
             # in a specific "Headers" folder in QtCreator's Project panel.
             # We will list here only headers files of current lib.
             headers_list = []
+            objcxx_headers_list = []
             for file_ in lib.cxxobjects:
                 # the file has no extension : search it
                 # self._log("\n    file : %s" % file_)
@@ -1718,11 +1734,22 @@ class QtCreatorIntegrationGenerator(IdeIntegrationGenerator):
                 if path:
                     headers_list.append(lopath(path))
 
-            cxxflags_list = []
+            for file_ in lib.objcxxobjects:
+                # the file has no extension: search it
+                path = self.get_source_path(file_)
+                if path:
+                    objcxx_sources_list.append(lopath(path))
+
+                # several objcxxobject files have a header beside
+                path = self.get_header_path(file_)
+                if path:
+                    objcxx_headers_list.append(lopath(path))
+
+            cxxstdversionflag = ''
             for cxxflag in lib.cxxflags:
                 # extract flag for C++ standard version
                 if cxxflag.startswith('-std'):
-                    cxxflags_list.append(cxxflag)
+                    cxxstdversionflag = cxxflag
 
             # List all include paths
             for hdir in (lib.include + lib.include_sys):
@@ -1749,14 +1776,18 @@ class QtCreatorIntegrationGenerator(IdeIntegrationGenerator):
             if lib_folder in self.data_libs:
                 self.data_libs[lib_folder]['sources'] |= set(sources_list)
                 self.data_libs[lib_folder]['headers'] |= set(headers_list)
-                self.data_libs[lib_folder]['cxxflags'] |= set(cxxflags_list)
+                self.data_libs[lib_folder]['objcxx_sources'] |= set(objcxx_sources_list)
+                self.data_libs[lib_folder]['objcxx_headers'] |= set(objcxx_headers_list)
+                self.data_libs[lib_folder]['cxxstdversionflag'] = cxxstdversionflag
                 self.data_libs[lib_folder]['includepath'] |= set(includepath_list)
                 self.data_libs[lib_folder]['defines'] |= set(defines_list)
             else:
                 self.data_libs[lib_folder] = {
                     'sources': set(sources_list),
                     'headers': set(headers_list),
-                    'cxxflags': set(cxxflags_list),
+                    'objcxx_sources': set(objcxx_sources_list),
+                    'objcxx_headers': set(objcxx_headers_list),
+                    'cxxstdversionflag': cxxstdversionflag,
                     'includepath': set(includepath_list),
                     'defines': set(defines_list),
                     'loc': lib.location,
@@ -1779,7 +1810,9 @@ class QtCreatorIntegrationGenerator(IdeIntegrationGenerator):
         for lib_folder in subdirs_list:
             sources_list = sorted(self.data_libs[lib_folder]['sources'])
             headers_list = sorted(self.data_libs[lib_folder]['headers'])
-            cxxflags_list = sorted(self.data_libs[lib_folder]['cxxflags'])
+            objcxx_sources_list = sorted(self.data_libs[lib_folder]['objcxx_sources'])
+            objcxx_headers_list = sorted(self.data_libs[lib_folder]['objcxx_headers'])
+            cxxstdversionflag = self.data_libs[lib_folder]['cxxstdversionflag']
             includepath_list = sorted(self.data_libs[lib_folder]['includepath'])
             defines_list = sorted(self.data_libs[lib_folder]['defines'])
             lib_loc = self.data_libs[lib_folder]['loc']
@@ -1787,16 +1820,21 @@ class QtCreatorIntegrationGenerator(IdeIntegrationGenerator):
 
             sources = " \\\n".join(sources_list)
             headers = " \\\n".join(headers_list)
-            cxxflags = " \\\n".join(cxxflags_list)
+            objcxx_sources = " \\\n".join(objcxx_sources_list)
+            objcxx_headers = " \\\n".join(objcxx_headers_list)
             includepath = " \\\n".join(includepath_list)
             defines = " \\\n".join(defines_list)
+            # strip '-std=' or '-std:' prefix
+            assert(isinstance(cxxstdversionflag, str) and cxxstdversionflag.startswith('-std'))
+            cxxstdversion = cxxstdversionflag[5:]
 
             # create .pro file
             subdirs_meta_pro.append(lib_name)
             qt_pro_file = os.path.join(self.base_folder, lib_name, lib_name + '.pro')
             try:
-                content = QtCreatorIntegrationGenerator.pro_template % {'sources': sources, 'headers': headers,
-                                                                        'cxxflags': cxxflags, 'includepath': includepath, 'defines': defines}
+                content = QtCreatorIntegrationGenerator.pro_template % {'sources': sources, 'headers': headers, 'cxxstdversionflag': cxxstdversionflag,
+                                                                        'cxxstdversion': cxxstdversion, 'objcxx_sources': objcxx_sources,
+                                                                        'objcxx_headers': objcxx_headers, 'includepath': includepath, 'defines': defines}
                 with open(qt_pro_file, mode) as fpro:
                     fpro.write(content)
                 self._log("created %s\n" % qt_pro_file)
@@ -1857,14 +1895,19 @@ class QtCreatorIntegrationGenerator(IdeIntegrationGenerator):
 CONFIG += console
 CONFIG -= app_bundle
 CONFIG -= qt
+CONFIG += %(cxxstdversion)s
 
-QMAKE_CXXFLAGS += %(cxxflags)s
+QMAKE_CXXFLAGS += %(cxxstdversionflag)s
 
 INCLUDEPATH += %(includepath)s
 
 SOURCES += %(sources)s
 
 HEADERS += %(headers)s
+
+OBJECTIVE_SOURCES += %(objcxx_sources)s
+
+OBJECTIVE_HEADERS += %(objcxx_headers)s
 
 DEFINES += %(defines)s
 

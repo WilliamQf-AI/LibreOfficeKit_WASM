@@ -33,12 +33,18 @@
 #include <editeng/svxfont.hxx>
 #include <editeng/lrspitem.hxx>
 #include <editeng/brushitem.hxx>
+#include <editeng/charhiddenitem.hxx>
+#include <editeng/charreliefitem.hxx>
+#include <editeng/contouritem.hxx>
+#include <editeng/crossedoutitem.hxx>
 #include <editeng/fontitem.hxx>
 #include <editeng/keepitem.hxx>
 #include <editeng/fhgtitem.hxx>
 #include <editeng/ulspitem.hxx>
 #include <editeng/formatbreakitem.hxx>
 #include <editeng/frmdiritem.hxx>
+#include <editeng/postitem.hxx>
+#include <editeng/shdditem.hxx>
 #include <editeng/tstpitem.hxx>
 #include <editeng/wghtitem.hxx>
 #include <svl/grabbagitem.hxx>
@@ -77,11 +83,14 @@
 #include <txtatr.hxx>
 #include <cellatr.hxx>
 #include <fmtrowsplt.hxx>
+#include <com/sun/star/awt/FontRelief.hpp>
+#include <com/sun/star/awt/FontStrikeout.hpp>
 #include <com/sun/star/drawing/XShape.hpp>
 #include <com/sun/star/i18n/BreakIterator.hpp>
 #include <com/sun/star/i18n/ScriptType.hpp>
 #include <com/sun/star/i18n/WordType.hpp>
 #include <com/sun/star/text/RubyPosition.hpp>
+#include <com/sun/star/style/CaseMap.hpp>
 #include <oox/export/vmlexport.hxx>
 #include <sal/log.hxx>
 #include <comphelper/propertysequence.hxx>
@@ -479,9 +488,9 @@ void SwWW8AttrIter::OutAttr(sal_Int32 nSwPos, bool bWriteCombChars)
         ClearOverridesFromSet( *pCharFormatItem, aExportSet );
 
     // check toggle properties in DOCX output
+    if (pCharFormatItem)
     {
-        SvxWeightItem aBoldProperty(WEIGHT_BOLD, RES_CHRATR_WEIGHT);
-        handleToggleProperty(aExportSet, pCharFormatItem, RES_CHRATR_WEIGHT, &aBoldProperty);
+        handleToggleProperty(aExportSet, *pCharFormatItem);
     }
 
     // tdf#113790: AutoFormat style overwrites char style, so remove all
@@ -558,29 +567,82 @@ void SwWW8AttrIter::OutAttr(sal_Int32 nSwPos, bool bWriteCombChars)
 // i.e., the effective value to be applied to the content shall be true if its effective value is true for
 // an odd number of levels of the style hierarchy.
 //
-// To prevent such logic inside output, it is required to write inline w:b token on content level.
-void SwWW8AttrIter::handleToggleProperty(SfxItemSet& rExportSet, const SwFormatCharFormat* pCharFormatItem,
-    sal_uInt16 nWhich, const SfxPoolItem* pValue)
+// To prevent such logic inside output, it is required to write inline attribute tokens on content level.
+void SwWW8AttrIter::handleToggleProperty(SfxItemSet& rExportSet, const SwFormatCharFormat& rCharFormatItem)
 {
-    if (rExportSet.HasItem(nWhich) || !pValue)
+    if (rExportSet.HasItem(RES_CHRATR_WEIGHT) || rExportSet.HasItem(RES_CHRATR_POSTURE)  ||
+        rExportSet.HasItem(RES_CHRATR_CTL_WEIGHT) || rExportSet.HasItem(RES_CHRATR_CTL_POSTURE)  ||
+        rExportSet.HasItem(RES_CHRATR_CONTOUR) || rExportSet.HasItem(RES_CHRATR_CASEMAP) ||
+        rExportSet.HasItem(RES_CHRATR_RELIEF) || rExportSet.HasItem(RES_CHRATR_SHADOWED) ||
+        rExportSet.HasItem(RES_CHRATR_CROSSEDOUT) || rExportSet.HasItem(RES_CHRATR_HIDDEN))
         return;
 
-    bool hasPropertyInCharStyle = false;
-    bool hasPropertyInParaStyle = false;
+    SvxWeightItem aBoldProperty(WEIGHT_BOLD, RES_CHRATR_WEIGHT);
+    SvxPostureItem aPostureProperty(ITALIC_NORMAL, RES_CHRATR_POSTURE);
+    SvxContourItem aContouredProperty(true, RES_CHRATR_CONTOUR);
+    SvxCaseMapItem aCaseMapCapsProperty(SvxCaseMap::Uppercase, RES_CHRATR_CASEMAP);
+    SvxCaseMapItem aCaseMapSmallProperty(SvxCaseMap::SmallCaps, RES_CHRATR_CASEMAP);
+    SvxCharReliefItem aEmbossedProperty(FontRelief::Embossed, RES_CHRATR_RELIEF);
+    SvxCharReliefItem aImprintProperty(FontRelief::Engraved, RES_CHRATR_RELIEF);
+    SvxShadowedItem aShadowedProperty(true, RES_CHRATR_SHADOWED);
+    SvxCrossedOutItem aStrikeoutProperty(STRIKEOUT_SINGLE, RES_CHRATR_CROSSEDOUT);
+    SvxCharHiddenItem aHiddenProperty(true, RES_CHRATR_HIDDEN);
 
-    // get bold flag from specified character style
-    if (pCharFormatItem)
+    bool hasWeightPropertyInCharStyle = false;
+    bool hasWeightComplexPropertyInCharStyle = false;
+    bool hasPosturePropertyInCharStyle = false;
+    bool hasPostureComplexPropertyInCharStyle = false;
+    bool bHasCapsPropertyInCharStyle = false;
+    bool bHasSmallCapsPropertyInCharStyle = false;
+    bool bHasEmbossedPropertyInCharStyle = false;
+    bool bHasImprintPropertyInCharStyle = false;
+    bool hasContouredPropertyInCharStyle = false;
+    bool hasShadowedPropertyInCharStyle = false;
+    bool hasStrikeoutPropertyInCharStyle = false;
+    bool hasHiddenPropertyInCharStyle = false;
+
+
+    // get attribute flags from specified character style
+    if (const SwCharFormat* pCharFormat = rCharFormatItem.GetCharFormat())
     {
-        if (const SwCharFormat* pCharFormat = pCharFormatItem->GetCharFormat())
+        if (const SfxPoolItem* pWeightItem = pCharFormat->GetAttrSet().GetItem(RES_CHRATR_WEIGHT))
+            hasWeightPropertyInCharStyle = (*pWeightItem == aBoldProperty);
+
+        if (const SfxPoolItem* pWeightComplexItem = pCharFormat->GetAttrSet().GetItem(RES_CHRATR_CTL_WEIGHT))
+            hasWeightComplexPropertyInCharStyle = (*pWeightComplexItem == aBoldProperty);
+
+        if (const SfxPoolItem* pPostureItem = pCharFormat->GetAttrSet().GetItem(RES_CHRATR_POSTURE))
+            hasPosturePropertyInCharStyle = (*pPostureItem == aPostureProperty);
+
+        if (const SfxPoolItem* pPostureComplexItem = pCharFormat->GetAttrSet().GetItem(RES_CHRATR_CTL_POSTURE))
+            hasPostureComplexPropertyInCharStyle = (*pPostureComplexItem == aPostureProperty);
+
+        if (const SfxPoolItem* pContouredItem = pCharFormat->GetAttrSet().GetItem(RES_CHRATR_CONTOUR))
+            hasContouredPropertyInCharStyle = (*pContouredItem == aContouredProperty);
+
+        if (const SfxPoolItem* pShadowedItem = pCharFormat->GetAttrSet().GetItem(RES_CHRATR_SHADOWED))
+            hasShadowedPropertyInCharStyle = (*pShadowedItem == aShadowedProperty);
+
+        if (const SfxPoolItem* pStrikeoutItem = pCharFormat->GetAttrSet().GetItem(RES_CHRATR_CROSSEDOUT))
+            hasStrikeoutPropertyInCharStyle = (*pStrikeoutItem == aStrikeoutProperty);
+
+        if (const SfxPoolItem* pHiddenItem = pCharFormat->GetAttrSet().GetItem(RES_CHRATR_HIDDEN))
+            hasHiddenPropertyInCharStyle = (*pHiddenItem == aHiddenProperty);
+
+        if (const SfxPoolItem* pCaseMapItem  = pCharFormat->GetAttrSet().GetItem(RES_CHRATR_CASEMAP))
         {
-            if (const SfxPoolItem* pItem = pCharFormat->GetAttrSet().GetItem(nWhich))
-            {
-                hasPropertyInCharStyle = (*pItem == *pValue);
-            }
+            bHasCapsPropertyInCharStyle = (*pCaseMapItem == aCaseMapCapsProperty);
+            bHasSmallCapsPropertyInCharStyle = (*pCaseMapItem == aCaseMapSmallProperty);
+        }
+
+        if (const SfxPoolItem* pReliefItem  = pCharFormat->GetAttrSet().GetItem(RES_CHRATR_RELIEF))
+        {
+            bHasEmbossedPropertyInCharStyle = (*pReliefItem == aEmbossedProperty);
+            bHasImprintPropertyInCharStyle = (*pReliefItem == aImprintProperty);
         }
     }
 
-    // get bold flag from specified paragraph style
+    // get attribute flags from specified paragraph style and apply properties if they are set in character and paragraph style
     {
         SwTextFormatColl& rTextColl = static_cast<SwTextFormatColl&>( m_rNode.GetAnyFormatColl() );
         sal_uInt16 nStyle = m_rExport.m_pStyles->GetSlot( &rTextColl );
@@ -588,17 +650,59 @@ void SwWW8AttrIter::handleToggleProperty(SfxItemSet& rExportSet, const SwFormatC
         const SwFormat* pFormat = m_rExport.m_pStyles->GetSwFormat(nStyle);
         if (pFormat)
         {
-            if (const SfxPoolItem* pItem = pFormat->GetAttrSet().GetItem(nWhich))
+            const SfxPoolItem* pItem;
+            if (hasWeightPropertyInCharStyle && (pItem = pFormat->GetAttrSet().GetItem(RES_CHRATR_WEIGHT)) &&
+                (*pItem == aBoldProperty))
+                rExportSet.Put(aBoldProperty);
+
+            if (hasWeightComplexPropertyInCharStyle && (pItem = pFormat->GetAttrSet().GetItem(RES_CHRATR_CTL_WEIGHT)) &&
+                *pItem == aBoldProperty)
             {
-                hasPropertyInParaStyle = (*pItem == *pValue);
+                rExportSet.Put(aBoldProperty, RES_CHRATR_CTL_WEIGHT);
+            }
+
+            if (hasPosturePropertyInCharStyle && (pItem = pFormat->GetAttrSet().GetItem(RES_CHRATR_POSTURE)) &&
+                *pItem == aPostureProperty)
+                rExportSet.Put(aPostureProperty);
+
+            if (hasPostureComplexPropertyInCharStyle && (pItem = pFormat->GetAttrSet().GetItem(RES_CHRATR_CTL_POSTURE)) &&
+                *pItem == aPostureProperty)
+            {
+                rExportSet.Put(aPostureProperty, RES_CHRATR_CTL_POSTURE);
+            }
+
+            if (hasContouredPropertyInCharStyle && (pItem = pFormat->GetAttrSet().GetItem(RES_CHRATR_CONTOUR)) && *pItem == aContouredProperty)
+                rExportSet.Put(aContouredProperty);
+
+            if (hasShadowedPropertyInCharStyle && (pItem = pFormat->GetAttrSet().GetItem(RES_CHRATR_SHADOWED)) &&
+                *pItem == aShadowedProperty)
+                rExportSet.Put(aShadowedProperty);
+
+            if (hasStrikeoutPropertyInCharStyle && (pItem = pFormat->GetAttrSet().GetItem(RES_CHRATR_CROSSEDOUT)) &&
+                *pItem == aStrikeoutProperty)
+                rExportSet.Put(aStrikeoutProperty);
+
+            if (hasHiddenPropertyInCharStyle && (pItem = pFormat->GetAttrSet().GetItem(RES_CHRATR_HIDDEN)) &&
+                (*pItem == aHiddenProperty))
+                rExportSet.Put(aHiddenProperty);
+
+            if ((bHasCapsPropertyInCharStyle||bHasSmallCapsPropertyInCharStyle) && (pItem = pFormat->GetAttrSet().GetItem(RES_CHRATR_CASEMAP)))
+            {
+                if (bHasCapsPropertyInCharStyle && *pItem == aCaseMapCapsProperty)
+                    rExportSet.Put(aCaseMapCapsProperty);
+                else if (bHasSmallCapsPropertyInCharStyle && *pItem == aCaseMapSmallProperty)
+                    rExportSet.Put(aCaseMapSmallProperty);
+            }
+
+            if ((bHasEmbossedPropertyInCharStyle||bHasImprintPropertyInCharStyle) && (pItem = pFormat->GetAttrSet().GetItem(RES_CHRATR_RELIEF)))
+            {
+                if (bHasEmbossedPropertyInCharStyle && *pItem == aEmbossedProperty)
+                    rExportSet.Put(aEmbossedProperty);
+                else if (bHasImprintPropertyInCharStyle && *pItem == aImprintProperty)
+                    rExportSet.Put(aImprintProperty);
             }
         }
-    }
 
-    // add inline property
-    if (hasPropertyInCharStyle && hasPropertyInParaStyle)
-    {
-        rExportSet.Put(*pValue);
     }
 }
 
@@ -894,10 +998,15 @@ const SfxPoolItem& SwWW8AttrIter::GetItem(sal_uInt16 nWhich) const
 void WW8AttributeOutput::StartRuby( const SwTextNode& rNode, sal_Int32 /*nPos*/, const SwFormatRuby& rRuby )
 {
     WW8Ruby aWW8Ruby(rNode, rRuby, GetExport());
-    OUString aStr( FieldString( ww::eEQ ) + "\\* jc" );
-    aStr += OUString::number(aWW8Ruby.GetJC()) + " \\* \"Font:" + aWW8Ruby.GetFontFamily()
-        + "\" \\* hps";
-    aStr += OUString::number((aWW8Ruby.GetRubyHeight() + 5) / 10) + " \\o";
+    OUString aStr =
+        FieldString( ww::eEQ )
+        + "\\* jc"
+        + OUString::number(aWW8Ruby.GetJC())
+        + " \\* \"Font:"
+        + aWW8Ruby.GetFontFamily()
+        + "\" \\* hps"
+        + OUString::number((aWW8Ruby.GetRubyHeight() + 5) / 10)
+        + " \\o";
     if (aWW8Ruby.GetDirective())
     {
         aStr += OUString::Concat(u"\\a") + OUStringChar(aWW8Ruby.GetDirective());
@@ -983,8 +1092,8 @@ bool AttributeOutputBase::AnalyzeURL( const OUString& rUrl, const OUString& /*rT
     else
     {
         INetURLObject aURL( rUrl, INetProtocol::NotValid );
-        sURL = aURL.GetURLNoMark( INetURLObject::DecodeMechanism::Unambiguous );
-        sMark = aURL.GetMark( INetURLObject::DecodeMechanism::Unambiguous );
+        sURL = aURL.GetURLNoMark( INetURLObject::DecodeMechanism::NONE );
+        sMark = aURL.GetMark( INetURLObject::DecodeMechanism::NONE );
         INetProtocol aProtocol = aURL.GetProtocol();
 
         if ( aProtocol == INetProtocol::File || aProtocol == INetProtocol::NotValid )
@@ -2170,7 +2279,7 @@ bool MSWordExportBase::NeedTextNodeSplit( const SwTextNode& rNd, SwSoftPageBreak
         if (pos < it) // previous one might have skipped over it
         {
             pos = it;
-            while (auto const*const pMark = rIDMA.getFieldmarkFor(SwPosition(rNd, pos)))
+            while (auto const*const pMark = rIDMA.getInnerFieldmarkFor(SwPosition(rNd, pos)))
             {
                 if (pMark->GetMarkEnd().GetNode() != rNd)
                 {
@@ -2515,12 +2624,17 @@ void MSWordExportBase::OutputTextNode( SwTextNode& rNode )
                 {
                     SwPosition aPosition(rNode, nCurrentPos);
                     // the innermost field is the correct one
-                    ::sw::mark::IFieldmark const*const pFieldmark = pMarkAccess->getFieldmarkFor(aPosition);
+                    sw::mark::IFieldmark const*const pFieldmark = pMarkAccess->getInnerFieldmarkFor(aPosition);
                     assert(pFieldmark);
                     // DateFieldmark / ODF_FORMDATE is not a field...
                     if (pFieldmark->GetFieldname() != ODF_FORMDATE)
                     {
-                        OutputField( nullptr, lcl_getFieldId( pFieldmark ), OUString(), FieldFlags::CmdEnd );
+                        FieldFlags nFlags = FieldFlags::CmdEnd;
+                        // send hint that fldrslt is empty, to avoid spamming RTF CharProp reset.
+                        // ::End does nothing when sending rFieldCmd=OUString(), so safe to do.
+                        if (pFieldmark->GetContent().isEmpty())
+                            nFlags |= FieldFlags::End;
+                        OutputField(nullptr, lcl_getFieldId(pFieldmark), OUString(), nFlags);
 
                         if (pFieldmark->GetFieldname() == ODF_UNHANDLED)
                         {
@@ -2544,33 +2658,36 @@ void MSWordExportBase::OutputTextNode( SwTextNode& rNode )
 
                     assert(pFieldmark);
 
-                    if (pFieldmark->GetFieldname() == ODF_FORMDATE)
+                    if (pFieldmark)
                     {
-                        if(GetExportFormat() == MSWordExportBase::ExportFormat::DOCX) // supported by DOCX only
+                        if (pFieldmark->GetFieldname() == ODF_FORMDATE)
                         {
-                            OutputField( nullptr, ww::eFORMDATE, OUString(), FieldFlags::Close );
-                        }
-                    }
-                    else
-                    {
-                        ww::eField eFieldId = lcl_getFieldId( pFieldmark );
-                        if (pFieldmark->GetFieldname() == ODF_UNHANDLED)
-                        {
-                            IFieldmark::parameter_map_t::const_iterator it = pFieldmark->GetParameters()->find( ODF_ID_PARAM );
-                            if ( it != pFieldmark->GetParameters()->end() )
+                            if(GetExportFormat() == MSWordExportBase::ExportFormat::DOCX) // supported by DOCX only
                             {
-                                OUString sFieldId;
-                                it->second >>= sFieldId;
-                                eFieldId = static_cast<ww::eField>(sFieldId.toInt32());
+                                OutputField( nullptr, ww::eFORMDATE, OUString(), FieldFlags::Close );
                             }
                         }
-
-                        OutputField( nullptr, eFieldId, OUString(), FieldFlags::Close );
-
-                        if (pFieldmark->GetFieldname() == ODF_FORMTEXT
-                             && GetExportFormat() != MSWordExportBase::ExportFormat::DOCX )
+                        else
                         {
-                            AppendBookmark( pFieldmark->GetName() );
+                            ww::eField eFieldId = lcl_getFieldId( pFieldmark );
+                            if (pFieldmark->GetFieldname() == ODF_UNHANDLED)
+                            {
+                                IFieldmark::parameter_map_t::const_iterator it = pFieldmark->GetParameters()->find( ODF_ID_PARAM );
+                                if ( it != pFieldmark->GetParameters()->end() )
+                                {
+                                    OUString sFieldId;
+                                    it->second >>= sFieldId;
+                                    eFieldId = static_cast<ww::eField>(sFieldId.toInt32());
+                                }
+                            }
+
+                            OutputField( nullptr, eFieldId, OUString(), FieldFlags::Close );
+
+                            if (pFieldmark->GetFieldname() == ODF_FORMTEXT
+                                    && GetExportFormat() != MSWordExportBase::ExportFormat::DOCX )
+                            {
+                                AppendBookmark( pFieldmark->GetName() );
+                            }
                         }
                     }
                 }
@@ -2609,13 +2726,13 @@ void MSWordExportBase::OutputTextNode( SwTextNode& rNode )
                 {
                     // Allow MSO to emulate LO footnote text starting at left margin - only meaningful with hanging indent
                     sal_Int32 nFirstLineIndent=0;
-                    SfxItemSetFixed<RES_LR_SPACE, RES_LR_SPACE> aSet( m_rDoc.GetAttrPool() );
+                    SfxItemSetFixed<RES_MARGIN_FIRSTLINE, RES_MARGIN_FIRSTLINE> aSet( m_rDoc.GetAttrPool() );
 
                     if ( pTextNode && pTextNode->GetAttr(aSet) )
                     {
-                        const SvxLRSpaceItem* pLRSpace = aSet.GetItem<SvxLRSpaceItem>(RES_LR_SPACE);
-                        if ( pLRSpace )
-                            nFirstLineIndent = pLRSpace->GetTextFirstLineOffset();
+                        const SvxFirstLineIndentItem *const pFirstLine(aSet.GetItem<SvxFirstLineIndentItem>(RES_MARGIN_FIRSTLINE));
+                        if (pFirstLine)
+                            nFirstLineIndent = pFirstLine->GetTextFirstLineOffset();
                     }
 
                     // Insert tab for aesthetic purposes #i24762#
@@ -2903,12 +3020,13 @@ void MSWordExportBase::OutputTextNode( SwTextNode& rNode )
                 if( !oTmpSet )
                     oTmpSet.emplace( rNode.GetSwAttrSet() );
 
-                SvxLRSpaceItem aLR(oTmpSet->Get(RES_LR_SPACE));
+                SvxFirstLineIndentItem firstLine(oTmpSet->Get(RES_MARGIN_FIRSTLINE));
+                SvxTextLeftMarginItem leftMargin(oTmpSet->Get(RES_MARGIN_TEXTLEFT));
                 // #i86652#
                 if ( pFormat->GetPositionAndSpaceMode() ==
                                         SvxNumberFormat::LABEL_WIDTH_AND_POSITION )
                 {
-                    aLR.SetTextLeft( aLR.GetTextLeft() + pFormat->GetAbsLSpace() );
+                    leftMargin.SetTextLeft(leftMargin.GetTextLeft() + pFormat->GetAbsLSpace());
                 }
 
                 if( rNode.IsNumbered() && rNode.IsCountedInList() )
@@ -2919,11 +3037,11 @@ void MSWordExportBase::OutputTextNode( SwTextNode& rNode )
                     {
                         if (bParaRTL)
                         {
-                            aLR.SetTextFirstLineOffsetValue(aLR.GetTextFirstLineOffset() + pFormat->GetAbsLSpace() - pFormat->GetFirstLineOffset()); //TODO: overflow
+                            firstLine.SetTextFirstLineOffsetValue(firstLine.GetTextFirstLineOffset() + pFormat->GetAbsLSpace() - pFormat->GetFirstLineOffset()); //TODO: overflow
                         }
                         else
                         {
-                            aLR.SetTextFirstLineOffset(aLR.GetTextFirstLineOffset() + GetWordFirstLineOffset(*pFormat));
+                            firstLine.SetTextFirstLineOffset(firstLine.GetTextFirstLineOffset() + GetWordFirstLineOffset(*pFormat));
                         }
                     }
 
@@ -2940,10 +3058,17 @@ void MSWordExportBase::OutputTextNode( SwTextNode& rNode )
                         // style is applied via paragraph style and the list level
                         // indent values are not applicable.
                         if ( pFormat->GetPositionAndSpaceMode() ==
-                                                SvxNumberFormat::LABEL_ALIGNMENT &&
-                             !rNode.AreListLevelIndentsApplicable() )
+                                    SvxNumberFormat::LABEL_ALIGNMENT)
                         {
-                            oTmpSet->Put( aLR );
+                            ::sw::ListLevelIndents const indents(rNode.AreListLevelIndentsApplicable());
+                            if (indents & ::sw::ListLevelIndents::FirstLine)
+                            {
+                                oTmpSet->Put(firstLine);
+                            }
+                            if (indents & ::sw::ListLevelIndents::LeftMargin)
+                            {
+                                oTmpSet->Put(leftMargin);
+                            }
                         }
                     }
                 }
@@ -2954,7 +3079,8 @@ void MSWordExportBase::OutputTextNode( SwTextNode& rNode )
                 if ( pFormat->GetPositionAndSpaceMode() ==
                                         SvxNumberFormat::LABEL_WIDTH_AND_POSITION )
                 {
-                    oTmpSet->Put(aLR);
+                    oTmpSet->Put(firstLine);
+                    oTmpSet->Put(leftMargin);
 
                     //#i21847#
                     SvxTabStopItem aItem(oTmpSet->Get(RES_PARATR_TABSTOP));
@@ -3010,11 +3136,14 @@ void MSWordExportBase::OutputTextNode( SwTextNode& rNode )
                     oTmpSet.emplace(rNode.GetSwAttrSet());
 
                 // create new LRSpace item, based on the current (if present)
-                const SfxPoolItem* pLrSpaceItem = oTmpSet->GetItemIfSet(RES_LR_SPACE);
-                SvxLRSpaceItem aLRSpace(
-                    ( pLrSpaceItem == nullptr )
-                        ? SvxLRSpaceItem(0, 0, 0, 0, RES_LR_SPACE)
-                        : *static_cast<const SvxLRSpaceItem*>( pLrSpaceItem ) );
+                const SvxFirstLineIndentItem *const pFirstLineIndent(oTmpSet->GetItemIfSet(RES_MARGIN_FIRSTLINE));
+                const SvxTextLeftMarginItem *const pTextLeftMargin(oTmpSet->GetItemIfSet(RES_MARGIN_TEXTLEFT));
+                SvxFirstLineIndentItem firstLine(pFirstLineIndent
+                        ? *pFirstLineIndent
+                        : SvxFirstLineIndentItem(0, RES_MARGIN_FIRSTLINE));
+                SvxTextLeftMarginItem leftMargin(pTextLeftMargin
+                        ? *pTextLeftMargin
+                        : SvxTextLeftMarginItem(0, RES_MARGIN_TEXTLEFT));
 
                 // new left margin = old left + label space
                 const SwNumRule* pRule = rNode.GetNumRule();
@@ -3032,20 +3161,23 @@ void MSWordExportBase::OutputTextNode( SwTextNode& rNode )
                 if ( rNumFormat.GetPositionAndSpaceMode() ==
                                         SvxNumberFormat::LABEL_WIDTH_AND_POSITION )
                 {
-                    aLRSpace.SetTextLeft( aLRSpace.GetLeft() + rNumFormat.GetAbsLSpace() );
+                    leftMargin.SetTextLeft(leftMargin.GetLeft(firstLine) + rNumFormat.GetAbsLSpace());
                 }
                 else
                 {
-                    aLRSpace.SetTextLeft( aLRSpace.GetLeft() + rNumFormat.GetIndentAt() );
+                    leftMargin.SetTextLeft(leftMargin.GetLeft(firstLine) + rNumFormat.GetIndentAt());
                 }
 
                 // new first line indent = 0
                 // (first line indent is ignored)
                 if (!bParaRTL)
-                    aLRSpace.SetTextFirstLineOffset( 0 );
+                {
+                    firstLine.SetTextFirstLineOffset(0);
+                }
 
                 // put back the new item
-                oTmpSet->Put( aLRSpace );
+                oTmpSet->Put(firstLine);
+                oTmpSet->Put(leftMargin);
 
                 // assure that numbering rule is in <oTmpSet>
                 if (SfxItemState::SET != oTmpSet->GetItemState(RES_PARATR_NUMRULE, false) )
@@ -3676,8 +3808,8 @@ WW8Ruby::WW8Ruby(const SwTextNode& rNode, const SwFormatRuby& rRuby, const MSWor
     if (!rText.isEmpty())
         nScript = g_pBreakIt->GetBreakIter()->getScriptType(rText, 0);
 
-    sal_uInt16 nWhich = GetWhichOfScript(RES_CHRATR_FONTSIZE, nScript);
-    auto& rHeightItem = static_cast<const SvxFontHeightItem&>(rExport.GetItem(nWhich));
+    TypedWhichId<SvxFontHeightItem> nWhich = GetWhichOfScript(RES_CHRATR_FONTSIZE, nScript);
+    const SvxFontHeightItem& rHeightItem = rExport.GetItem(nWhich);
     m_nBaseHeight = rHeightItem.GetHeight();
 }
 /* vim:set shiftwidth=4 softtabstop=4 expandtab: */

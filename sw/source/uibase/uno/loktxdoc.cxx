@@ -35,9 +35,9 @@
 #include <doc.hxx>
 #include <docsh.hxx>
 #include <fmtrfmrk.hxx>
+#include <wrtsh.hxx>
 #include <txtrfmrk.hxx>
 #include <ndtxt.hxx>
-#include <wrtsh.hxx>
 
 using namespace ::com::sun::star;
 
@@ -125,7 +125,7 @@ void GetTextFormField(tools::JsonWriter& rJsonWriter, SwDocShell* pDocShell,
     IDocumentMarkAccess& rIDMA = *pDocShell->GetDoc()->getIDocumentMarkAccess();
     SwWrtShell* pWrtShell = pDocShell->GetWrtShell();
     SwPosition& rCursor = *pWrtShell->GetCursor()->GetPoint();
-    sw::mark::IFieldmark* pFieldmark = rIDMA.getFieldmarkFor(rCursor);
+    sw::mark::IFieldmark* pFieldmark = rIDMA.getInnerFieldmarkFor(rCursor);
     auto typeNode = rJsonWriter.startNode("field");
     if (!pFieldmark)
     {
@@ -250,7 +250,7 @@ void GetBookmark(tools::JsonWriter& rJsonWriter, SwDocShell* pDocShell,
     IDocumentMarkAccess& rIDMA = *pDocShell->GetDoc()->getIDocumentMarkAccess();
     SwWrtShell* pWrtShell = pDocShell->GetWrtShell();
     SwPosition& rCursor = *pWrtShell->GetCursor()->GetPoint();
-    sw::mark::IMark* pBookmark = rIDMA.getBookmarkFor(rCursor);
+    sw::mark::IMark* pBookmark = rIDMA.getOneInnermostBookmarkFor(rCursor);
     tools::ScopedJsonWriterNode aBookmark = rJsonWriter.startNode("bookmark");
     if (!pBookmark)
     {

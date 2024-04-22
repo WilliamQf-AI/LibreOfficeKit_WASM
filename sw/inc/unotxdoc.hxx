@@ -210,6 +210,9 @@ private:
     virtual SdrModel& getSdrModelFromUnoModel() const override;
 
     virtual ~SwXTextDocument() override;
+
+    SwDoc& GetDocOrThrow() const;
+
 public:
     SwXTextDocument(SwDocShell* pShell);
 
@@ -420,8 +423,6 @@ public:
     virtual void postMouseEvent(int nType, int nX, int nY, int nCount, int nButtons, int nModifier) override;
     /// @see vcl::ITiledRenderable::setTextSelection().
     virtual void setTextSelection(int nType, int nX, int nY) override;
-    /// @see vcl::ITiledRenderable::hyperlinkInfoAtPosition().
-    virtual OUString hyperlinkInfoAtPosition(int x, int y) override;
     /// @see vcl::ITiledRenderable::getSelection().
     virtual css::uno::Reference<css::datatransfer::XTransferable> getSelection() override;
     /// @see vcl::ITiledRenderable::setGraphicSelection().

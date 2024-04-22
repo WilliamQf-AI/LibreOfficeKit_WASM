@@ -22,8 +22,20 @@ $(eval $(call gb_Module_add_targets,more_fonts,\
 	ExternalPackage_liberation_narrow \
 	ExternalPackage_libertineg \
 	ExternalPackage_libre_hebrew \
-	ExternalPackage_sourcesans \
-	ExternalPackage_noto \
+	ExternalPackage_noto_kufi_arabic \
+	ExternalPackage_noto_naskh_arabic \
+	ExternalPackage_noto_sans \
+	ExternalPackage_noto_sans_arabic \
+	ExternalPackage_noto_sans_armenian \
+	ExternalPackage_noto_sans_georgian \
+	ExternalPackage_noto_sans_hebrew \
+	ExternalPackage_noto_sans_lao \
+	ExternalPackage_noto_sans_lisu \
+	ExternalPackage_noto_serif \
+	ExternalPackage_noto_serif_armenian \
+	ExternalPackage_noto_serif_georgian \
+	ExternalPackage_noto_serif_hebrew \
+	ExternalPackage_noto_serif_lao \
 	ExternalPackage_reem \
 	ExternalPackage_scheherazade \
 	ExternalPackage_opendyslexic \
@@ -40,8 +52,20 @@ $(eval $(call gb_Module_add_targets,more_fonts,\
 	UnpackedTarball_liberation_narrow \
 	UnpackedTarball_libertineg \
 	UnpackedTarball_libre_hebrew \
-	UnpackedTarball_sourcesans \
-	UnpackedTarball_noto \
+	UnpackedTarball_noto_kufi_arabic \
+	UnpackedTarball_noto_naskh_arabic \
+	UnpackedTarball_noto_sans \
+	UnpackedTarball_noto_sans_arabic \
+	UnpackedTarball_noto_sans_armenian \
+	UnpackedTarball_noto_sans_georgian \
+	UnpackedTarball_noto_sans_hebrew \
+	UnpackedTarball_noto_sans_lao \
+	UnpackedTarball_noto_sans_lisu \
+	UnpackedTarball_noto_serif \
+	UnpackedTarball_noto_serif_armenian \
+	UnpackedTarball_noto_serif_georgian \
+	UnpackedTarball_noto_serif_hebrew \
+	UnpackedTarball_noto_serif_lao \
 	UnpackedTarball_reem \
 	UnpackedTarball_scheherazade \
 	UnpackedTarball_opendyslexic \

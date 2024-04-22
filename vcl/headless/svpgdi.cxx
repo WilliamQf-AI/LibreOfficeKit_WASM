@@ -26,7 +26,7 @@
 #include <comphelper/lok.hxx>
 
 SvpSalGraphics::SvpSalGraphics()
-    : m_aTextRenderImpl(*this)
+    : m_aTextRenderImpl(m_aCairoCommon)
     , m_pBackend(new SvpGraphicsBackend(m_aCairoCommon))
 {
     bool bLOKActive = comphelper::LibreOfficeKit::isActive();
@@ -90,7 +90,9 @@ css::uno::Any SvpSalGraphics::GetNativeSurfaceHandle(cairo::SurfaceSharedPtr& /*
 
 SystemGraphicsData SvpSalGraphics::GetGraphicsData() const
 {
-    return SystemGraphicsData();
+    SystemGraphicsData aGraphicsData;
+    aGraphicsData.pSurface = m_aCairoCommon.m_pSurface;
+    return aGraphicsData;
 }
 
 /* vim:set shiftwidth=4 softtabstop=4 expandtab: */

@@ -26,6 +26,7 @@
 #include <tools/gen.hxx>
 #include <editeng/editdata.hxx>
 #include <filter/msfilter/ww8fields.hxx>
+#include <filter/msfilter/msoleexp.hxx>
 
 #include <shellio.hxx>
 
@@ -122,7 +123,6 @@ class WW8_WrPlcTextBoxes;
 class WW8_WrPct;            // administration
 class WW8_WrtBookmarks;
 class WW8_WrtRedlineAuthor;
-class SvxMSExportOLEObjects;
 class SwMSConvertControls;
 class WW8_WrPc;
 struct WW8_PdAttrDesc;
@@ -473,7 +473,7 @@ public:
     std::unique_ptr<WW8_WrtBookmarks> m_pBkmks;
     std::unique_ptr<WW8_WrtRedlineAuthor> m_pRedlAuthors;
     std::shared_ptr<NfKeywordTable> m_pKeyMap;
-    std::unique_ptr<SvxMSExportOLEObjects> m_pOLEExp;
+    std::optional<SvxMSExportOLEObjects> m_oOLEExp;
     std::unique_ptr<SwMSConvertControls> m_pOCXExp;
     WW8OleMap m_aOleMap;    // To remember all already exported ole objects
     ww8::WW8TableInfo::Pointer_t m_pTableInfo;
@@ -826,6 +826,8 @@ public:
     /// Returns the index of a picture bullet, used in numberings.
     int GetGrfIndex(const SvxBrushItem& rBrush);
 
+    tools::Long GetParaTabStopOffset() const;
+
     enum ExportFormat { DOC = 0, RTF = 1, DOCX = 2};
     virtual ExportFormat GetExportFormat() const = 0;
 
@@ -957,8 +959,8 @@ public:
     SwWW8Writer(std::u16string_view rFltName, const OUString& rBaseURL);
     virtual ~SwWW8Writer() override;
 
-    virtual ErrCode WriteStorage() override;
-    virtual ErrCode WriteMedium( SfxMedium& ) override;
+    virtual ErrCodeMsg WriteStorage() override;
+    virtual ErrCodeMsg WriteMedium( SfxMedium& ) override;
 
     // TODO most probably we want to be able to get these in
     // MSExportFilterBase
@@ -990,7 +992,7 @@ public:
     bool InitStd97CodecUpdateMedium( ::msfilter::MSCodec_Std97& rCodec );
 
     using StgWriter::Write;
-    virtual ErrCode Write( SwPaM&, SfxMedium&, const OUString* ) override;
+    virtual ErrCodeMsg Write( SwPaM&, SfxMedium&, const OUString* ) override;
     //Seems not an expected to provide method to access the private member
     SfxMedium* GetMedia() { return mpMedium; }
 
@@ -1398,7 +1400,7 @@ class GraphicDetails
 {
 public:
     ww8::Frame maFly;                // surrounding FlyFrames
-    sal_uLong mnPos;                // FilePos of the graphics
+    sal_uInt64 mnPos;                // FilePos of the graphics
     sal_uInt16 mnWid;               // Width of the graphics
     sal_uInt16 mnHei;               // Height of the graphics
 
@@ -1549,7 +1551,7 @@ private:
     SwWW8AttrIter(const SwWW8AttrIter&) = delete;
     SwWW8AttrIter& operator=(const SwWW8AttrIter&) = delete;
 
-    void handleToggleProperty(SfxItemSet& rExportSet, const SwFormatCharFormat* pCharFormatItem, sal_uInt16 nWhich, const SfxPoolItem* pValue);
+    void handleToggleProperty(SfxItemSet& rExportSet, const SwFormatCharFormat& rCharFormatItem);
 public:
     SwWW8AttrIter( MSWordExportBase& rWr, const SwTextNode& rNd );
 

@@ -69,14 +69,14 @@ $(eval $(call gb_Helper_register_executables,NONE, \
 	unoidl-check \
 	xrmex \
 	$(if $(filter-out ANDROID iOS WNT,$(OS)), \
-        svdemo \
-        minvcl \
         fftester \
-        svptest \
         svpclient ) \
 	$(if $(filter LINUX %BSD SOLARIS,$(OS)), tilebench) \
 	$(if $(filter LINUX MACOSX SOLARIS WNT %BSD,$(OS)),icontest) \
 	vcldemo \
+	svdemo \
+	minvcl \
+	svptest \
 	tiledrendering \
 	mtfdemo \
 	visualbackendtest \
@@ -88,7 +88,7 @@ $(eval $(call gb_Helper_register_executables,NONE, \
 ))
 
 $(eval $(call gb_Helper_register_executables_for_install,SDK,sdk, \
-	$(if $(filter MSC,$(COM)),$(if $(filter-out AARCH64,$(CPUNAME)),climaker)) \
+	$(if $(filter MSC,$(COM)),$(if $(filter-out AARCH64_TRUE,$(CPUNAME)_$(CROSS_COMPILING)),climaker)) \
 	cppumaker \
 	javamaker \
     $(call gb_CondExeSp2bv,sp2bv) \
@@ -144,6 +144,7 @@ $(eval $(call gb_Helper_register_executables_for_install,OOO,brand, \
 	$(call gb_Helper_optional,FUZZERS,qpwfuzzer) \
 	$(call gb_Helper_optional,FUZZERS,slkfuzzer) \
 	$(call gb_Helper_optional,FUZZERS,fodtfuzzer) \
+	$(call gb_Helper_optional,FUZZERS,fodt2pdffuzzer) \
 	$(call gb_Helper_optional,FUZZERS,fodsfuzzer) \
 	$(call gb_Helper_optional,FUZZERS,fodpfuzzer) \
 	$(call gb_Helper_optional,FUZZERS,xlsfuzzer) \
@@ -159,7 +160,8 @@ $(eval $(call gb_Helper_register_executables_for_install,OOO,brand, \
 	$(call gb_Helper_optional,FUZZERS,sftfuzzer) \
 	$(call gb_Helper_optional,FUZZERS,dbffuzzer) \
 	$(call gb_Helper_optional,FUZZERS,webpfuzzer) \
-	$(call gb_Helper_optional,FUZZERS,lockfuzzer) \
+	$(call gb_Helper_optional,FUZZERS,zipfuzzer) \
+	$(call gb_Helper_optional,FUZZERS,svgfuzzer) \
 	soffice_bin \
     $(call gb_CondExeUnopkg, \
         unopkg_bin \
@@ -286,7 +288,6 @@ $(eval $(call gb_Helper_register_libraries_for_install,OOOLIBS,graphicfilter, \
 
 $(eval $(call gb_Helper_register_libraries_for_install,OOOLIBS,impress, \
 	animcore \
-	PresenterScreen \
 	PresentationMinimizer \
 	wpftimpress \
 ))
@@ -317,6 +318,7 @@ $(eval $(call gb_Helper_register_libraries_for_install,OOOLIBS,kde, \
 
 $(eval $(call gb_Helper_register_plugins_for_install,OOOLIBS,$(gb_haiku_or_kde), \
     $(if $(ENABLE_KF5),vclplug_kf5) \
+    $(if $(ENABLE_KF6),vclplug_kf6) \
     $(if $(ENABLE_QT5),vclplug_qt5) \
     $(if $(ENABLE_QT6),vclplug_qt6) \
     $(if $(ENABLE_GTK3_KDE5),vclplug_gtk3_kde5) \
@@ -374,7 +376,7 @@ endif
 
 $(eval $(call gb_Helper_register_libraries_for_install,OOOLIBS,ooo, \
     avmedia \
-	LanguageTool \
+	$(if $(ENABLE_CURL),LanguageTool) \
     $(call gb_Helper_optional,AVMEDIA, \
 	$(if $(filter MACOSX,$(OS)),\
 		avmediaMacAVF \
@@ -407,7 +409,6 @@ $(eval $(call gb_Helper_register_libraries_for_install,OOOLIBS,ooo, \
 	editeng \
 	$(if $(filter WNT,$(OS)),emser) \
 	evtatt \
-	expwrap \
 	$(call gb_Helper_optional,DBCONNECTIVITY, \
 		flat \
 		file) \
@@ -593,7 +594,7 @@ $(eval $(call gb_Helper_register_libraries,PLAINLIBS_NONE, \
 
 $(eval $(call gb_Helper_register_libraries_for_install,PLAINLIBS_URE,ure, \
 	affine_uno_uno \
-	$(if $(filter MSC,$(COM)),$(if $(filter-out AARCH64,$(CPUNAME)),cli_uno)) \
+	$(if $(filter MSC,$(COM)),$(if $(filter-out AARCH64_TRUE,$(CPUNAME)_$(CROSS_COMPILING)),cli_uno)) \
 	i18nlangtag \
 	$(if $(ENABLE_JAVA), \
 		java_uno \
@@ -678,7 +679,6 @@ $(eval $(call gb_Helper_register_libraries_for_install,PLAINLIBS_OOO,ooo, \
 	ucbhelper \
 	$(if $(WITH_WEBDAV),ucpdav1) \
 	ucpfile1 \
-	ucpftp1 \
     $(call gb_Helper_optional,XMLHELP,ucpchelp1) \
 	ucphier1 \
 	ucppkg1 \
@@ -743,6 +743,7 @@ $(eval $(call gb_Helper_register_libraries_for_install,PLAINLIBS_OOO,ooobinaryta
 		sdqsmsi \
 		sellangmsi \
 		sn_tools \
+		$(if $(ENABLE_ONLINE_UPDATE_MAR),install_updateservice) \
 	) \
 ))
 
@@ -904,7 +905,7 @@ $(eval $(call gb_Helper_register_packages_for_install,postgresqlsdbc,\
 $(eval $(call gb_Helper_register_packages_for_install,sdk,\
 	odk_share_readme \
 	odk_share_readme_generated \
-	$(if $(filter WNT,$(OS)),$(if $(filter-out AARCH64,$(CPUNAME)),odk_cli)) \
+	$(if $(filter WNT,$(OS)),$(if $(filter-out AARCH64_TRUE,$(CPUNAME)_$(CROSS_COMPILING)),odk_cli)) \
 	odk_config \
 	$(if $(filter WNT,$(OS)),odk_config_win) \
 	odk_docs \
@@ -974,7 +975,6 @@ $(eval $(call gb_Helper_register_packages_for_install,ooo,\
 	oox_customshapes \
 	oox_generated \
 	package_dtd \
-	sd_web \
 	$(call gb_Helper_optional,DESKTOP,\
 		$(if $(filter-out WNT,$(OS)),$(if $(ENABLE_MACOSX_SANDBOX),,shell_senddoc))) \
 	$(call gb_Helper_optional,DESKTOP,$(if $(filter-out EMSCRIPTEN MACOSX WNT,$(OS)),svx_gengal)) \
@@ -1018,13 +1018,13 @@ $(eval $(call gb_Helper_register_packages_for_install,ooo,\
 	) \
 	$(if $(filter SKIA,$(BUILD_TYPE)), \
 		vcl_skia_denylist ) \
-	$(if $(DISABLE_PYTHON),,$(if $(filter-out AIX,$(OS)), \
+	$(if $(DISABLE_PYTHON),, \
 		Pyuno/commonwizards \
 		Pyuno/fax \
 		Pyuno/letter \
 		Pyuno/agenda \
 		Pyuno/mailmerge \
-	)) \
+	) \
 	sfx2_classification \
     $(if $(filter OPENCL,$(BUILD_TYPE)),sc_opencl_runtimetest) \
 	$(if $(ENABLE_HTMLHELP),\
@@ -1054,11 +1054,23 @@ $(eval $(call gb_Helper_register_packages_for_install,ooo_fonts,\
 		fonts_liberation_narrow \
 		fonts_libertineg \
 		fonts_libre_hebrew \
-		fonts_noto \
+		fonts_noto_kufi_arabic \
+		fonts_noto_naskh_arabic \
+		fonts_noto_sans \
+		fonts_noto_sans_arabic \
+		fonts_noto_sans_armenian \
+		fonts_noto_sans_georgian \
+		fonts_noto_sans_hebrew \
+		fonts_noto_sans_lao \
+		fonts_noto_sans_lisu \
+		fonts_noto_serif \
+		fonts_noto_serif_armenian \
+		fonts_noto_serif_georgian \
+		fonts_noto_serif_hebrew \
+		fonts_noto_serif_lao \
 		fonts_opendyslexic \
 		fonts_opensans \
 		fonts_reem \
-		fonts_sourcesans \
 		fonts_scheherazade \
 	) \
 	$(call gb_Helper_optional,NOTO_FONT,\
@@ -1112,6 +1124,10 @@ $(eval $(call gb_Helper_register_packages_for_install,brand,\
 	readlicense_oo_files \
 	readlicense_oo_license \
 	$(call gb_Helper_optional,DESKTOP,setup_native_packinfo) \
+	$(if $(ENABLE_ONLINE_UPDATE_MAR), \
+	    update-settings_ini \
+	    updater_ini \
+	) \
 ))
 
 ifeq ($(USING_X11), TRUE)

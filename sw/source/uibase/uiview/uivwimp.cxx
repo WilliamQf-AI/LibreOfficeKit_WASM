@@ -61,11 +61,9 @@ SwView_Impl::SwView_Impl(SwView* pShell)
 
 SwView_Impl::~SwView_Impl()
 {
-    auto pInterceptor = comphelper::getFromUnoTunnel<SwXDispatchProviderInterceptor>(m_xDispatchProviderInterceptor);
-    if(pInterceptor)
-        pInterceptor->Invalidate();
-    view::XSelectionSupplier* pTextView = mxXTextView.get();
-    static_cast<SwXTextView*>(pTextView)->Invalidate();
+    if(m_xDispatchProviderInterceptor)
+        m_xDispatchProviderInterceptor->Invalidate();
+    mxXTextView->Invalidate();
     mxXTextView.clear();
 
     if( mxScanEvtLstnr.is() )
@@ -96,8 +94,7 @@ view::XSelectionSupplier*   SwView_Impl::GetUNOObject()
 
 SwXTextView*    SwView_Impl::GetUNOObject_Impl()
 {
-    view::XSelectionSupplier* pTextView = mxXTextView.get();
-    return static_cast<SwXTextView*>(pTextView);
+    return mxXTextView.get();
 }
 
 void SwView_Impl::ExecuteScan( SfxRequest& rReq )
@@ -185,7 +182,7 @@ void SwView_Impl::ExecuteScan( SfxRequest& rReq )
             else
             {
                 rReq.Done();
-                SfxBindings& rBind = m_pView->GetViewFrame()->GetBindings();
+                SfxBindings& rBind = m_pView->GetViewFrame().GetBindings();
                 rBind.Invalidate( SID_TWAIN_SELECT );
                 rBind.Invalidate( SID_TWAIN_TRANSFER );
             }
@@ -215,7 +212,7 @@ void SwView_Impl::Invalidate()
     GetUNOObject_Impl()->Invalidate();
     for (const auto& xTransferable: mxTransferables)
     {
-        auto pTransferable = comphelper::getFromUnoTunnel<SwTransferable>(xTransferable.get());
+        rtl::Reference<SwTransferable> pTransferable = xTransferable.get();
         if(pTransferable)
             pTransferable->Invalidate();
     }
@@ -225,7 +222,7 @@ void SwView_Impl::DisconnectTransferableDDE()
 {
     for (const auto& xTransferable: mxTransferables)
     {
-        auto pTransferable = comphelper::getFromUnoTunnel<SwTransferable>(xTransferable.get());
+        rtl::Reference<SwTransferable> pTransferable = xTransferable.get();
         if(pTransferable)
             pTransferable->DisconnectDDE();
     }
@@ -237,11 +234,10 @@ void SwView_Impl::AddTransferable(SwTransferable& rTransferable)
     osl_atomic_increment(&rTransferable.m_refCount);
     {
         // Remove previously added, but no longer existing weak references.
-        mxTransferables.erase(std::remove_if(mxTransferables.begin(), mxTransferables.end(),
-            [](const css::uno::WeakReference<css::lang::XUnoTunnel>& rTunnel) {
-                uno::Reference<lang::XUnoTunnel> xTunnel(rTunnel.get(), uno::UNO_QUERY);
-                return !xTunnel.is();
-            }), mxTransferables.end());
+        std::erase_if(mxTransferables,
+            [](const unotools::WeakReference<SwTransferable>& rTunnel) {
+                return !rTunnel.get();
+            });
 
         mxTransferables.emplace_back(&rTransferable);
     }
@@ -323,7 +319,7 @@ void SAL_CALL SwClipboardChangeListener::changedContents( const css::datatransfe
                     SwTransferable::IsPasteSpecial( rSh, aDataHelper );
     }
 
-    SfxBindings& rBind = m_pView->GetViewFrame()->GetBindings();
+    SfxBindings& rBind = m_pView->GetViewFrame().GetBindings();
     rBind.Invalidate( SID_PASTE );
     rBind.Invalidate( SID_PASTE_SPECIAL );
     rBind.Invalidate( SID_CLIPBOARD_FORMAT_ITEMS );
