@@ -23,7 +23,6 @@ $(eval $(call gb_ExternalPackage_add_unpacked_files,fontconfig_data,$(LIBO_SHARE
     conf.d/10-hinting-medium.conf \
     conf.d/10-hinting-none.conf \
     conf.d/10-hinting-slight.conf \
-    conf.d/10-no-antialias.conf \
     conf.d/10-scale-bitmap-fonts.conf \
     conf.d/10-sub-pixel-bgr.conf \
     conf.d/10-sub-pixel-none.conf \
