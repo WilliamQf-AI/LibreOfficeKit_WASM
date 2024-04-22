@@ -366,18 +366,6 @@ SwGetRefField::~SwGetRefField()
 {
 }
 
-void SwGetRefField::SetText(OUString sText, SwRootFrame* pLayout)
-{
-    if (pLayout->IsHideRedlines())
-    {
-        m_sTextRLHidden = sText;
-    }
-    else
-    {
-        m_sText = sText;
-    }
-}
-
 OUString SwGetRefField::GetDescription() const
 {
     return SwResId(STR_REFERENCE);
@@ -422,8 +410,7 @@ static OUString lcl_formatStringByCombiningCharacter(std::u16string_view sText, 
     OUStringBuffer sRet(sText.size() * 2);
     for (size_t i = 0; i < sText.size(); ++i)
     {
-        sRet.append(sText[i]);
-        sRet.append(cChar);
+        sRet.append(OUStringChar(sText[i]) + OUStringChar(cChar));
     }
     return sRet.makeStringAndClear();
 }
@@ -1442,7 +1429,7 @@ SwTextNode* SwGetRefFieldType::FindAnchor(SwDoc* pDoc, const OUString& rRefMark,
                     Point aPt;
                     std::pair<Point, bool> const tmp(aPt, false);
 
-                    if (!pContentFrame) break;
+                    if (!pContentFrame) SAL_WARN("xmloff.text", "<SwGetRefFieldType::FindAnchor(..)>: Missing content frame for marginal styleref");
                     const SwPageFrame* pPageFrame = nullptr;
 
                     if (pContentFrame)

@@ -148,6 +148,12 @@ struct _LibreOfficeKitClass
 
     /// @see lok::Office::stopURP
     void (*stopURP)(LibreOfficeKit* pThis, void* pSendURPToLOContext);
+
+    /// @see lok::Office::joinThreads
+    int (*joinThreads)(LibreOfficeKit* pThis);
+
+    /// @see lok::Office::setForkedChild
+    void (*setForkedChild)(LibreOfficeKit* pThis, bool bIsChild);
 };
 
 #define LIBREOFFICEKIT_DOCUMENT_HAS(pDoc,member) LIBREOFFICEKIT_HAS_MEMBER(LibreOfficeKitDocumentClass,member,(pDoc)->pClass->nSize)
@@ -529,8 +535,11 @@ struct _LibreOfficeKitDocumentClass
     /// @see lok::Document::getA11yCaretPosition.
     int (*getA11yCaretPosition) (LibreOfficeKitDocument* pThis);
 
-    /// @see lok::Document::hyperlinkInfoAtPosition().
-    char* (*hyperlinkInfoAtPosition) (LibreOfficeKitDocument* pThis, int x,int y);
+    /// @see lok::Document::setViewReadOnly().
+    void (*setViewReadOnly) (LibreOfficeKitDocument* pThis, int nId, const bool readOnly);
+
+    /// @see lok::Document::setAllowChangeComments().
+    void (*setAllowChangeComments) (LibreOfficeKitDocument* pThis, int nId, const bool allow);
 
 #endif // defined LOK_USE_UNSTABLE_API || defined LIBO_INTERNAL_ONLY
 };
