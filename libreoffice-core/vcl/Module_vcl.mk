@@ -42,6 +42,9 @@ $(eval $(call gb_Module_add_targets,vcl,\
         , \
             $(if $(filter LINUX MACOSX SOLARIS WNT %BSD,$(OS)), \
                 Executable_vcldemo \
+                Executable_svdemo \
+                Executable_minvcl \
+                Executable_svptest \
                 Executable_icontest \
                 Executable_visualbackendtest \
                 Executable_mtfdemo \
@@ -53,10 +56,7 @@ ifeq ($(CROSS_COMPILING)$(DISABLE_DYNLOADING),)
 
 $(eval $(call gb_Module_add_targets,vcl,\
     $(if $(filter-out ANDROID iOS WNT,$(OS)), \
-        Executable_svdemo \
-        Executable_minvcl \
         Executable_fftester \
-        Executable_svptest \
         Executable_listfonts \
         Executable_listglyphs \
         Executable_svpclient) \
@@ -81,6 +81,12 @@ ifneq ($(ENABLE_GTK3),)
 $(eval $(call gb_Module_add_targets,vcl,\
     Library_vclplug_gtk3 \
 ))
+
+ifneq ($(ENABLE_ATSPI_TESTS),)
+$(eval $(call gb_Module_add_check_targets,vcl,\
+    CppunitTest_vcl_gtk3_a11y \
+))
+endif
 endif
 
 ifneq ($(ENABLE_GTK4),)
@@ -95,6 +101,14 @@ $(eval $(call gb_Module_add_targets,vcl,\
     Library_vclplug_kf5 \
 ))
 endif
+
+ifneq ($(ENABLE_KF6),)
+$(eval $(call gb_Module_add_targets,vcl,\
+    CustomTarget_kf6_moc \
+    Library_vclplug_kf6 \
+))
+endif
+
 
 ifneq ($(ENABLE_QT5),)
 $(eval $(call gb_Module_add_targets,vcl,\
@@ -176,6 +190,7 @@ $(eval $(call gb_Module_add_targets,vcl,\
     Executable_qpwfuzzer \
     Executable_slkfuzzer \
     Executable_fodtfuzzer \
+    Executable_fodt2pdffuzzer \
     Executable_fodsfuzzer \
     Executable_fodpfuzzer \
     Executable_xlsfuzzer \
@@ -191,7 +206,8 @@ $(eval $(call gb_Module_add_targets,vcl,\
     Executable_sftfuzzer \
     Executable_dbffuzzer \
     Executable_webpfuzzer \
-    Executable_lockfuzzer \
+    Executable_zipfuzzer \
+    Executable_svgfuzzer \
 ))
 endif
 
@@ -269,6 +285,7 @@ endif
 ifneq (,$(filter PDFIUM,$(BUILD_TYPE)))
 $(eval $(call gb_Module_add_slowcheck_targets,vcl,\
     CppunitTest_vcl_pdfexport \
+    CppunitTest_vcl_pdfexport2 \
     CppunitTest_vcl_filter_ipdf \
 ))
 endif

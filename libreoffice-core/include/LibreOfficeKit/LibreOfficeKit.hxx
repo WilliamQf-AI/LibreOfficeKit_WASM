@@ -84,10 +84,11 @@ public:
     }
 
     /**
-     * Get the logical rectangle of each part in the document.
+     * Get the extent of each page in the document.
      *
-     * A part refers to an individual page in Writer and has no relevant for
-     * Calc or Impress.
+     * This function is relevant for Writer documents only. It is a
+     * mistake that the API has "part" in its name as Writer documents
+     * don't have parts.
      *
      * @return a rectangle list, using the same format as
      * LOK_CALLBACK_TEXT_SELECTION.
@@ -370,11 +371,6 @@ public:
     void setTextSelection(int nType, int nX, int nY)
     {
         mpDoc->pClass->setTextSelection(mpDoc, nType, nX, nY);
-    }
-
-    char* hyperlinkInfoAtPosition(int x, int y)
-    {
-        return mpDoc->pClass->hyperlinkInfoAtPosition(mpDoc, x, y);
     }
 
     /**
@@ -892,6 +888,26 @@ public:
         mpDoc->pClass->setViewTimezone(mpDoc, nId, timezone);
     }
 
+    /** Set if the view should be treated as readonly or not.
+     *
+     * @param nId view ID
+     * @param readOnly
+    */
+    void setViewReadOnly(int nId, const bool readOnly)
+    {
+        mpDoc->pClass->setViewReadOnly(mpDoc, nId, readOnly);
+    }
+
+    /** Set if the view can edit comments on readonly mode or not.
+     *
+     * @param nId view ID
+     * @param allow
+    */
+    void setAllowChangeComments(int nId, const bool allow)
+    {
+        mpDoc->pClass->setAllowChangeComments(mpDoc, nId, allow);
+    }
+
     /**
      * Enable/Disable accessibility support for the window with the specified nId.
      *
@@ -1079,7 +1095,6 @@ public:
      * @since LibreOffice 6.0
      * @param pURL macro url to run
      */
-
     bool runMacro( const char* pURL)
     {
         return mpThis->pClass->runMacro( mpThis, pURL );
@@ -1255,6 +1270,26 @@ public:
     void stopURP(void* pURPContext)
     {
         mpThis->pClass->stopURP(mpThis, pURPContext);
+    }
+
+    /**
+     * Joins all threads if possible to get down to a single process
+     * which can be forked from safely.
+     *
+     * @returns non-zero for successful join, 0 for failure.
+     */
+    int joinThreads()
+    {
+        return mpThis->pClass->joinThreads(mpThis);
+    }
+
+    /**
+     * Informs that this process is either a parent, or a child
+     * process post-fork, allowing improved resource sharing.
+     */
+    void setForkedChild(bool bIsChild)
+    {
+        return mpThis->pClass->setForkedChild(mpThis, bIsChild);
     }
 };
 

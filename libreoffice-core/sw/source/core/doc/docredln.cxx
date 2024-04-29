@@ -25,6 +25,7 @@
 #include <tools/datetimeutils.hxx>
 #include <hintids.hxx>
 #include <svl/itemiter.hxx>
+#include <editeng/prntitem.hxx>
 #include <comphelper/lok.hxx>
 #include <comphelper/string.hxx>
 #include <LibreOfficeKit/LibreOfficeKitEnums.h>
@@ -433,7 +434,7 @@ void SwRedlineTable::LOKRedlineNotification(RedlineNotification nType, SwRangeRe
     while (pViewShell)
     {
         if (pView && pView->GetDocId() == pViewShell->GetDocId())
-            pViewShell->libreOfficeKitViewCallback(nType == RedlineNotification::Modify ? LOK_CALLBACK_REDLINE_TABLE_ENTRY_MODIFIED : LOK_CALLBACK_REDLINE_TABLE_SIZE_CHANGED, aPayload.c_str());
+            pViewShell->libreOfficeKitViewCallback(nType == RedlineNotification::Modify ? LOK_CALLBACK_REDLINE_TABLE_ENTRY_MODIFIED : LOK_CALLBACK_REDLINE_TABLE_SIZE_CHANGED, OString(aPayload));
         pViewShell = SfxViewShell::GetNext(*pViewShell);
     }
 }
@@ -555,6 +556,16 @@ std::vector<std::unique_ptr<SwRangeRedline>> GetAllValidRanges(std::unique_ptr<S
             } while( pTab ); // If there is another table we have to repeat our step backwards
         }
 
+        // insert dummy character to the empty table rows to keep their changes
+        SwNode& rBoxNode = pNew->GetMark()->GetNode();
+        if ( rBoxNode.GetDoc().GetIDocumentUndoRedo().DoesUndo() && rBoxNode.GetTableBox() &&
+             rBoxNode.GetTableBox()->GetUpper()->IsEmpty() && rBoxNode.GetTextNode() )
+        {
+            ::sw::UndoGuard const undoGuard(rBoxNode.GetDoc().GetIDocumentUndoRedo());
+            rBoxNode.GetTextNode()->InsertDummy();
+            pNew->GetMark()->SetContent( 1 );
+        }
+
         if( *pNew->GetPoint() > *pEnd )
         {
             pC = nullptr;
@@ -607,11 +618,32 @@ std::vector<std::unique_ptr<SwRangeRedline>> GetAllValidRanges(std::unique_ptr<S
 
 } // namespace sw
 
+static void lcl_setRowNotTracked(SwNode& rNode)
+{
+    SwDoc& rDoc = rNode.GetDoc();
+    if ( rDoc.GetIDocumentUndoRedo().DoesUndo() && rNode.GetTableBox() )
+    {
+        SvxPrintItem aSetTracking(RES_PRINT, false);
+        SwNodeIndex aInsPos( *(rNode.GetTableBox()->GetSttNd()), 1);
+        SwCursor aCursor( SwPosition(aInsPos), nullptr );
+        ::sw::UndoGuard const undoGuard(rNode.GetDoc().GetIDocumentUndoRedo());
+        rDoc.SetRowNotTracked( aCursor, aSetTracking );
+    }
+}
+
 bool SwRedlineTable::InsertWithValidRanges(SwRangeRedline*& p, size_type* pInsPos)
 {
     bool bAnyIns = false;
+    bool bInsert = RedlineType::Insert == p->GetType();
+    SwNode* pSttNode = &p->Start()->GetNode();
+
     std::vector<std::unique_ptr<SwRangeRedline>> redlines(
             GetAllValidRanges(std::unique_ptr<SwRangeRedline>(p)));
+
+    // tdf#147180 set table change tracking in the empty row with text insertion
+    if ( bInsert )
+        lcl_setRowNotTracked(*pSttNode);
+
     for (std::unique_ptr<SwRangeRedline> & pRedline : redlines)
     {
         assert(pRedline->HasValidRange());
@@ -619,6 +651,9 @@ bool SwRedlineTable::InsertWithValidRanges(SwRangeRedline*& p, size_type* pInsPo
         auto pTmpRedline = pRedline.release();
         if (Insert(pTmpRedline, nInsPos))
         {
+            // tdf#147180 set table tracking to the table row
+            lcl_setRowNotTracked(pTmpRedline->GetPointNode());
+
             pTmpRedline->CallDisplayFunc(nInsPos);
             bAnyIns = true;
             if (pInsPos && *pInsPos < nInsPos)
@@ -815,7 +850,7 @@ bool lcl_CanCombineWithRange(SwRangeRedline* pOrigin, SwRangeRedline* pActual,
 void SwRedlineTable::getConnectedArea(size_type nPosOrigin, size_type& rPosStart,
                                       size_type& rPosEnd, bool bCheckChilds) const
 {
-    // Keep the original redline .. else we should memorize witch children was checked
+    // Keep the original redline .. else we should memorize which children was checked
     // at the last combined redline.
     SwRangeRedline* pOrigin = (*this)[nPosOrigin];
     rPosStart = nPosOrigin;
@@ -842,7 +877,7 @@ void SwRedlineTable::getConnectedArea(size_type nPosOrigin, size_type& rPosStart
 
 OUString SwRedlineTable::getTextOfArea(size_type rPosStart, size_type rPosEnd) const
 {
-    // Normally a SwPaM::GetText() would be enought with rPosStart-start and rPosEnd-end
+    // Normally a SwPaM::GetText() would be enough with rPosStart-start and rPosEnd-end
     // But at import time some text is not present there yet
     // we have to collect them 1 by 1
 
@@ -887,7 +922,7 @@ OUString SwRedlineTable::getTextOfArea(size_type rPosStart, size_type rPosEnd) c
 
 bool SwRedlineTable::isMoved(size_type rPos) const
 {
-    // If it is already a part of a movement, then dont check it.
+    // If it is already a part of a movement, then don't check it.
     if ((*this)[rPos]->GetMoved() != 0)
         return false;
     // First try with single redline. then try with combined redlines
@@ -1278,7 +1313,7 @@ bool SwRedlineData::CanCombine(const SwRedlineData& rCmp) const
 }
 
 // Check if we could/should accept/reject the 2 redlineData at the same time.
-// No need to check its childs equality
+// No need to check its children equality
 bool SwRedlineData::CanCombineForAcceptReject(const SwRedlineData& rCmp) const
 {
     return m_nAuthor == rCmp.m_nAuthor &&
@@ -1323,8 +1358,42 @@ OUString SwRedlineData::GetDescr() const
     return SwResId(STR_REDLINE_ARY[static_cast<int>(GetType())]);
 }
 
+void SwRedlineData::dumpAsXml(xmlTextWriterPtr pWriter) const
+{
+    (void)xmlTextWriterStartElement(pWriter, BAD_CAST("SwRedlineData"));
+
+    (void)xmlTextWriterWriteFormatAttribute(pWriter, BAD_CAST("ptr"), "%p", this);
+    (void)xmlTextWriterWriteAttribute(pWriter, BAD_CAST("id"), BAD_CAST(OString::number(GetSeqNo()).getStr()));
+    (void)xmlTextWriterWriteAttribute(pWriter, BAD_CAST("author"), BAD_CAST(SW_MOD()->GetRedlineAuthor(GetAuthor()).toUtf8().getStr()));
+    (void)xmlTextWriterWriteAttribute(pWriter, BAD_CAST("date"), BAD_CAST(DateTimeToOString(GetTimeStamp()).getStr()));
+    (void)xmlTextWriterWriteAttribute(pWriter, BAD_CAST("descr"), BAD_CAST(GetDescr().toUtf8().getStr()));
+
+    OString sRedlineType;
+    switch (GetType())
+    {
+        case RedlineType::Insert:
+            sRedlineType = "REDLINE_INSERT"_ostr;
+            break;
+        case RedlineType::Delete:
+            sRedlineType = "REDLINE_DELETE"_ostr;
+            break;
+        case RedlineType::Format:
+            sRedlineType = "REDLINE_FORMAT"_ostr;
+            break;
+        default:
+            sRedlineType = "UNKNOWN"_ostr;
+            break;
+    }
+    (void)xmlTextWriterWriteAttribute(pWriter, BAD_CAST("type"), BAD_CAST(sRedlineType.getStr()));
+    (void)xmlTextWriterWriteAttribute(pWriter, BAD_CAST("moved"), BAD_CAST(OString::number(m_nMovedID).getStr()));
+
+    (void)xmlTextWriterEndElement(pWriter);
+}
+
 sal_uInt32 SwRangeRedline::s_nLastId = 1;
 
+namespace
+{
 void lcl_LOKBroadcastCommentOperation(RedlineType type, const SwPaM& rPam)
 {
     if (comphelper::LibreOfficeKit::isActive())
@@ -1337,6 +1406,7 @@ void lcl_LOKBroadcastCommentOperation(RedlineType type, const SwPaM& rPam)
             const_cast<SwFormatField&>(pTextField->GetFormatField()).Broadcast(SwFormatFieldHint(&pTextField->GetFormatField(), eHintType));
     }
 }
+} // anonymous namespace
 
 SwRangeRedline::SwRangeRedline(RedlineType eTyp, const SwPaM& rPam, sal_uInt32 nMovedID )
     : SwPaM( *rPam.GetMark(), *rPam.GetPoint() ), m_pRedlineData(
@@ -2334,28 +2404,13 @@ void SwRangeRedline::dumpAsXml(xmlTextWriterPtr pWriter) const
     (void)xmlTextWriterStartElement(pWriter, BAD_CAST("SwRangeRedline"));
 
     (void)xmlTextWriterWriteFormatAttribute(pWriter, BAD_CAST("ptr"), "%p", this);
-    (void)xmlTextWriterWriteAttribute(pWriter, BAD_CAST("id"), BAD_CAST(OString::number(GetSeqNo()).getStr()));
-    (void)xmlTextWriterWriteAttribute(pWriter, BAD_CAST("author"), BAD_CAST(SW_MOD()->GetRedlineAuthor(GetAuthor()).toUtf8().getStr()));
-    (void)xmlTextWriterWriteAttribute(pWriter, BAD_CAST("date"), BAD_CAST(DateTimeToOString(GetTimeStamp()).getStr()));
-    (void)xmlTextWriterWriteAttribute(pWriter, BAD_CAST("descr"), BAD_CAST(const_cast<SwRangeRedline*>(this)->GetDescr().toUtf8().getStr()));
 
-    OString sRedlineType;
-    switch (GetType())
+    const SwRedlineData* pRedlineData = m_pRedlineData;
+    while (pRedlineData)
     {
-        case RedlineType::Insert:
-            sRedlineType = "REDLINE_INSERT";
-            break;
-        case RedlineType::Delete:
-            sRedlineType = "REDLINE_DELETE";
-            break;
-        case RedlineType::Format:
-            sRedlineType = "REDLINE_FORMAT";
-            break;
-        default:
-            sRedlineType = "UNKNOWN";
-            break;
+        pRedlineData->dumpAsXml(pWriter);
+        pRedlineData = pRedlineData->Next();
     }
-    (void)xmlTextWriterWriteAttribute(pWriter, BAD_CAST("type"), BAD_CAST(sRedlineType.getStr()));
 
     SwPaM::dumpAsXml(pWriter);
 

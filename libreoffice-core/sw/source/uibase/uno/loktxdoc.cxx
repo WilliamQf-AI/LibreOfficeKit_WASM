@@ -20,7 +20,6 @@
 #include <unotxdoc.hxx>
 
 #include <map>
-#include <utility>
 #include <vector>
 
 #include <com/sun/star/beans/XPropertyAccess.hpp>
@@ -35,12 +34,16 @@
 #include <doc.hxx>
 #include <docsh.hxx>
 #include <fmtrfmrk.hxx>
+#include <wrtsh.hxx>
 #include <txtrfmrk.hxx>
 #include <ndtxt.hxx>
 #include <wrtsh.hxx>
-#include "redline.hxx" // MACRO:
-#include "IDocumentRedlineAccess.hxx" // MACRO:
-#include "swundo.hxx" // MACRO:
+
+// MACRO: {
+#include <redline.hxx>
+#include <IDocumentRedlineAccess.hxx>
+#include <swundo.hxx>
+// MACRO: }
 
 using namespace ::com::sun::star;
 
@@ -128,7 +131,7 @@ void GetTextFormField(tools::JsonWriter& rJsonWriter, SwDocShell* pDocShell,
     IDocumentMarkAccess& rIDMA = *pDocShell->GetDoc()->getIDocumentMarkAccess();
     SwWrtShell* pWrtShell = pDocShell->GetWrtShell();
     SwPosition& rCursor = *pWrtShell->GetCursor()->GetPoint();
-    sw::mark::IFieldmark* pFieldmark = rIDMA.getFieldmarkFor(rCursor);
+    sw::mark::IFieldmark* pFieldmark = rIDMA.getInnerFieldmarkFor(rCursor);
     auto typeNode = rJsonWriter.startNode("field");
     if (!pFieldmark)
     {
@@ -253,7 +256,7 @@ void GetBookmark(tools::JsonWriter& rJsonWriter, SwDocShell* pDocShell,
     IDocumentMarkAccess& rIDMA = *pDocShell->GetDoc()->getIDocumentMarkAccess();
     SwWrtShell* pWrtShell = pDocShell->GetWrtShell();
     SwPosition& rCursor = *pWrtShell->GetCursor()->GetPoint();
-    sw::mark::IMark* pBookmark = rIDMA.getBookmarkFor(rCursor);
+    sw::mark::IMark* pBookmark = rIDMA.getOneInnermostBookmarkFor(rCursor);
     tools::ScopedJsonWriterNode aBookmark = rJsonWriter.startNode("bookmark");
     if (!pBookmark)
     {
@@ -492,7 +495,7 @@ void SwXTextDocument::getCommandValues(tools::JsonWriter& rJsonWriter, std::stri
     }
 }
 
-// MACRO: MACRO-1212: batch track change updates in a single action
+// MACRO-1212: batch track change updates in a single action
 void SwXTextDocument::batchUpdateTrackChange( const css::uno::Sequence<sal_uInt32>& rArguments, bool accept)
 {
     SwWrtShell* mrSh = m_pDocShell->GetWrtShell();
@@ -517,8 +520,9 @@ void SwXTextDocument::batchUpdateTrackChange( const css::uno::Sequence<sal_uInt3
     mrSh->EndAllAction();
     mrSh->EndUndo(undoId, nullptr);
 }
+// MACRO-1212: }
 
-// MACRO: MACRO-1392: Request layout updates for redlines
+// MACRO-1392: Request layout updates for redlines {
 void SwXTextDocument::updateRedlines( const css::uno::Sequence<sal_uInt32>& rArguments) {
     SwWrtShell* mrSh = m_pDocShell->GetWrtShell();
     SwDoc *pDoc = mrSh->GetDoc();
@@ -535,5 +539,6 @@ void SwXTextDocument::updateRedlines( const css::uno::Sequence<sal_uInt32>& rArg
         }
     }
 }
+// MACRO-1392: }
 
 /* vim:set shiftwidth=4 softtabstop=4 expandtab: */
