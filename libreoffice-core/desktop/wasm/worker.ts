@@ -253,6 +253,8 @@ const handler: AsyncMessage = {
     return result.startsWith('{') ? JSON.parse(result) : result;
   },
 
+
+
   preload: async function (): Promise<void> {
     (await lokPromise).preload();
   },
@@ -389,6 +391,11 @@ const handler: AsyncMessage = {
     await lokPromise;
     byRef(ref)?.setClientVisibleArea(viewId, x, y, width, height);
   },
+
+  setIsMacOSForConfig: async function(
+  ): Promise<void> {
+    (await lokPromise).setIsMacOSForConfig();
+  }
 };
 
 // this is used by imported scripts to register their handlers
