@@ -9,7 +9,7 @@ dnl in order to create a configure script.
 # several non-alphanumeric characters, those are split off and used only for the
 # ABOUTBOXPRODUCTVERSIONSUFFIX in openoffice.lst. Why that is necessary, no idea.
 
-AC_INIT([Collabora Office],[24.04.1.2],[],[],[https://collaboraoffice.com/])
+AC_INIT([Collabora Office],[24.04.1.4],[],[],[https://collaboraoffice.com/])
 
 dnl libnumbertext needs autoconf 2.68, but that can pick up autoconf268 just fine if it is installed
 dnl whereas aclocal (as run by autogen.sh) insists on using autoconf and fails hard
@@ -7391,8 +7391,11 @@ if test "$GCC" = "yes" -o "$COM_IS_CLANG" = TRUE; then
     AC_MSG_CHECKING([whether $CC_BASE supports -D_FORTIFY_SOURCE=2])
     save_CFLAGS=$CFLAGS
     CFLAGS="$CFLAGS -Werror -Wp,-U_FORTIFY_SOURCE,-D_FORTIFY_SOURCE=2"
+    if test "$ENABLE_OPTIMIZED" = TRUE; then
+        CFLAGS="$CFLAGS -O2"
+    fi
     AC_LINK_IFELSE(
-        [AC_LANG_PROGRAM(, [[return 0;]])],
+        [AC_LANG_PROGRAM([[#include <string.h>]], [[return 0;]])],
         [AC_MSG_RESULT([yes]); HARDENING_OPT_CFLAGS="$HARDENING_OPT_CFLAGS -Wp,-U_FORTIFY_SOURCE,-D_FORTIFY_SOURCE=2"],
         [AC_MSG_RESULT([no])])
     CFLAGS=$save_CFLAGS
