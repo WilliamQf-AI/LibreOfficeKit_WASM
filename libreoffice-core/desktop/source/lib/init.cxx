@@ -84,6 +84,7 @@
 #include <svl/zforlist.hxx>
 #include <linguistic/misc.hxx>
 #include <cppuhelper/bootstrap.hxx>
+#include <comphelper/random.hxx>
 #include <comphelper/base64.hxx>
 #include <comphelper/dispatchcommand.hxx>
 #include <comphelper/lok.hxx>
@@ -4125,7 +4126,8 @@ static void doc_iniUnoCommands ()
         u".uno:InsertPictureContentControl"_ustr,
         u".uno:DataFilterAutoFilter"_ustr,
         u".uno:CellProtection"_ustr,
-        u".uno:MoveKeepInsertMode"_ustr
+        u".uno:MoveKeepInsertMode"_ustr,
+        u".uno:ToggleSheetGrid"_ustr,
     };
 
     util::URL aCommandURL;
@@ -7919,8 +7921,7 @@ static void doc_setViewReadOnly(SAL_UNUSED_PARAMETER LibreOfficeKitDocument* pTh
     SolarMutexGuard aGuard;
     SetLastExceptionMsg();
 
-    doc_setView(pThis, nId);
-    SfxViewShell::Current()->SetLokReadOnlyView(readOnly);
+    SfxLokHelper::setViewReadOnly(nId, readOnly);
 }
 
 static void doc_setAllowChangeComments(SAL_UNUSED_PARAMETER LibreOfficeKitDocument* pThis, int nId, const bool allow)
@@ -7930,8 +7931,7 @@ static void doc_setAllowChangeComments(SAL_UNUSED_PARAMETER LibreOfficeKitDocume
     SolarMutexGuard aGuard;
     SetLastExceptionMsg();
 
-    doc_setView(pThis, nId);
-    SfxViewShell::Current()->SetAllowChangeComments(allow);
+    SfxLokHelper::setAllowChangeComments(nId, allow);
 }
 
 static void doc_setAccessibilityState(SAL_UNUSED_PARAMETER LibreOfficeKitDocument* pThis, int nId, bool nEnabled)
@@ -8265,11 +8265,14 @@ static void preloadData()
     }
     std::cerr << "\n";
 
-    std::cerr << "Preloading breakiterator: ";
-    css::uno::Reference< css::i18n::XBreakIterator > xBreakIterator = css::i18n::BreakIterator::create(xContext);
-    css::i18n::LineBreakUserOptions aUserOptions;
-    css::i18n::LineBreakHyphenationOptions aHyphOptions( LinguMgr::GetHyphenator(), css::uno::Sequence<beans::PropertyValue>(), 1 );
-    xBreakIterator->getLineBreak("", /*nMaxBreakPos*/0, aLocales[0], /*nMinBreakPos*/0, aHyphOptions, aUserOptions);
+    std::cerr << "Preloading breakiterator\n";
+    if (aLocales.getLength())
+    {
+        css::uno::Reference< css::i18n::XBreakIterator > xBreakIterator = css::i18n::BreakIterator::create(xContext);
+        css::i18n::LineBreakUserOptions aUserOptions;
+        css::i18n::LineBreakHyphenationOptions aHyphOptions( LinguMgr::GetHyphenator(), css::uno::Sequence<beans::PropertyValue>(), 1 );
+        xBreakIterator->getLineBreak("", /*nMaxBreakPos*/0, aLocales[0], /*nMinBreakPos*/0, aHyphOptions, aUserOptions);
+    }
 
     css::uno::Reference< css::ui::XAcceleratorConfiguration > xGlobalCfg = css::ui::GlobalAcceleratorConfiguration::create(
         comphelper::getProcessComponentContext());
@@ -8650,7 +8653,10 @@ static int lo_initialize(LibreOfficeKit* pThis, const char* pAppPath, const char
         }
         rtl::Bootstrap::set(u"UserInstallation"_ustr, url);
         if (eStage == SECOND_INIT)
+        {
+            comphelper::rng::reseed();
             utl::Bootstrap::reloadData();
+        }
     }
 
     OUString aAppPath;
