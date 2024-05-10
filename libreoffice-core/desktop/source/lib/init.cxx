@@ -2591,6 +2591,7 @@ void CallbackFlushHandler::Invoke()
                     long w, h;
                     pDocument->pClass->getDocumentSize(pDocument, &w, &h);
                     __c11_atomic_store(&data.docWidthTwips, w, __ATOMIC_SEQ_CST);
+                    __c11_atomic_store(&data.docHeightTwips, h, __ATOMIC_SEQ_CST);
                 }
             }
         }

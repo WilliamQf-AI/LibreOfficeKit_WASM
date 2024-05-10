@@ -53,7 +53,7 @@ const handler: AsyncMessage = {
     return ref;
   },
 
-  newView: async function(ref: DocumentRef): Promise<DocumentRef | null> {
+  newView: async function (ref: DocumentRef): Promise<DocumentRef | null> {
     const doc = byRef(ref);
     return doc?.newView();
   },
@@ -253,8 +253,6 @@ const handler: AsyncMessage = {
     return result.startsWith('{') ? JSON.parse(result) : result;
   },
 
-
-
   preload: async function (): Promise<void> {
     (await lokPromise).preload();
   },
@@ -280,9 +278,10 @@ const handler: AsyncMessage = {
   startRendering: async function (
     ref: DocumentRef,
     viewId: ViewId,
-    canvas: OffscreenCanvas,
+    canvases: OffscreenCanvas[],
     tileSize: TileDim,
     scale: number,
+    dpi: number,
     yPos: number = 0
   ): Promise<TileRendererData> {
     await lokPromise;
@@ -303,12 +302,13 @@ const handler: AsyncMessage = {
     worker.postMessage(
       {
         t: 'i',
-        c: canvas,
+        c: canvases,
         d: result,
         s: scale,
         y: yPos,
+        dpi,
       } as ToTileRenderer,
-      { transfer: [canvas] }
+      { transfer: [...canvases] }
     );
 
     return {
@@ -321,7 +321,7 @@ const handler: AsyncMessage = {
   resetRendering: function (
     ref: DocumentRef,
     viewId: ViewId,
-    canvas: OffscreenCanvas
+    canvases: OffscreenCanvas[]
   ): Promise<void> {
     throw new Error('Function not implemented.');
   },
@@ -334,11 +334,25 @@ const handler: AsyncMessage = {
     ref: DocumentRef,
     viewId: ViewId,
     yPx: number
-  ): Promise<void> {
-    tileRenderer[ref]?.[viewId]?.postMessage({
+  ): Promise<number> {
+    const worker = tileRenderer[ref]?.[viewId];
+    if (!worker) return;
+    const scrollPromise = new Promise<number>((resolve) => {
+      const handleMessage = ({ data }: MessageEvent) => {
+        if (data.s != null) {
+          resolve(data.s);
+        }
+        worker.removeEventListener('message', handleMessage);
+      };
+      worker.addEventListener('message', handleMessage);
+    });
+
+    worker.postMessage({
       t: 's',
       y: yPx,
     } as ToTileRenderer);
+
+    return scrollPromise;
   },
 
   setVisibleHeight: async function (
@@ -351,6 +365,7 @@ const handler: AsyncMessage = {
       h: heightPx,
     } as ToTileRenderer);
   },
+
   dispatchCommand: async function (
     ref: DocumentRef,
     viewId: ViewId,
@@ -366,6 +381,7 @@ const handler: AsyncMessage = {
       notifyWhenFinished
     );
   },
+
   removeText: async function (
     ref: DocumentRef,
     viewId: ViewId,
@@ -380,6 +396,7 @@ const handler: AsyncMessage = {
       charsAfter
     );
   },
+
   setClientVisibleArea: async function (
     ref: DocumentRef,
     viewId: ViewId,
@@ -392,10 +409,22 @@ const handler: AsyncMessage = {
     byRef(ref)?.setClientVisibleArea(viewId, x, y, width, height);
   },
 
-  setIsMacOSForConfig: async function(
+  setZoom: async function (
+    ref: DocumentRef,
+    viewId: ViewId,
+    scale: number,
+    dpi: number
   ): Promise<void> {
+    tileRenderer[ref][viewId]?.postMessage({
+      t: 'z',
+      s: scale,
+      d: dpi,
+    } as ToTileRenderer);
+  },
+
+  setIsMacOSForConfig: async function (): Promise<void> {
     (await lokPromise).setIsMacOSForConfig();
-  }
+  },
 };
 
 // this is used by imported scripts to register their handlers
