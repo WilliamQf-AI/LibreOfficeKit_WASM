@@ -940,8 +940,7 @@ static void InterceptLOKStateChangeEvent(sal_uInt16 nSID, SfxViewFrame* pViewFra
         aEvent.FeatureURL.Path == "SpacePara15" ||
         aEvent.FeatureURL.Path == "SpacePara2" ||
         aEvent.FeatureURL.Path == "DataFilterAutoFilter" ||
-        aEvent.FeatureURL.Path == "CellProtection" ||
-        aEvent.FeatureURL.Path == "ToggleSheetGrid")
+        aEvent.FeatureURL.Path == "CellProtection")
     {
         bool bTemp = false;
         aEvent.State >>= bTemp;
@@ -1002,6 +1001,8 @@ static void InterceptLOKStateChangeEvent(sal_uInt16 nSID, SfxViewFrame* pViewFra
              aEvent.FeatureURL.Path == "InsertRowsAfter" ||
              aEvent.FeatureURL.Path == "InsertColumnsBefore" ||
              aEvent.FeatureURL.Path == "InsertColumnsAfter" ||
+             aEvent.FeatureURL.Path == "NameGroup" ||
+             aEvent.FeatureURL.Path == "ObjectTitleDescription" ||
              aEvent.FeatureURL.Path == "MergeCells" ||
              aEvent.FeatureURL.Path == "InsertObjectChart" ||
              aEvent.FeatureURL.Path == "InsertSection" ||
@@ -1222,7 +1223,8 @@ static void InterceptLOKStateChangeEvent(sal_uInt16 nSID, SfxViewFrame* pViewFra
         }
     }
     else if (aEvent.FeatureURL.Path == "ToggleMergeCells" ||
-             aEvent.FeatureURL.Path == "SheetRightToLeft")
+             aEvent.FeatureURL.Path == "SheetRightToLeft" ||
+             aEvent.FeatureURL.Path == "ToggleSheetGrid")
     {
         bool aBool;
 
