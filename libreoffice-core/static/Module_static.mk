@@ -25,6 +25,22 @@ $(eval $(call gb_Module_add_targets,static,\
 ))
 endif
 
+# MACRO: Disable unoembind API for now since it causes a 1+ second startup delay {
+# ifeq (EMSCRIPTEN,$(OS))
+# $(eval $(call gb_Module_add_targets,static,\
+#     CustomTarget_unoembind \
+#     Package_unoembind \
+#     StaticLibrary_unoembind \
+# ))
+# endif
+# MACRO: }
+
+endif
+
+ifneq ($(filter EMSCRIPTEN,$(BUILD_TYPE_FOR_HOST)),)
+$(eval $(call gb_Module_add_targets,static, \
+    Executable_embindmaker \
+))
 endif
 
 # vim: set noet sw=4 ts=4:

@@ -2,12 +2,20 @@ export type Id = number & {};
 export type DocumentRef = number & {};
 export type ViewId = number & {};
 import type { CallbackType } from './lok_enums';
-import type { TileRenderData } from './soffice';
+import type {
+  Comment,
+  FindAllOptions,
+  HeaderFooterRect,
+  ITextRanges,
+  ParagraphStyleList,
+  TileRenderData,
+} from './soffice';
 export type GlobalMessage = {
   /** load the document with the file name `name` and content `blob`
   @returns the corresponding document on success, null otherwise */
   load(name: string, blob: Blob): DocumentRef | null;
-  importScript(url: string): void;
+  // NOTE: Disabled until unoembind startup cost is under 1s
+  // importScript(url: string): void;
   preload(): void;
   setIsMacOSForConfig(): void;
 };
@@ -40,6 +48,12 @@ export type InitializeForRenderingOptions = Partial<{
   autoSpellcheck: boolean;
   author: string;
 }>;
+
+export type ParagraphStyle<T extends string[]> =
+  | undefined
+  | {
+      [K in T[number]]: any;
+    };
 
 export type TileRendererData = {
   readonly docRef: number;
@@ -120,6 +134,48 @@ export type DocumentWithViewMethods = {
   ): void;
   /** TODO: implement */
   stopRendering(): void;
+  // NOTE: Disabled until unoembind startup cost is under 1s
+  // getXComponent(): void;
+
+  comments(): Comment[];
+  addComment(text: string): void;
+  replyComment(parentId: number, text: string): void;
+  deleteCommentThreads(parentIds: number[]): void;
+  deleteComment(commentId: number): void;
+  resolveCommentThread(parentId: number): void;
+  resolveComment(commentId: number): void;
+  sanitize(options: {
+    documentMetadata?: boolean;
+    trackChangesAccept?: boolean;
+    trackChangesReject?: boolean;
+    comments?: boolean;
+  }): void;
+
+  /** if inside of header/footer returns the type and its area rectangle, otherwise undefined */
+  headerFooterRect(): HeaderFooterRect | undefined;
+
+  getPropertyValue(property: string): any;
+  setPropertyValue(property: string, value: any): void;
+  saveCurrentSelection(): void;
+  restoreCurrentSelection(): void;
+
+  getSelectionText(): string | undefined;
+
+  /** gets a paragraph style with the given name and returns the requested properties of that style if found, undefined otherwise */
+  getParagraphStyle<T extends string[]>(
+    name: string,
+    properties: T
+  ): ParagraphStyle<T>;
+
+  /** get a list of all paragraph styles */
+  paragraphStyles(): ParagraphStyleList;
+};
+
+/** methods that forward to a class weakly bound to the Document that forwards calls */
+export type ResolverToForwardingMethod = {
+  _find: {
+    findAll(text: string, options?: FindAllOptions | undefined): ITextRanges;
+  };
 };
 
 type DocumentMessage = {
@@ -128,6 +184,7 @@ type DocumentMessage = {
     ...args: Parameters<DocumentMethods[K]>
   ) => ReturnType<DocumentMethods[K]>;
 };
+
 type DocumentWithViewMessage = {
   [K in keyof DocumentWithViewMethods]: (
     ref: DocumentRef,
@@ -135,7 +192,104 @@ type DocumentWithViewMessage = {
     ...args: Parameters<DocumentWithViewMethods[K]>
   ) => ReturnType<DocumentWithViewMethods[K]>;
 };
-export type Message = GlobalMessage & DocumentMessage & DocumentWithViewMessage;
+
+export type ForwardedResolver = keyof ResolverToForwardingMethod;
+
+export type ForwardingId<K extends ForwardedResolver = ForwardedResolver> = [
+  DocumentRef,
+  ViewId,
+  K,
+];
+
+/** resolves all methods in ResolverToForwardingMethod */
+export type ForwardingMethod<
+  K extends ForwardedResolver = ForwardedResolver,
+  M extends ResolverToForwardingMethod[K] = ResolverToForwardingMethod[K],
+  F extends M[keyof M] & ((...args: any) => any) = Extract<
+    M[keyof M],
+    (...args: any) => any
+  >,
+> = F;
+
+export type ForwardedResolverMap<
+  K extends ForwardedResolver = ForwardedResolver,
+> = {
+  [T in K]: (id: ForwardingId<K>) => ReturnType<ForwardingMethod<K>>;
+};
+
+export type ForwardingMethodHandler<
+  C,
+  F extends (...args: any[]) => any = (...args: any[]) => any,
+> = (
+  doc: C,
+  docRef: DocumentRef,
+  viewId: ViewId,
+  ...args: Parameters<F>
+) => ForwardingId;
+
+export type ForwardingMethodHandlers<
+  C,
+  K extends ForwardedResolver = ForwardedResolver,
+  M extends ResolverToForwardingMethod[K] = ResolverToForwardingMethod[K],
+  FK extends keyof M = keyof M,
+> = {
+  [T in FK]: M[FK] extends (...args: any) => any
+    ? ForwardingMethodHandler<C, M[FK]>
+    : never;
+};
+
+export type ForwardedMethodMap<
+  K extends ForwardedResolver = ForwardedResolver,
+> = {
+  [T in K]: {
+    [X in keyof ReturnType<ForwardingMethod<K>>]: true;
+  };
+};
+
+export type ForwardingMessage<
+  K extends ForwardedResolver = ForwardedResolver,
+  M extends ResolverToForwardingMethod[K] = ResolverToForwardingMethod[K],
+  FK extends keyof M = keyof M,
+> = {
+  [T in FK]: M[FK] extends (...args: infer P) => infer R
+    ? (docRef: DocumentRef, viewId: ViewId, ...args: P) => ForwardingId
+    : never;
+};
+
+export type ForwardedMethodMessage<
+  K extends ForwardedResolver = ForwardedResolver,
+  F extends ForwardingMethod<K> = ForwardingMethod<K>,
+  R extends ReturnType<F> = ReturnType<F>,
+  RK extends keyof R = keyof R,
+> = {
+  [T in K]: (
+    method: RK,
+    fwd: ForwardingId,
+    ...args: Parameters<R[RK]>
+  ) => ReturnType<R[RK]>;
+};
+
+type DocumentMessageUnion = DocumentMessage & DocumentWithViewMessage;
+
+export type Message = GlobalMessage &
+  DocumentMessageUnion &
+  ForwardingMessage &
+  ForwardedMethodMessage;
+
+export type GlobalMethod = {
+  [K in keyof GlobalMessage]: (
+    ...args: Parameters<GlobalMessage[K]>
+  ) => ReturnType<GlobalMessage[K]>;
+};
+
+type Tail<T> = T extends [any, ...infer Rest] ? Rest : never;
+
+export type DocumentMethodHandler<C> = {
+  [K in keyof DocumentMessageUnion]: (
+    doc: C,
+    ...args: Tail<Parameters<DocumentMessageUnion[K]>>
+  ) => ReturnType<DocumentMessageUnion[K] | Promise<DocumentMessageUnion[K]>>;
+};
 
 export type AsyncMessage = {
   [K in keyof Message]: (
@@ -144,6 +298,7 @@ export type AsyncMessage = {
 };
 
 export type CallbackHandler = (payload: string) => void;
+
 export type DocumentClientBase = {
   readonly ref: DocumentRef;
   readonly viewId: ViewId;
@@ -151,18 +306,20 @@ export type DocumentClientBase = {
   off(type: CallbackType, handler: CallbackHandler): void;
   newView(): Promise<DocumentClient | null>;
 };
-export type DocumentClient<
-  E extends { [k: string]: (...args: any) => any } = {},
-> = {
-  [K in keyof DocumentMethods]: (
+
+export type DocumentClient = {
+  [K in keyof Omit<DocumentMethods, 'newView'>]: (
     ...args: Parameters<DocumentMethods[K]>
   ) => Promise<ReturnType<DocumentMethods[K]>>;
 } & {
   [K in keyof DocumentWithViewMethods]: (
     ...args: Parameters<DocumentWithViewMethods[K]>
   ) => Promise<ReturnType<DocumentWithViewMethods[K]>>;
-} & DocumentClientBase &
-  E;
+} & {
+  [K in keyof ForwardingMethod]: (
+    ...args: Parameters<ForwardingMethod[K]>
+  ) => Promise<ReturnType<ForwardingMethod[K]>>;
+} & DocumentClientBase;
 
 export type ToWorker<K extends keyof Message = keyof Message> = {
   f: K;
@@ -177,10 +334,32 @@ export type WorkerCallback = {
   p: string;
 };
 
+export type KeysMessage = {
+  f: '_keys';
+  keys: string[];
+  forwarded: {
+    [K in keyof ForwardedMethodMap]: string[];
+  };
+};
+
 export type FromWorker<K extends keyof Message = keyof Message> = {
   f: K;
   i: Id;
   r: ReturnType<Message[K]>;
+};
+
+export type ForwardingFromWorker<
+  K extends ForwardedResolver = ForwardedResolver,
+  M extends ResolverToForwardingMethod[K] = ResolverToForwardingMethod[K],
+  FK extends keyof M = keyof M,
+> = FromWorker<FK & keyof Message> & {
+  fwd: true;
+};
+
+export type ForwardedFromWorker<
+  K extends ForwardedResolver = ForwardedResolver,
+> = FromWorker<K> & {
+  m: keyof ReturnType<ForwardingMethod<K>>;
 };
 
 export type ToTileRenderer =

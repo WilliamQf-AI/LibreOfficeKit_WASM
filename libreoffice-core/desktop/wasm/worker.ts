@@ -1,28 +1,48 @@
 import type {
-  Message,
-  FromWorker,
+  DocumentMethodHandler,
+  GlobalMethod,
   DocumentRef,
-  ToWorker,
-  AsyncMessage,
+  ForwardedFromWorker,
+  ForwardedMethodMap,
+  ForwardedResolver,
+  ForwardedResolverMap,
+  ForwardingId,
+  ForwardingMethodHandlers,
+  FromWorker,
+  GetClipbaordItem,
+  InitializeForRenderingOptions,
+  KeysMessage,
+  Message,
+  ParagraphStyle,
   RectangleTwips,
   SetClipbaordItem,
-  GetClipbaordItem,
-  WorkerCallback,
-  InitializeForRenderingOptions,
-  ViewId,
-  TileRendererData,
   TileDim,
+  TileRendererData,
   ToTileRenderer,
+  ToWorker,
+  ViewId,
+  WorkerCallback,
+  ForwardingMethodHandler,
 } from './shared';
+import type {
+  Comment,
+  Document,
+  HeaderFooterRect,
+  ITextRanges,
+  ParagraphStyleList,
+  RectArray,
+  SanitizeOptions,
+} from './soffice';
 import LOK from './soffice';
-import type { Document } from './soffice';
+// NOTE: Disabled until unoembind startup cost is under 1s
+// import { init_unoembind_uno } from './bindings_uno';
 
 const docMap: Record<DocumentRef, Document> = {};
+const findResultMap: Record<DocumentRef, ITextRanges> = {};
 const byRef = (ref: DocumentRef) => docMap[ref];
 const tileRenderer: Record<DocumentRef, Record<ViewId, Worker>> = {};
-self.byRef = byRef;
 
-const lokPromise = LOK({
+const lok = await LOK({
   withFcCache: true,
   callbackHandlers: {
     callback: function (ref: DocumentRef, type: number, payload: string): void {
@@ -37,12 +57,20 @@ const lokPromise = LOK({
   },
 });
 
-const handler: AsyncMessage = {
-  load: async function (name: string, blob: Blob): Promise<DocumentRef | null> {
-    const { mountBlob, unmountBlob, Document } = await lokPromise;
-    const doc = new Document(`file://${mountBlob(name, blob)}`);
+function rectArrayToRectangleTwips(r: RectArray): RectangleTwips {
+  return {
+    x: r[0],
+    y: r[1],
+    width: r[2],
+    height: r[3],
+  };
+}
+
+const globalHandler: GlobalMethod = {
+  load: function (name: string, blob: Blob): DocumentRef | null {
+    const doc = new lok.Document(`file://${lok.mountBlob(name, blob)}`);
     const ref = doc.ref();
-    unmountBlob();
+    lok.unmountBlob();
 
     if (!doc.valid()) {
       doc.delete();
@@ -53,74 +81,53 @@ const handler: AsyncMessage = {
     return ref;
   },
 
-  newView: async function (ref: DocumentRef): Promise<DocumentRef | null> {
-    const doc = byRef(ref);
-    return doc?.newView();
+  preload: function (): void {
+    lok.preload();
   },
 
-  close: async function (ref: DocumentRef): Promise<void> {
-    const doc = docMap[ref];
-    doc?.delete();
+  setIsMacOSForConfig: function (): void {
+    lok.setIsMacOSForConfig();
+  },
+};
+
+const handler: DocumentMethodHandler<Document> = {
+  newView: function (doc: Document): DocumentRef {
+    return doc.newView();
   },
 
-  save: async function (
-    ref: DocumentRef,
-    format: string
-  ): Promise<ArrayBuffer> {
-    const { readUnlink } = await lokPromise;
+  close: function (doc: Document): void {
+    doc.delete();
+  },
+
+  save: function (doc: Document, format: string): ArrayBuffer {
     const tmpFile = `/${Date.now()}.${format}`;
     // Optional arguments as emscripten can be undefined,
     // but the number of parameters must match the binding signature
     // so for optional parameters, we have to pass undefined
     // https://github.com/emscripten-core/emscripten/pull/21076/files
-    byRef(ref)?.saveAs(`file://${tmpFile}`, format, undefined);
+    doc.saveAs(`file://${tmpFile}`, format, undefined);
     // only buffer is transferable
-    return readUnlink(tmpFile).buffer;
+    return lok.readUnlink(tmpFile).buffer;
   },
 
-  parts: async function (ref: DocumentRef): Promise<number> {
-    await lokPromise;
-    return self.byRef(ref)?.getParts();
+  parts: function (doc: Document): number {
+    return doc.getParts();
   },
 
-  partRectanglesTwips: async function (
-    ref: DocumentRef
-  ): Promise<RectangleTwips[]> {
-    await lokPromise;
-    const doc = byRef(ref);
-    if (!doc) return [];
-    return doc
-      .getPartRectangles()
-      .split(/;\s*/)
-      .map((rect) => {
-        const [x, y, width, height] = rect.split(/,\s*/).map(Number);
-        return {
-          x,
-          y,
-          width,
-          height,
-        };
-      });
+  partRectanglesTwips: function (doc: Document): RectangleTwips[] {
+    return doc.pageRects().map(rectArrayToRectangleTwips);
   },
 
-  documentSize: async function (
-    ref: DocumentRef
-  ): Promise<[widthTwips: number, heightTwips: number]> {
-    await lokPromise;
-    return byRef(ref)?.getDocumentSize();
+  documentSize: function (
+    doc: Document
+  ): [widthTwips: number, heightTwips: number] {
+    return doc.getDocumentSize();
   },
 
-  importScript: async function (url: string) {
-    importScripts(url);
-  },
-
-  initializeForRendering: async function (
-    ref: DocumentRef,
+  initializeForRendering: function (
+    doc: Document,
     args: InitializeForRenderingOptions = {}
-  ): Promise<number> {
-    await lokPromise;
-    const doc = byRef(ref);
-    if (!doc) return -1;
+  ): number {
     doc.initializeForRendering(
       `{".uno:ShowBorderShadow": {
           "type": "boolean",
@@ -142,29 +149,27 @@ const handler: AsyncMessage = {
     return doc.getViewId();
   },
 
-  postKeyEvent: async function (
-    ref: DocumentRef,
+  postKeyEvent: function (
+    doc: Document,
     viewId: ViewId,
     type: number,
     charCode: number,
     keyCode: number
-  ): Promise<void> {
-    await lokPromise;
-    return byRef(ref)?.postKeyEvent(viewId, type, charCode, keyCode);
+  ): void {
+    return doc.postKeyEvent(viewId, type, charCode, keyCode);
   },
 
-  postTextInput: async function (
-    ref: DocumentRef,
+  postTextInput: function (
+    doc: Document,
     viewId: ViewId,
     windowId: number,
     text: string
-  ): Promise<void> {
-    await lokPromise;
-    return byRef(ref)?.postTextInputEvent(viewId, windowId, text);
+  ): void {
+    return doc.postTextInputEvent(viewId, windowId, text);
   },
 
-  postMouseEvent: async function (
-    ref: DocumentRef,
+  postMouseEvent: function (
+    doc: Document,
     viewId: ViewId,
     type: number,
     x: number,
@@ -172,123 +177,94 @@ const handler: AsyncMessage = {
     count: number,
     buttons: number,
     modifiers: number
-  ): Promise<void> {
-    await lokPromise;
-    return byRef(ref)?.postMouseEvent(
-      viewId,
-      type,
-      x,
-      y,
-      count,
-      buttons,
-      modifiers
-    );
+  ): void {
+    return doc.postMouseEvent(viewId, type, x, y, count, buttons, modifiers);
   },
 
-  setTextSelection: async function (
-    ref: DocumentRef,
+  setTextSelection: function (
+    doc: Document,
     viewId: ViewId,
     type: number,
     x: number,
     y: Number
-  ): Promise<void> {
-    await lokPromise;
-    return byRef(ref)?.setTextSelection(viewId, type, x, y);
+  ): void {
+    return doc.setTextSelection(viewId, type, x, y);
   },
 
-  setClipboard: async function (
-    ref: DocumentRef,
+  setClipboard: function (
+    doc: Document,
     viewId: ViewId,
     items: SetClipbaordItem[]
-  ): Promise<boolean> {
-    await lokPromise;
-    return byRef(ref)?.setClipboard(viewId, items);
+  ): boolean {
+    return doc.setClipboard(viewId, items);
   },
 
-  getClipboard: async function (
-    ref: DocumentRef,
+  getClipboard: function (
+    doc: Document,
     viewId: ViewId,
     mimeTypes: string[]
-  ): Promise<GetClipbaordItem[]> {
-    await lokPromise;
-    return byRef(ref)?.getClipboard(viewId, mimeTypes);
+  ): GetClipbaordItem[] {
+    return doc.getClipboard(viewId, mimeTypes);
   },
 
-  paste: async function (
-    ref: DocumentRef,
+  paste: function (
+    doc: Document,
     viewId: ViewId,
     mimeType: string,
     data: string | ArrayBuffer
-  ): Promise<void> {
-    await lokPromise;
-    return byRef(ref)?.paste(viewId, mimeType, data);
+  ): void {
+    return doc.paste(viewId, mimeType, data);
   },
 
-  setGraphicSelection: async function (
-    ref: DocumentRef,
+  setGraphicSelection: function (
+    doc: Document,
     viewId: ViewId,
     type: number,
     x: number,
     y: number
-  ): Promise<void> {
-    await lokPromise;
-    return byRef(ref)?.setGraphicSelection(viewId, type, x, y);
+  ): void {
+    return doc.setGraphicSelection(viewId, type, x, y);
   },
 
-  resetSelection: async function (
-    ref: DocumentRef,
-    viewId: ViewId
-  ): Promise<void> {
-    await lokPromise;
-    return byRef(ref)?.resetSelection(viewId);
+  resetSelection: function (doc: Document, viewId: ViewId): void {
+    return doc.resetSelection(viewId);
   },
 
-  getCommandValues: async function (
-    ref: DocumentRef,
+  getCommandValues: function (
+    doc: Document,
     viewId: ViewId,
     command: string
-  ): Promise<any> {
-    await lokPromise;
-    const result = byRef(ref)?.getCommandValues(viewId, command);
+  ): any {
+    const result = doc.getCommandValues(viewId, command);
     return result.startsWith('{') ? JSON.parse(result) : result;
   },
 
-  preload: async function (): Promise<void> {
-    (await lokPromise).preload();
-  },
-
-  subscribe: async function (
-    ref: DocumentRef,
+  subscribe: function (
+    doc: Document,
     viewId: ViewId,
     callbacktype: number
-  ): Promise<void> {
-    await lokPromise;
-    byRef(ref)?.subscribe(viewId, callbacktype);
+  ): void {
+    doc.subscribe(viewId, callbacktype);
   },
 
-  unsubscribe: async function (
-    ref: DocumentRef,
+  unsubscribe: function (
+    doc: Document,
     viewId: ViewId,
     callbacktype: number
-  ): Promise<void> {
-    await lokPromise;
-    byRef(ref)?.unsubscribe(viewId, callbacktype);
+  ): void {
+    doc.unsubscribe(viewId, callbacktype);
   },
 
-  startRendering: async function (
-    ref: DocumentRef,
+  startRendering: function (
+    doc: Document,
     viewId: ViewId,
     canvases: OffscreenCanvas[],
     tileSize: TileDim,
     scale: number,
     dpi: number,
     yPos: number = 0
-  ): Promise<TileRendererData> {
-    await lokPromise;
-    const doc = byRef(ref);
-    if (!doc) {
-      throw new Error("Doc doesn't exist while trying to render");
-    }
+  ): TileRendererData {
+    const ref = doc.ref();
     const result = doc.startTileRenderer(viewId, tileSize);
     const worker = new Worker(
       new URL('./tile_renderer_worker.js', import.meta.url),
@@ -319,22 +295,23 @@ const handler: AsyncMessage = {
   },
 
   resetRendering: function (
-    ref: DocumentRef,
-    viewId: ViewId,
-    canvases: OffscreenCanvas[]
-  ): Promise<void> {
+    _doc: Document,
+    _viewId: ViewId,
+    _canvases: OffscreenCanvas[]
+  ): void {
     throw new Error('Function not implemented.');
   },
 
-  stopRendering: function (ref: DocumentRef, viewId: ViewId): Promise<void> {
+  stopRendering: function (_doc: Document, _viewId: ViewId): void {
     throw new Error('Function not implemented.');
   },
 
-  setScrollTop: async function (
-    ref: DocumentRef,
+  setScrollTop: function (
+    doc: Document,
     viewId: ViewId,
     yPx: number
   ): Promise<number> {
+    const ref = doc.ref();
     const worker = tileRenderer[ref]?.[viewId];
     if (!worker) return;
     const scrollPromise = new Promise<number>((resolve) => {
@@ -355,41 +332,39 @@ const handler: AsyncMessage = {
     return scrollPromise;
   },
 
-  setVisibleHeight: async function (
-    ref: DocumentRef,
+  setVisibleHeight: function (
+    doc: Document,
     viewId: ViewId,
     heightPx: number
-  ): Promise<void> {
-    tileRenderer[ref]?.[viewId]?.postMessage({
+  ): void {
+    tileRenderer[doc.ref()]?.[viewId]?.postMessage({
       t: 'r',
       h: heightPx,
     } as ToTileRenderer);
   },
 
-  dispatchCommand: async function (
-    ref: DocumentRef,
+  dispatchCommand: function (
+    doc: Document,
     viewId: ViewId,
     command: string,
     args?: any,
     notifyWhenFinished?: boolean
-  ): Promise<void> {
-    await lokPromise;
-    byRef(ref)?.dispatchCommand(
+  ): void {
+    doc.dispatchCommand(
       viewId,
       command,
-      typeof args === 'string' ? args : JSON.stringify(args),
+      args && typeof args === 'string' ? args : JSON.stringify(args),
       notifyWhenFinished
     );
   },
 
-  removeText: async function (
-    ref: DocumentRef,
+  removeText: function (
+    doc: Document,
     viewId: ViewId,
     charsBefore: number,
     charsAfter: number
-  ): Promise<void> {
-    await lokPromise;
-    byRef(ref)?.removeText(
+  ): void {
+    doc.removeText(
       viewId,
       0 /* window id is pretty much always 0 (the default window) */,
       charsBefore,
@@ -397,39 +372,194 @@ const handler: AsyncMessage = {
     );
   },
 
-  setClientVisibleArea: async function (
-    ref: DocumentRef,
+  setClientVisibleArea: function (
+    doc: Document,
     viewId: ViewId,
     x: number,
     y: number,
     width: number,
     height: number
-  ): Promise<void> {
-    await lokPromise;
-    byRef(ref)?.setClientVisibleArea(viewId, x, y, width, height);
+  ): void {
+    doc.setClientVisibleArea(viewId, x, y, width, height);
+  },
+
+  comments: function (doc: Document, viewId: ViewId): Comment[] {
+    doc.setCurrentView(viewId);
+    return doc.comments();
+  },
+
+  addComment: function (doc: Document, viewId: ViewId, text: string): void {
+    doc.setCurrentView(viewId);
+    doc.addComment(text);
+  },
+
+  replyComment: function (
+    doc: Document,
+    viewId: ViewId,
+    parentId: number,
+    text: string
+  ): void {
+    doc.setCurrentView(viewId);
+    doc.replyComment(parentId, text);
+  },
+
+  deleteCommentThreads: function (
+    doc: Document,
+    viewId: ViewId,
+    parentIds: number[]
+  ): void {
+    doc.setCurrentView(viewId);
+    doc.deleteCommentThreads(parentIds);
+  },
+
+  deleteComment: function (
+    doc: Document,
+    viewId: ViewId,
+    commentId: number
+  ): void {
+    doc.setCurrentView(viewId);
+    doc.deleteComment(commentId);
+  },
+
+  resolveCommentThread: function (
+    doc: Document,
+    viewId: ViewId,
+    parentId: number
+  ): void {
+    doc.setCurrentView(viewId);
+    doc.resolveCommentThread(parentId);
+  },
+
+  resolveComment: function (
+    doc: Document,
+    viewId: ViewId,
+    commentId: number
+  ): void {
+    doc.setCurrentView(viewId);
+    doc.resolveComment(commentId);
+  },
+
+  sanitize: function (
+    doc: Document,
+    viewId: ViewId,
+    options: SanitizeOptions
+  ): void {
+    doc.setCurrentView(viewId);
+    doc.sanitize(options);
+  },
+
+  headerFooterRect: function (doc: Document, viewId: ViewId): HeaderFooterRect {
+    doc.setCurrentView(viewId);
+    return doc.headerFooterRect();
+  },
+
+  getPropertyValue: function (
+    doc: Document,
+    viewId: ViewId,
+    property: string
+  ): any {
+    doc.setCurrentView(viewId);
+    return doc.getPropertyValue(property);
+  },
+
+  setPropertyValue: function (
+    doc: Document,
+    viewId: ViewId,
+    property: string,
+    value: any
+  ): void {
+    doc.setCurrentView(viewId);
+    doc.setPropertyValue(property, value);
+  },
+
+  saveCurrentSelection: function (doc: Document, viewId: ViewId): void {
+    doc.setCurrentView(viewId);
+    doc.saveCurrentSelection();
+  },
+
+  restoreCurrentSelection: function (doc: Document, viewId: ViewId): void {
+    doc.setCurrentView(viewId);
+    doc.restoreCurrentSelection();
+  },
+
+  getParagraphStyle: function <T extends string[]>(
+    doc: Document,
+    viewId: ViewId,
+    name: string,
+    properties: T
+  ): ParagraphStyle<T> {
+    doc.setCurrentView(viewId);
+    return doc.getParagraphStyle(name, properties) as ParagraphStyle<T>;
+  },
+
+  getSelectionText: function (
+    doc: Document,
+    viewId: ViewId
+  ): string | undefined {
+    doc.setCurrentView(viewId);
+    return doc.getSelectionText();
+  },
+
+  paragraphStyles: function (
+    doc: Document,
+    viewId: ViewId
+  ): ParagraphStyleList {
+    doc.setCurrentView(viewId);
+    return doc.paragraphStyles();
   },
 
   setZoom: async function (
-    ref: DocumentRef,
+    doc: Document,
     viewId: ViewId,
     scale: number,
     dpi: number
   ): Promise<void> {
-    tileRenderer[ref][viewId]?.postMessage({
+    tileRenderer[doc.ref()]?.[viewId]?.postMessage({
       t: 'z',
       s: scale,
       d: dpi,
     } as ToTileRenderer);
   },
+};
 
-  setIsMacOSForConfig: async function (): Promise<void> {
-    (await lokPromise).setIsMacOSForConfig();
+const forwarding: ForwardingMethodHandlers<Document> = {
+  findAll: function (
+    doc: Document,
+    docRef: DocumentRef,
+    viewId: ViewId,
+    text: string,
+    options?: Partial<{
+      caseSensitive: boolean;
+      wholeWords: boolean;
+      mode: 'wildcard' | 'regex' | 'similar';
+    }>
+  ): ForwardingId {
+    findResultMap[docRef] = doc.findAll(text, options);
+
+    return [docRef, viewId, '_find'];
   },
 };
 
-// this is used by imported scripts to register their handlers
-self.registerExtension = (newHandlers) => {
-  Object.assign(handler, newHandlers);
+const resolveForward: ForwardedResolverMap = {
+  _find: function ([docRef]: ForwardingId): ITextRanges {
+    return findResultMap[docRef];
+  },
+};
+
+// this can be autogenerated using the TS LSP, 'Add Missing Properties'
+const forwardedMethods: ForwardedMethodMap = {
+  _find: {
+    length: true,
+    rect: true,
+    rects: true,
+    isCursorAt: true,
+    indexAtCursor: true,
+    moveCursorTo: true,
+    description: true,
+    descriptions: true,
+    replace: true,
+    replaceAll: true,
+  },
 };
 
 type TransferableResult<K extends keyof Message = keyof Message> =
@@ -447,18 +577,110 @@ function isTransferable<K extends keyof Message = keyof Message>(
   return tranferables[fromWorker.f] === true;
 }
 
-onmessage = async <K extends keyof Message = keyof Message>({
-  data,
-}: MessageEvent<ToWorker<K>>) => {
-  const { i, f, a } = data;
-  const message: FromWorker<K> = {
+function handleForwardedMethod<K extends ForwardedResolver = ForwardedResolver>(
+  data: ToWorker<K>
+): void {
+  const { f, a, i } = data;
+  const [method, fwd, ...rest] = a as any; // TODO: lazy, not super important, but type here should be "safe"
+  if (!forwardedMethods[f][method]) return;
+
+  const m: ForwardedFromWorker<K> = {
     f,
+    m: method,
     i,
-    r: await handler[f](...a),
+    r: resolveForward[f](fwd)[method](...rest),
   };
+
+  postMessage(m);
+}
+
+function sendResult<
+  K extends keyof Message = keyof Message,
+  T extends FromWorker<K> = FromWorker<K>,
+>(message: T): void {
   if (isTransferable(message)) {
     postMessage(message, { transfer: [message.r] });
   } else {
     postMessage(message);
   }
+}
+
+function handleForwardingMethod<
+  K extends keyof ForwardingMethodHandlers<Document>,
+>(handler: ForwardingMethodHandler<Document>, data: ToWorker<K>) {
+  const [ref, viewId, ...rest] = data.a;
+  const doc = byRef(ref as DocumentRef);
+  if (!doc) {
+    console.error('doc ref missing');
+    return;
+  }
+  postMessage({
+    fwd: true,
+    f: data.f,
+    i: data.i,
+    r: handler(doc, ref, viewId, ...rest),
+  });
+}
+
+async function handleDocumentMethod<
+  K extends keyof DocumentMethodHandler<Document>,
+>(handler: (doc: Document, ...args: any[]) => any, data: ToWorker<K>) {
+  const [ref, ...rest] = data.a;
+  const doc = byRef(ref as DocumentRef);
+  if (!doc) {
+    console.error('doc ref missing');
+    return;
+  }
+  const r = handler(doc, ...rest);
+  sendResult<K>({
+    f: data.f,
+    i: data.i,
+    r: r instanceof Promise ? await r : r,
+  });
+}
+
+function handleGlobalMethod<K extends keyof GlobalMethod>(data: ToWorker<K>) {
+  sendResult<K>({
+    f: data.f,
+    i: data.i,
+    r: globalHandler[data.f](...data.a),
+  });
+}
+
+onmessage = async <K extends keyof Message = keyof Message>({
+  data,
+}: MessageEvent<ToWorker<K>>) => {
+  const docHandler = handler[data.f as keyof DocumentMethodHandler<Document>];
+  if (docHandler != null) {
+    return handleDocumentMethod(
+      docHandler,
+      data as ToWorker<keyof DocumentMethodHandler<Document>>
+    );
+  }
+  // forwarded methods are methods on classes returned by the Document (such as ITextRanges)
+  if (forwardedMethods[data.f as ForwardedResolver]) {
+    return handleForwardedMethod(data as ToWorker<ForwardedResolver>);
+  }
+
+  const forwardingHandler =
+    forwarding[data.f as keyof ForwardingMethodHandlers<Document>];
+  if (forwardingHandler != null) {
+    return handleForwardingMethod(
+      forwardingHandler,
+      data as ToWorker<keyof ForwardingMethodHandlers<Document>>
+    );
+  }
+
+  return handleGlobalMethod(data as ToWorker<keyof GlobalMethod>);
 };
+
+postMessage({
+  f: '_keys',
+  keys: [...Object.keys(handler), ...Object.keys(forwarding)],
+  forwarded: Object.fromEntries(
+    Object.entries(forwardedMethods).map(([name, method]) => [
+      name,
+      Object.keys(method),
+    ])
+  ),
+} as KeysMessage);

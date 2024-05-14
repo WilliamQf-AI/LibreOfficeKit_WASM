@@ -18,6 +18,11 @@ $(eval $(call gb_Executable_add_defs,soffice_bin,\
     $(if $(DISABLE_DYNLOADING),$(if $(SYSTEM_LIBXML),,-DNOTEST_xmlCleanupParser)) \
 ))
 
+$(eval $(call gb_Executable_use_api,soffice_bin,\
+	udkapi \
+	offapi \
+))
+
 $(eval $(call gb_Executable_use_libraries,soffice_bin,\
     sal \
     sofficeapp \
@@ -52,9 +57,26 @@ endif
 # MACRO: Export functions using embind, not library flags
 
 ifeq ($(OS),EMSCRIPTEN)
-$(call gb_LinkTarget_get_target,$(call gb_Executable_get_linktarget,soffice_bin)) : $(call gb_StaticLibrary_get_linktarget_target,unoembind)
-$(call gb_LinkTarget_get_headers_target,$(call gb_Executable_get_linktarget,soffice_bin)) : $(call gb_StaticLibrary_get_headers_target,unoembind)
-$(call gb_LinkTarget__static_lib_dummy_depend,unoembind)
+
+# MACRO: Disable unoembind API for now since it causes a 1+ second startup delay
+
+# $(call gb_LinkTarget_get_target,$(call gb_Executable_get_linktarget,soffice_bin)) : $(call gb_StaticLibrary_get_linktarget_target,unoembind)
+# $(call gb_LinkTarget_get_headers_target,$(call gb_Executable_get_linktarget,soffice_bin)) : $(call gb_StaticLibrary_get_headers_target,unoembind)
+# $(call gb_LinkTarget__static_lib_dummy_depend,unoembind)
+# $(eval $(call gb_Executable_add_ldflags,soffice_bin,\
+#     -Wl$(COMMA)--whole-archive $(call gb_StaticLibrary_get_target,unoembind) -Wl$(COMMA)--no-whole-archive \
+# ))
+# ifneq ($(ENABLE_DBGUTIL),)
+# 
+# $(call gb_Executable_get_linktarget_target,soffice_bin): \
+#     $(call gb_CustomTarget_get_workdir,static/unoembind)/bindings_uno.js \
+#     $(SRCDIR)/unotest/source/embindtest/embindtest.js
+# 
+# $(eval $(call gb_Executable_add_ldflags,soffice_bin, \
+#     --post-js $(call gb_CustomTarget_get_workdir,static/unoembind)/bindings_uno.js \
+#     --post-js $(SRCDIR)/unotest/source/embindtest/embindtest.js \
+# ))
+# endif
 
 # Allows using <lib/init.hxx>
 $(eval $(call gb_Executable_set_include,soffice_bin,\
@@ -65,21 +87,16 @@ $(eval $(call gb_Executable_set_include,soffice_bin,\
 $(eval $(call gb_Library_use_custom_headers,soffice_bin,\
 	officecfg/registry \
 ))
-$(eval $(call gb_Library_use_api,soffice_bin,\
-	udkapi \
-	offapi \
-))
-
-$(eval $(call gb_Executable_add_exception_objects,soffice_bin,\
-    desktop/source/app/main_wasm \
-))
 
 # See: https://github.com/emscripten-core/emscripten/blob/main/src/settings.js
 $(eval $(call gb_Executable_add_ldflags,soffice_bin,\
     --pre-js $(SRCDIR)/desktop/wasm/pre-js.js \
     --profiling \
     -lworkerfs.js -s MODULARIZE=1 -s EXPORT_NAME=LOK -s EXPORT_ES6=1 -s ENVIRONMENT=worker --no-entry \
-	-Wl$(COMMA)--whole-archive $(call gb_StaticLibrary_get_target,unoembind) -Wl$(COMMA)--no-whole-archive \
+))
+
+$(eval $(call gb_Executable_add_exception_objects,soffice_bin,\
+    desktop/source/app/main_wasm \
 ))
 
 endif

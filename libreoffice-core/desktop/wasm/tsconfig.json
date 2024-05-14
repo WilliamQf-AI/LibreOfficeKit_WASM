@@ -5,7 +5,12 @@
     "module": "ESNext",
     "declaration": true,
     "skipLibCheck": true,
-    "lib": ["ESNext", "WebWorker"]
+    "lib": ["ESNext", "WebWorker"],
+    /* Linting */
+    // "strict": true,
+    // "strictNullChecks": true,
+    // "noUnusedLocals": true,
+    // "noUnusedParameters": true,
   },
   "include": ["./*.ts"],
   "watchOptions": {

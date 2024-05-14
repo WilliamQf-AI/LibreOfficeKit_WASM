@@ -18,6 +18,13 @@ const getDocThrows = () => {
   return doc;
 };
 
+declare global {
+  interface Window {
+    // global for debugging
+    d: DocumentClient | undefined;
+  }
+}
+
 async function fileOpen(files: FileList | null) {
   if (!files || !files[0]) return;
   const name = files[0].name;
@@ -38,7 +45,7 @@ async function fileOpen(files: FileList | null) {
   setDoc(doc);
   setLoading(false);
   doc.on(CallbackType.ERROR, console.error);
-
+  window.d = doc;
   // doc.on(CallbackType.STATE_CHANGED, (payload) => console.log(payload));
 }
 async function saveAsPDF(doc: DocumentClient | null) {

@@ -1,15 +1,14 @@
-#include "editeng/sizeitem.hxx"
-#include "sal/log.hxx"
-#include "sfx2/bindings.hxx"
-#include "sfx2/dispatch.hxx"
-#include "sfx2/viewfrm.hxx"
-#include "sfx2/viewsh.hxx"
-#include "svl/itemset.hxx"
-#include "svl/poolitem.hxx"
-#include "svx/rulritem.hxx"
-#include "svx/xcolit.hxx"
-#include "svx/xflclit.hxx"
-#include "tools/json_writer.hxx"
+#include <com/sun/star/uno/Reference.hxx>
+#include <editeng/sizeitem.hxx>
+#include <sfx2/bindings.hxx>
+#include <sfx2/dispatch.hxx>
+#include <sfx2/viewfrm.hxx>
+#include <sfx2/viewsh.hxx>
+#include <svl/itemset.hxx>
+#include <svl/poolitem.hxx>
+#include <svx/rulritem.hxx>
+#include <svx/xcolit.hxx>
+#include <svx/xflclit.hxx>
 #include <algorithm>
 #include <cstdlib>
 #include <lib/wasm_extensions.hxx>
@@ -82,6 +81,10 @@ static void* tileRendererWorker(void* data_)
         }
     }
     return nullptr;
+}
+
+WasmDocumentExtension::WasmDocumentExtension(css::uno::Reference<css::lang::XComponent> xComponent) : mxComponent(std::move(xComponent)) {
+
 }
 
 TileRendererData& WasmDocumentExtension::startTileRenderer(int32_t viewId_, int32_t tileSize_)
