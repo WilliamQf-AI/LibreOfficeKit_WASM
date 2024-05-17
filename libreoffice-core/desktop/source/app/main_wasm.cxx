@@ -431,9 +431,12 @@ public:
         desktop::WasmDocumentExtension* ext
             = static_cast<desktop::WasmDocumentExtension*>(doc_->get());
 
-        if (command == ".uno:PageColor") {
+        if (command == ".uno:PageColor")
+        {
             return val(ext->getPageColor());
-        } else if (command == ".uno:PageOrientation") {
+        }
+        else if (command == ".uno:PageOrientation")
+        {
             return val(ext->getPageOrientation());
         }
         return val::u8string(doc_->getCommandValues(command.c_str()));
@@ -606,9 +609,11 @@ public:
 
     std::shared_ptr<wasm::ITextRanges> findAll(std::string text, val options)
     {
-        find_text_ranges_ = writer()->findAllTextRanges(text, std::move(options));
-        return find_text_ranges_;
+        return writer()->findAllTextRanges(text, std::move(options));
     }
+
+    val getOutline() { return writer()->getOutline(); }
+    val gotoOutline(int idx) { return writer()->gotoOutline(idx); }
 
 private:
     struct DocWithId
@@ -696,8 +701,7 @@ EMSCRIPTEN_BINDINGS(lok)
         .function("description", &wasm::ITextRanges::description)
         .function("descriptions", &wasm::ITextRanges::descriptions)
         .function("replace", &wasm::ITextRanges::replace)
-        .function("replaceAll", &wasm::ITextRanges::replaceAll)
-    ;
+        .function("replaceAll", &wasm::ITextRanges::replaceAll);
 
     class_<DocumentClient>("Document")
         .constructor<std::string>()
@@ -744,5 +748,7 @@ EMSCRIPTEN_BINDINGS(lok)
         .function("resolveCommentThread", &DocumentClient::resolveCommentThread)
         .function("resolveComment", &DocumentClient::resolveComment)
         .function("sanitize", &DocumentClient::sanitize)
+        .function("gotoOutline", &DocumentClient::gotoOutline)
+        .function("getOutline", &DocumentClient::getOutline)
         .function("newView", &DocumentClient::newView);
 }

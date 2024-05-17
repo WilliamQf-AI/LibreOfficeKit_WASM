@@ -42,6 +42,12 @@ export type TileRenderData = {
 
 export type RectArray = [x: number, y: number, width: number, height: number];
 
+export type OutlineItem = {
+  id: number;
+  parent: number;
+  text: string;
+}
+
 export type Comment = {
   id: number;
   parentId: number;
@@ -207,6 +213,8 @@ export declare class Document {
   paragraphStyles(): ParagraphStyleList;
 
   findAll(text: string, options: FindAllOptions | undefined): ITextRanges;
+  getOutline(): OutlineItem[];
+  gotoOutline(index: number): RectArray;
 }
 
 // NOTE: Disabled until unoembind startup cost is under 1s

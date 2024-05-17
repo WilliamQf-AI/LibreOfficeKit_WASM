@@ -520,6 +520,16 @@ const handler: DocumentMethodHandler<Document> = {
       d: dpi,
     } as ToTileRenderer);
   },
+
+  getOutline: function (doc: Document, viewId: ViewId) {
+    doc.setCurrentView(viewId);
+    return doc.getOutline();
+  },
+
+  gotoOutline: function (doc: Document, viewId: ViewId, index: number) {
+    doc.setCurrentView(viewId);
+    return doc.gotoOutline(index);
+  },
 };
 
 const forwarding: ForwardingMethodHandlers<Document> = {

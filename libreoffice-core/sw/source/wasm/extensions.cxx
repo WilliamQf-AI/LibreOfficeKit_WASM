@@ -40,6 +40,10 @@
 #include <unotextrange.hxx>
 #include <SwRewriter.hxx>
 #include <UndoInsert.hxx>
+#include <ndarr.hxx>
+#include <IDocumentOutlineNodes.hxx>
+#include <ndtxt.hxx>
+#include <txtfrm.hxx>
 
 using namespace emscripten;
 
@@ -792,6 +796,83 @@ void SwXTextDocument::cancelFindOrReplace()
     {
         rUndoRedo.Undo();
     }
+}
+
+val SwXTextDocument::getOutline()
+{
+    SolarMutexGuard aGuard;
+
+    SwWrtShell* mrSh = m_pDocShell->GetWrtShell();
+    if (!mrSh)
+    {
+        emscripten_console_error("no shell");
+        return {};
+    }
+
+    const SwOutlineNodes::size_type nOutlineCount
+        = mrSh->getIDocumentOutlineNodesAccess()->getOutlineNodesCount();
+
+    typedef std::pair<sal_Int8, sal_Int32> StackEntry;
+    std::stack<StackEntry> aOutlineStack;
+    aOutlineStack.push(StackEntry(-1, -1)); // push default value
+
+    int nOutlineId = 0;
+
+    val r = val::array();
+    const SwOutlineNodes& rNodes = mrSh->GetNodes().GetOutLineNds();
+    for (SwOutlineNodes::size_type i = 0; i < nOutlineCount; ++i)
+    {
+        // Check if outline is hidden
+        const SwTextNode* textNode = rNodes[i]->GetTextNode();
+
+        if (textNode->IsHidden() || !sw::IsParaPropsNode(*mrSh->GetLayout(), *textNode) ||
+            // Skip empty outlines:
+            textNode->GetText().isEmpty())
+        {
+            continue;
+        }
+
+        // Get parent id from stack:
+        const sal_Int8 nLevel
+            = static_cast<sal_Int8>(mrSh->getIDocumentOutlineNodesAccess()->getOutlineLevel(i));
+
+        sal_Int8 nLevelOnTopOfStack = aOutlineStack.top().first;
+        while (nLevelOnTopOfStack >= nLevel && nLevelOnTopOfStack != -1)
+        {
+            aOutlineStack.pop();
+            nLevelOnTopOfStack = aOutlineStack.top().first;
+        }
+
+        const sal_Int32 nParent = aOutlineStack.top().second;
+
+        val o = val::object();
+        o.set("id", nOutlineId);
+        o.set("parent", nParent);
+        o.set("text", textNode->GetText());
+        r.call<void>("push", o);
+
+        aOutlineStack.push(StackEntry(nLevel, nOutlineId));
+
+        nOutlineId++;
+    }
+
+    return r;
+}
+
+val SwXTextDocument::gotoOutline(int outlineIndex)
+{
+    SolarMutexGuard aGuard;
+
+    SwWrtShell* mrSh = m_pDocShell->GetWrtShell();
+    if (!mrSh)
+    {
+        emscripten_console_error("no shell");
+        return {};
+    }
+
+    mrSh->GotoOutline(outlineIndex);
+
+    return rectToArray(mrSh->GetCharRect());
 }
 
 namespace sw

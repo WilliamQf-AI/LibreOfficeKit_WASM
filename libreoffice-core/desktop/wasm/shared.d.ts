@@ -7,7 +7,9 @@ import type {
   FindAllOptions,
   HeaderFooterRect,
   ITextRanges,
+  OutlineItem,
   ParagraphStyleList,
+  RectArray,
   TileRenderData,
 } from './soffice';
 export type GlobalMessage = {
@@ -169,6 +171,9 @@ export type DocumentWithViewMethods = {
 
   /** get a list of all paragraph styles */
   paragraphStyles(): ParagraphStyleList;
+
+  getOutline(): OutlineItem[];
+  gotoOutline(index: number): RectArray;
 };
 
 /** methods that forward to a class weakly bound to the Document that forwards calls */
