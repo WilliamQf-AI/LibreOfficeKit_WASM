@@ -517,6 +517,8 @@ public:
     emscripten::val paragraphStyles() override;
     std::shared_ptr<wasm::ITextRanges> findAllTextRanges(const std::string& text, emscripten::val flags) override;
     void cancelFindOrReplace() override;
+    emscripten::val getOutline() override;
+    emscripten::val gotoOutline(int outlineIndex) override;
     /// MACRO-2313: }
 };
 

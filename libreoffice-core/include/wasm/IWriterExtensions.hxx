@@ -42,5 +42,7 @@ public:
         return {};
     };
     virtual void cancelFindOrReplace() {};
+    virtual val getOutline() { return {}; }
+    virtual val gotoOutline(int /* outlineIndex */) { return {}; };
 };
 }
