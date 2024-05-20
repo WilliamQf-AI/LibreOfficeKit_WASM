@@ -382,3 +382,4 @@ if (import.meta.hot) {
 
 export * from './shared'
 export * from './soffice'
+export * from './lok_enums'
