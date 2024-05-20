@@ -1,16 +1,18 @@
 export type Id = number & {};
-export type DocumentRef = number & {};
 export type ViewId = number & {};
 import type { CallbackType } from './lok_enums';
 import type {
+  Document,
   Comment,
   FindAllOptions,
   HeaderFooterRect,
   ITextRanges,
   OutlineItem,
+  ParagraphStyle,
   ParagraphStyleList,
   RectArray,
   TileRenderData,
+  DocumentRef
 } from './soffice';
 export type GlobalMessage = {
   /** load the document with the file name `name` and content `blob`
@@ -50,12 +52,6 @@ export type InitializeForRenderingOptions = Partial<{
   autoSpellcheck: boolean;
   author: string;
 }>;
-
-export type ParagraphStyle<T extends string[]> =
-  | undefined
-  | {
-      [K in T[number]]: any;
-    };
 
 export type TileRendererData = {
   readonly docRef: number;
@@ -170,10 +166,12 @@ export type DocumentWithViewMethods = {
   ): ParagraphStyle<T>;
 
   /** get a list of all paragraph styles */
-  paragraphStyles(): ParagraphStyleList;
+  paragraphStyles: Document['paragraphStyles'];
 
   getOutline(): OutlineItem[];
   gotoOutline(index: number): RectArray;
+
+  setAuthor(author: string): void;
 };
 
 /** methods that forward to a class weakly bound to the Document that forwards calls */
@@ -312,11 +310,15 @@ export type DocumentClientBase = {
   newView(): Promise<DocumentClient | null>;
 };
 
+export type AsyncFunctions<T extends { [K: string]: (...args: any) => any }> = {
+  [K in keyof T]: (...args: Parameters<T[K]>) => Promise<ReturnType<T[K]>>;
+};
+
 type FlatForwardMethod<
   K extends keyof ResolverToForwardingMethod = keyof ResolverToForwardingMethod,
   M extends ResolverToForwardingMethod[K] = ResolverToForwardingMethod[K],
 > = {
-  [FK in keyof M]: M[FK]
+  [FK in keyof M]: M[FK];
 };
 
 export type DocumentClient = {
@@ -330,7 +332,7 @@ export type DocumentClient = {
 } & {
   [K in keyof FlatForwardMethod]: (
     ...args: Parameters<FlatForwardMethod[K]>
-  ) => Promise<ReturnType<FlatForwardMethod[K]>>;
+  ) => Promise<AsyncFunctions<ReturnType<FlatForwardMethod[K]>>>;
 } & DocumentClientBase;
 
 export type ToWorker<K extends keyof Message = keyof Message> = {
