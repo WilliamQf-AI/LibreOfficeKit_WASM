@@ -1,7 +1,6 @@
 import type {
   DocumentMethodHandler,
   GlobalMethod,
-  DocumentRef,
   ForwardedFromWorker,
   ForwardedMethodMap,
   ForwardedResolver,
@@ -13,7 +12,6 @@ import type {
   InitializeForRenderingOptions,
   KeysMessage,
   Message,
-  ParagraphStyle,
   RectangleTwips,
   SetClipbaordItem,
   TileDim,
@@ -27,8 +25,10 @@ import type {
 import type {
   Comment,
   Document,
+  DocumentRef,
   HeaderFooterRect,
   ITextRanges,
+  ParagraphStyle,
   ParagraphStyleList,
   RectArray,
   SanitizeOptions,
@@ -502,10 +502,11 @@ const handler: DocumentMethodHandler<Document> = {
 
   paragraphStyles: function (
     doc: Document,
-    viewId: ViewId
-  ): ParagraphStyleList {
+    viewId: ViewId,
+    properties: string[]
+  ) {
     doc.setCurrentView(viewId);
-    return doc.paragraphStyles();
+    return doc.paragraphStyles(properties);
   },
 
   setZoom: async function (
@@ -529,6 +530,11 @@ const handler: DocumentMethodHandler<Document> = {
   gotoOutline: function (doc: Document, viewId: ViewId, index: number) {
     doc.setCurrentView(viewId);
     return doc.gotoOutline(index);
+  },
+
+  setAuthor: function (doc: Document, viewId: ViewId, author: string) {
+    doc.setCurrentView(viewId);
+    return doc.setAuthor(author);
   },
 };
 

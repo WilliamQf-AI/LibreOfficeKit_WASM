@@ -30,11 +30,13 @@
 #include <com/sun/star/util/XSearchDescriptor.hpp>
 #include <memory>
 #include <com/sun/star/uno/Reference.hxx>
+#include <com/sun/star/uno/Sequence.hxx>
 #include <com/sun/star/text/XWordCursor.hpp>
 #include <com/sun/star/text/XTextViewCursorSupplier.hpp>
 #include <com/sun/star/text/XTextViewCursor.hpp>
 #include <com/sun/star/text/XTextRangeCompare.hpp>
 #include <com/sun/star/frame/XModel.hpp>
+#include <com/sun/star/beans/XMultiPropertySet.hpp>
 #include <emscripten/console.h>
 #include <rtl/ref.hxx>
 #include <unotextrange.hxx>
@@ -362,7 +364,35 @@ val SwXTextDocument::headerFooterRect()
     return result;
 }
 
-val SwXTextDocument::paragraphStyles()
+namespace
+{
+val paragraphStyle(val (*unoAnyToVal)(const css::uno::Any& any), SfxStyleSheetBase* pStyle,
+                   const uno::Reference<container::XNameAccess>& xParaStyles, const val& properties,
+                   const uno::Sequence<rtl::OUString>& names)
+{
+    using namespace css::uno;
+    Reference<style::XStyle> xStyle(xParaStyles->getByName(pStyle->GetName()), UNO_QUERY);
+    Reference<beans::XMultiPropertySet> xStyleProp(xStyle, UNO_QUERY);
+    if (!xStyleProp.is())
+        return val::undefined();
+
+    val r = val::object();
+    r.set("name", val::u16string(pStyle->GetName().getStr()));
+    uno::Sequence<uno::Any> values = xStyleProp->getPropertyValues(names);
+    Any* valuesArray = values.getArray();
+    for (sal_uInt32 i = 0; i < (sal_uInt32)names.getLength(); ++i)
+    {
+        r.set(properties[i], unoAnyToVal(valuesArray[i]));
+    }
+
+    return r;
+}
+}
+
+val SwXTextDocument::paragraphStyles(val (*unoAnyToVal)(const css::uno::Any& any),
+                                     const css::uno::Reference<css::container::XNameAccess> xStyles,
+                                     const val& properties,
+                                     const css::uno::Sequence<rtl::OUString>& names)
 {
     SolarMutexGuard aGuard;
 
@@ -386,20 +416,18 @@ val SwXTextDocument::paragraphStyles()
             pStyle = xIter->Next();
             continue;
         }
-
-        val name = val::u16string(pStyle->GetName().getStr());
-
+        val style = paragraphStyle(unoAnyToVal, pStyle, xStyles, properties, names);
         if (pStyle->IsUserDefined())
         {
-            userDefined.call<void>("push", name);
+            userDefined.call<void>("push", style);
         }
         else if (pStyle->IsUsed())
         {
-            used.call<void>("push", name);
+            used.call<void>("push", style);
         }
         else
         {
-            other.call<void>("push", name);
+            other.call<void>("push", style);
         }
 
         pStyle = xIter->Next();

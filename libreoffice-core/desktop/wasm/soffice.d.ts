@@ -46,7 +46,7 @@ export type OutlineItem = {
   id: number;
   parent: number;
   text: string;
-}
+};
 
 export type Comment = {
   id: number;
@@ -72,10 +72,16 @@ export type HeaderFooterRect = {
   rect: RectArray;
 };
 
-export type ParagraphStyleList = {
-  userDefined: string[];
-  used: string[];
-  other: string[];
+export type ParagraphStyle<T extends readonly string[], K = T[number]> = {
+  name: string;
+} & {
+  [PK in K]: any;
+};
+
+export type ParagraphStyleList<T extends readonly string[]> = {
+  userDefined: ParagraphStyle<T>[];
+  used: ParagraphStyle<T>[];
+  other: ParagraphStyle<T>[];
 };
 
 export type FindAllOptions = Partial<{
@@ -93,7 +99,11 @@ export type FindAllOptions = Partial<{
   mode: 'wildcard' | 'regex' | 'similar';
 }>;
 
-export type TextRangeDescription = [before: string, term: string, after: string];
+export type TextRangeDescription = [
+  before: string,
+  term: string,
+  after: string,
+];
 
 export type ITextRanges = {
   length(): number;
@@ -118,7 +128,7 @@ export type ITextRanges = {
   }>;
   replace(index: number, text: string): void;
   replaceAll(text: string): void;
-}
+};
 
 /** Embind Document class, see main_wasm.cxx */
 export declare class Document {
@@ -210,11 +220,14 @@ export declare class Document {
     name: string,
     properties: string[]
   ): undefined | Record<string, any>;
-  paragraphStyles(): ParagraphStyleList;
+  paragraphStyles<T extends readonly string[]>(
+    properties: T
+  ): ParagraphStyleList<T>;
 
   findAll(text: string, options: FindAllOptions | undefined): ITextRanges;
   getOutline(): OutlineItem[];
   gotoOutline(index: number): RectArray;
+  setAuthor(author: string): void;
 }
 
 // NOTE: Disabled until unoembind startup cost is under 1s
