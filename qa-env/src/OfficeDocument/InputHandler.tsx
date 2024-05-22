@@ -66,10 +66,8 @@ export function InputHandler(props: Props) {
     }
   });
 
-  createEffect<void, number[]>((prevPos) => {
-    // Only re-focus if the position has changed already
-    // and the document is focused
-    if (focus() && prevPos !== props.pos) {
+  createEffect<number[] | null>((prevPos) => {
+    if (focus() && (prevPos !== props.pos)) {
       input.focus();
       if (!isSelectionValid(input) || isCaretAtPreSpace(input)) {
         reset();
@@ -77,7 +75,7 @@ export function InputHandler(props: Props) {
     }
 
     return props.pos;
-  }, props.pos);
+  }, null);
 
   function abortComposition() {
     reset(document.activeElement !== input);
