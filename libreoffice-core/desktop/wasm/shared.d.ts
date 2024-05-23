@@ -12,6 +12,7 @@ import type {
   ParagraphStyleList,
   RectArray,
   TileRenderData,
+  ViewData,
   DocumentRef
 } from './soffice';
 export type GlobalMessage = {
@@ -113,12 +114,21 @@ export type DocumentWithViewMethods = {
 
   startRendering(
     canvases: OffscreenCanvas[],
-    tileSize: TileDim,
-    /** Non-negative float, 1.0 is unchange, less than 1.0 is smaller, greater than 1.0 is larger */
+    tileSize: number,
     scale: number,
-    /** scroll top position in pixels */
+    dpi: number,
     yPosPx?: number
   ): TileRendererData;
+
+  startRenderingPreview(
+    canvases: OffscreenCanvas[],
+    tileSize: number,
+    scale: number,
+    dpi: number,
+    yPosPx?: number
+  ): TileRendererData;
+
+  stopRenderingPreview(): void;
 
   setScrollTop(yPx: number): number;
   setVisibleHeight(heightPx: number): void;
@@ -376,40 +386,59 @@ export type ForwardedFromWorker<
   m: keyof ReturnType<ForwardingMethod<K>>;
 };
 
+type InitializeViewData = {
+  viewId: number;
+  scale: number;
+  canvases: OffscreenCanvas[];
+  tileTwips: Uint32Array;
+  paintedTile: Uint8Array;
+  pendingFullPaint: Int32Array;
+  y: number;
+};
+
+
 export type ToTileRenderer =
   | {
       /** initialize */
       t: 'i';
-      c: OffscreenCanvas[];
+      /** Main view data */
+      m: InitializeViewData;
+      /** shared renderer data */
       d: TileRenderData;
-      /** absolute scale */
-      s: number;
-      /** top position in pixels */
-      y: number;
-      /** dpi */
       dpi: number;
     }
   | {
       /** scroll */
       t: 's';
+      viewId: number;
       /** view height in pixels */
       y: number;
     }
   | {
       /** resize */
       t: 'r';
+      viewId: number;
       /** height */
       h: number;
     }
   | {
       /** zoom */
       t: 'z';
+      viewId: number;
       /** absolute scale */
       s: number;
       /** dpi */
       d: number;
       /** scrollTop position in px */
       y: number;
+    }
+  | {
+      t: 'previewStart';
+      p: InitializeViewData;
+      d: Partial<TileRenderData, "tileSize" | "viewId" | "tileTwips" | "paintedTile" | "pendingFullPaint">;
+    }
+  | {
+      t: 'previewStop';
     };
 
 export type Ref<T> = {

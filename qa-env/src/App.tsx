@@ -9,9 +9,11 @@ import { IS_MAC } from './OfficeDocument/isMac';
 import { Shortcut } from './OfficeDocument/vclKeys';
 import { ZOOM_STEP, updateZoom } from './OfficeDocument/zoom';
 import { downloadFile } from './utils';
+import { DocumentPreview} from './DocumentPreview';
 
 const [loading, setLoading] = createSignal(false);
 const [getDoc, setDoc] = createSignal<DocumentClient | null>(null);
+const [previewDoc, setPreviewDoc] = createSignal<DocumentClient | null>(null);
 const getDocThrows = () => {
   const doc = getDoc();
   if (!doc) throw new Error('no doc');
@@ -42,7 +44,11 @@ async function fileOpen(files: FileList | null) {
   await doc.initializeForRendering({
     author: 'Macro User',
   });
+
+  const previewDoc = await doc.newView();
+  await previewDoc?.initializeForRendering({});
   setDoc(doc);
+  setPreviewDoc(previewDoc);
   setLoading(false);
   doc.on(CallbackType.ERROR, console.error);
   window.d = doc;
@@ -114,6 +120,7 @@ function registerGlobalKeys() {
 
 function App() {
   registerGlobalKeys();
+  const [isPreviewOpen, setPreviewOpen] = createSignal(false);
 
   return (
     <>
@@ -132,16 +139,24 @@ function App() {
       <Show when={getDoc()}>
         <div class="h-[70px] border-b border border-gray-300 flex items-center bg-gray-200 px-2">
           <button onClick={() => saveAsPDF(getDoc())}>Save As PDF</button>
+          <button onClick={() => setPreviewOpen(!isPreviewOpen())}>Toggle Preview</button>
         </div>
       </Show>
-      <Show when={loading()}>
-        <div class="loadsection">
-          <span class="loader" />
-        </div>
-      </Show>
-      <Show when={getDoc()} keyed>
-        <OfficeDocument doc={getDoc()!} ignoreShortcuts={ignoredShortcuts} />
-      </Show>
+      <div class="w-full h-full flex relative">
+        <Show when={loading()}>
+          <div class="loadsection">
+            <span class="loader" />
+          </div>
+        </Show>
+        <Show when={getDoc()} keyed>
+          <OfficeDocument doc={getDoc()!} ignoreShortcuts={ignoredShortcuts}/>
+        </Show>
+        <Show when={previewDoc() && getDoc() && isPreviewOpen()}>
+          <div class="h-full w-[300px] absolute left-0 top-0 z-10">
+            <DocumentPreview doc={previewDoc()!} mainViewId={getDoc()?.viewId!}/>
+          </div>
+        </Show>
+      </div>
     </>
   );
 }
