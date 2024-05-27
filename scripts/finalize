@@ -12,6 +12,7 @@ echo 'Optimizing WASM...'
 "$BASE_DIR"/emsdk/upstream/bin/wasm-opt \
   -o "$BUILD_DIR/soffice.wasm" \
   -O4 \
+  -g \
   --dce \
   --remove-unused-names \
   --enable-simd \
@@ -21,7 +22,7 @@ echo 'Optimizing WASM...'
   soffice.wasm
 
 echo 'Copying files...'
-cp ./*.data ./*.js ./*.d.ts ./*.metadata "$BUILD_DIR"
+cp ./*.data ./*.mjs ./*.js ./*.d.ts ./*.metadata "$BUILD_DIR"
 
 cd "$BUILD_DIR"
 rm fccache.* fccache_worker.* bindings_uno.* webgl2_draw_image.* || true;
