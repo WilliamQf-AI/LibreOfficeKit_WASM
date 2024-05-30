@@ -11,7 +11,6 @@ import type {
   GetClipbaordItem,
   GlobalMethod,
   InitializeForRenderingOptions,
-  InitializeViewData,
   KeysMessage,
   Message,
   RectangleTwips,
@@ -46,7 +45,7 @@ globalThis.onmessage = (message) => {
 const docMap: Record<DocumentRef, Document> = {};
 const findResultMap: Record<DocumentRef, ITextRanges> = {};
 const byRef = (ref: DocumentRef) => docMap[ref];
-const tileRenderer: Record<DocumentRef, Worker> = {};
+const tileRenderer: Record<DocumentRef, Record<ViewId, Worker>> = {};
 
 const lok = await LOK({
   withFcCache: true,
@@ -268,7 +267,7 @@ const handler: DocumentMethodHandler<Document> = {
     tileSize: TileDim,
     scale: number,
     dpi: number,
-    yPos: number | undefined
+    yPos: number = 0
   ): TileRendererData {
     const ref = doc.ref();
     const result = doc.startTileRenderer(viewId, tileSize);
@@ -276,24 +275,18 @@ const handler: DocumentMethodHandler<Document> = {
       new URL('./tile_renderer_worker.js', import.meta.url),
       { type: 'module' }
     );
-
-    tileRenderer[ref] = worker;
-
-    let mainViewData: InitializeViewData = {
-      viewId: result.viewId,
-      scale: scale,
-      canvases: canvases,
-      tileTwips: result.tileTwips,
-      paintedTile: result.paintedTile,
-      pendingFullPaint: result.pendingFullPaint,
-      y: yPos,
-    };
+    if (!tileRenderer[ref]) {
+      tileRenderer[ref] = {};
+    }
+    tileRenderer[ref][result.viewId] = worker;
 
     worker.postMessage(
       {
         t: 'i',
-        m: mainViewData,
+        c: canvases,
         d: result,
+        s: scale,
+        y: yPos,
         dpi,
       } as ToTileRenderer,
       { transfer: [...canvases] }
@@ -302,63 +295,16 @@ const handler: DocumentMethodHandler<Document> = {
     return {
       docRef: ref,
       viewId: result.viewId,
-      scale: scale,
+      scale,
     };
   },
-
-  resetRendering: function () {
+  resetRendering: function (
+    _doc: Document,
+    _viewId: ViewId,
+    _canvases: OffscreenCanvas[]
+  ): void {
     throw new Error('Function not implemented.');
   },
-
-  startRenderingPreview: function (
-    doc: Document,
-    viewId: ViewId,
-    canvases: OffscreenCanvas[],
-    mainViewId: ViewId,
-    tileSize: TileDim,
-    scale: number,
-    yPos: number | undefined
-  ) {
-    const ref = doc.ref();
-    const result = doc.addPreviewView(mainViewId, viewId, tileSize);
-
-    const worker = tileRenderer[ref];
-
-    let previewViewData: InitializeViewData = {
-      viewId: viewId,
-      scale: scale,
-      canvases: canvases,
-      tileTwips: result.tileTwips,
-      paintedTile: result.paintedTile,
-      pendingFullPaint: result.pendingFullPaint,
-      y: yPos,
-    };
-
-    worker.postMessage(
-      {
-        t: 'previewStart',
-        p: previewViewData,
-        d: result,
-      } as ToTileRenderer,
-      { transfer: [...canvases] }
-    );
-
-    return {
-      docRef: ref,
-      viewId: result.viewId,
-      scale: scale,
-    };
-  },
-
-  stopRenderingPreview: function (doc: Document, viewId: ViewId) {
-    const worker = tileRenderer[doc.ref()];
-
-    worker.postMessage({
-      t: 'previewStop',
-      viewId: viewId,
-    } as ToTileRenderer);
-  },
-
   stopRendering: function (_doc: Document, _viewId: ViewId): void {
     throw new Error('Function not implemented.');
   },
@@ -369,7 +315,7 @@ const handler: DocumentMethodHandler<Document> = {
     yPx: number
   ): Promise<number> {
     const ref = doc.ref();
-    const worker = tileRenderer[ref];
+    const worker = tileRenderer[ref]?.[viewId];
     if (!worker) return;
     const scrollPromise = new Promise<number>((resolve) => {
       const handleMessage = ({ data }: MessageEvent) => {
@@ -383,7 +329,6 @@ const handler: DocumentMethodHandler<Document> = {
 
     worker.postMessage({
       t: 's',
-      viewId,
       y: yPx,
     } as ToTileRenderer);
 
@@ -395,9 +340,8 @@ const handler: DocumentMethodHandler<Document> = {
     viewId: ViewId,
     heightPx: number
   ): void {
-    tileRenderer[doc.ref()]?.postMessage({
+    tileRenderer[doc.ref()]?.[viewId]?.postMessage({
       t: 'r',
-      viewId,
       h: heightPx,
     } as ToTileRenderer);
   },
@@ -574,9 +518,8 @@ const handler: DocumentMethodHandler<Document> = {
     scale: number,
     dpi: number
   ): Promise<void> {
-    tileRenderer[doc.ref()].postMessage({
+    tileRenderer[doc.ref()]?.[viewId]?.postMessage({
       t: 'z',
-      viewId,
       s: scale,
       d: dpi,
     } as ToTileRenderer);
