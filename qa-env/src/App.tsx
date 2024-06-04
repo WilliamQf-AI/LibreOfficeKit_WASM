@@ -72,11 +72,13 @@ function registerGlobalKeys() {
   async function callback(e: KeyboardEvent) {
     if (IS_MAC ? !e.metaKey : !e.ctrlKey) return;
     switch (e.key) {
+      case "+":
       case '=':
         e.preventDefault();
         if (zoomTimeout) clearTimeout(zoomTimeout);
         zoomTimeout = setTimeout(() => updateZoom(getDocThrows, ZOOM_STEP));
         break;
+      case "_":
       case '-':
         e.preventDefault();
         if (zoomTimeout) clearTimeout(zoomTimeout);

@@ -153,11 +153,6 @@ export function OfficeDocument(props: Props) {
     });
   });
 
-  createEffect(() => {
-    const height = canvasHeight();
-    if (height) props.doc.setVisibleHeight(height);
-  });
-
   const [getZoom] = getOrCreateZoomSignal(() => props.doc);
 
   const didZoomOut = createMemo(
@@ -243,9 +238,14 @@ export function OfficeDocument(props: Props) {
     if (!c0 || !c1) return;
     const previousCanvas = activeCanvas;
     activeCanvas = await props.doc.setScrollTop(yPx);
+    const dpi = getOrCreateDPISignal();
     const c = activeCanvas === 0 ? c0 : c1;
     c.style.willChange = 'transform';
-    c.style.transform = `translate3d(-${xPx}px, -${Math.floor(yPx) % TILE_DIM_PX}px, 0)`;
+    // yPx is technically in css pixels, but it is referring to the position 
+    // of the document rendered on the canvas which is in physical pixels
+    // so the offset should be scaled down aswell.
+    const scaledTileDim = TILE_DIM_PX / dpi();
+    c.style.transform = `translate3d(-${xPx}px, -${(Math.floor(yPx) % (scaledTileDim))}px, 0)`;
     c.style.willChange = '';
     if (previousCanvas !== activeCanvas) {
       c.style.display = '';
