@@ -6025,7 +6025,7 @@ static char* getPageSize()
     aJson.put("Width", pPageSizeItem->GetSize().Width());
     aJson.put("Height", pPageSizeItem->GetSize().Height());
 
-    return const_cast<char*>(aJson.finishAndGetAsOString().getStr());
+    return convertOString(aJson.finishAndGetAsOString());
 }
 
 static char* getPageMargins()
@@ -6054,7 +6054,7 @@ static char* getPageMargins()
     aJson.put("PageTop", pPageULMarginItem->GetUpper());
     aJson.put("PageBottom", pPageULMarginItem->GetLower());
 
-    return const_cast<char*>(aJson.finishAndGetAsOString().getStr());
+    return convertOString(aJson.finishAndGetAsOString());
 }
 // MACRO: }
 
@@ -6962,7 +6962,6 @@ static char* doc_getCommandValues(LibreOfficeKitDocument* pThis, const char* pCo
     {
         return getTrackedChanges(pThis);
     }
-
     else if (aCommand == ".uno:TrackedChangeAuthors")
     {
         return getTrackedChangeAuthors(pThis);
