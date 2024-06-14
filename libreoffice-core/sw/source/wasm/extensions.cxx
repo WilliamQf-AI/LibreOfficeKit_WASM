@@ -143,7 +143,8 @@ val SwXTextDocument::comments()
         obj.set("author", val::u16string(pField->GetPar1().getStr()));
         obj.set("text", val::u16string(pField->GetPar2().getStr()));
         obj.set("resolved", val(pField->GetResolved()));
-        obj.set("dateTime", val(utl::toISO8601(pField->GetDateTime().GetUNODateTime())));
+        obj.set("dateTime",
+                val::u16string(utl::toISO8601(pField->GetDateTime().GetUNODateTime()).getStr()));
         obj.set("anchorPos", rectToArray(aSVRect));
         obj.set("textRange", rects);
         obj.set("layoutStatus", val(static_cast<sal_Int16>(pWin->GetLayoutStatus())));
@@ -1024,7 +1025,7 @@ val SwXTextDocument::getOutline()
         val o = val::object();
         o.set("id", nOutlineId);
         o.set("parent", nParent);
-        o.set("text", textNode->GetText());
+        o.set("text", val::u16string(textNode->GetText().getStr()));
         r.call<void>("push", o);
 
         aOutlineStack.push(StackEntry(nLevel, nOutlineId));
