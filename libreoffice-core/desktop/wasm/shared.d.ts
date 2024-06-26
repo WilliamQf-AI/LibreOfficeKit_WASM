@@ -175,6 +175,8 @@ export type DocumentWithViewMethods = {
   gotoOutline(index: number): RectArray;
 
   setAuthor(author: string): void;
+
+  getRedlineTextRange(id: number): RectArray[] | undefined;
 };
 
 /** methods that forward to a class weakly bound to the Document that forwards calls */

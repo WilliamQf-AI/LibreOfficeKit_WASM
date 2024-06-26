@@ -62,5 +62,6 @@ public:
     virtual val gotoOutline(int /* outlineIndex */) { return {}; };
     virtual void bumpInvalidationGeneration() {};
     virtual sal_uInt32 invalidationGeneration() { return 0; };
+    virtual val getRedlineTextRange(int /* redlineId */) { return {}; };
 };
 }

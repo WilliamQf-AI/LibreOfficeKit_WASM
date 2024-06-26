@@ -633,6 +633,11 @@ public:
     val gotoOutline(int idx) { return writer()->gotoOutline(idx); }
     void setAuthor(std::string author) { doc_->setAuthor(author.c_str()); }
 
+    val getRedlineTextRange(int redlineId)
+    {
+        return writer()->getRedlineTextRange(redlineId);
+    }
+
 private:
     struct DocWithId
     {
@@ -771,5 +776,6 @@ EMSCRIPTEN_BINDINGS(lok)
         .function("gotoOutline", &DocumentClient::gotoOutline)
         .function("getOutline", &DocumentClient::getOutline)
         .function("setAuthor", &DocumentClient::setAuthor)
-        .function("newView", &DocumentClient::newView);
+        .function("newView", &DocumentClient::newView)
+        .function("getRedlineTextRange", &DocumentClient::getRedlineTextRange);
 }

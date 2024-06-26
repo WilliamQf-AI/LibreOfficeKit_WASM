@@ -60,6 +60,13 @@ async function saveAsPDF(doc: DocumentClient | null) {
   downloadFile('Pdf Export.pdf', buffer, 'application/pdf');
 }
 
+async function testTrackChanges(doc: DocumentClient | null) {
+  if (!doc) return;
+  console.log('calling');
+  const result = await doc.getRedlineTextRange(2);
+  console.log('RESULT', result);
+}
+
 const MOD = IS_MAC ? 'cmd' : 'ctrl';
 const ignoredShortcuts: Shortcut[] = [
   {
@@ -140,6 +147,7 @@ function App() {
       <Show when={getDoc()}>
         <div class="h-[70px] border-b border border-gray-300 flex items-center bg-gray-200 px-2">
           <button onClick={() => saveAsPDF(getDoc())}>Save As PDF</button>
+          <button onClick={() => testTrackChanges(getDoc())}>TRACK CHANGES</button>
         </div>
       </Show>
       <Show when={loading()}>
