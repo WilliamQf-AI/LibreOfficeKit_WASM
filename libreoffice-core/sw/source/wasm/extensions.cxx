@@ -391,7 +391,6 @@ val SwXTextDocument::headerFooterRect()
 
 val SwXTextDocument::getRedlineTextRange(int redlineId)
 {
-    SAL_WARN("lok", "getRedlineTextRange is not implemented" << redlineId);
     auto wrtShell = GetDocShell()->GetWrtShell();
     const SwRedlineTable& rRedlineTable = wrtShell->getIDocumentRedlineAccess().GetRedlineTable();
     for (SwRedlineTable::size_type i = 0; i < rRedlineTable.size(); ++i)
@@ -414,7 +413,7 @@ val SwXTextDocument::getRedlineTextRange(int redlineId)
             break;
         }
     }
-    return val::undefined();
+    return {};
 }
 
 namespace
