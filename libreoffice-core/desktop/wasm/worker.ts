@@ -575,6 +575,11 @@ const handler: DocumentMethodHandler<Document> = {
     doc.setCurrentView(viewId);
     doc.updateComment(id, text);
   },
+
+  getRedlineTextRange: function (doc: Document, viewId: ViewId, id: number) {
+    doc.setCurrentView(viewId);
+    return doc.getRedlineTextRange(id);
+  }
 };
 
 const forwarding: ForwardingMethodHandlers<Document> = {

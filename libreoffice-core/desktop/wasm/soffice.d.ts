@@ -244,6 +244,8 @@ export declare class Document {
   getOutline(): OutlineItem[];
   gotoOutline(index: number): RectArray;
   setAuthor(author: string): void;
+
+  getRedlineTextRange(id: number): RectArray[] | undefined;
 }
 
 // NOTE: Disabled until unoembind startup cost is under 1s
