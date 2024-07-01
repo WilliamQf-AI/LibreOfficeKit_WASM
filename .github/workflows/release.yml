@@ -189,6 +189,8 @@ jobs:
           token: ${{ steps.generate-token.outputs.token }}
           repository: coparse-inc/app-monorepo
           ref: main
+          owner: ${{ github.repository_owner }}
+          repositories: 'app-monorepo'
 
       - name: Git LFS
         run: |
