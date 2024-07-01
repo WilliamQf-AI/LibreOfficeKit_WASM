@@ -196,9 +196,10 @@ jobs:
         run: |
           git config lfs.fetchinclude "*.wasm,*.patch"
           git lfs install
+          git lfs pull
 
       - name: Restore artifacts for PR
-        uses: runs-on/cache/save@v4
+        uses: runs-on/cache/restore@v4
         with:
           fail-on-cache-miss: true
           path: packages/editor/src/lok
