@@ -182,6 +182,12 @@ jobs:
         with:
           app-id: 845235 # LOK WASM App Id
           private-key: ${{ secrets.LOK_WASM_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: 'app-monorepo'
+
+      - name: Git LFS
+        run: |
+          git config --global lfs.fetchinclude "*.wasm,*.patch"
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -189,14 +195,7 @@ jobs:
           token: ${{ steps.generate-token.outputs.token }}
           repository: coparse-inc/app-monorepo
           ref: main
-          owner: ${{ github.repository_owner }}
-          repositories: 'app-monorepo'
-
-      - name: Git LFS
-        run: |
-          git config lfs.fetchinclude "*.wasm,*.patch"
-          git lfs install
-          git lfs pull
+          lfs: true
 
       - name: Restore artifacts for PR
         uses: runs-on/cache/restore@v4
@@ -211,11 +210,9 @@ jobs:
           token: ${{ steps.generate-token.outputs.token }}
           branch: update-lok-wasm
           delete-branch: true
-          commit-message: Update LOK WASM to v${{ needs.check_version.outputs.version }}
-          title: Update LOK WASM to v${{ needs.check_version.outputs.version }}
+          commit-message: Update LOK WASM to ${{ needs.check_version.outputs.version }}
+          title: Update LOK WASM to ${{ needs.check_version.outputs.version }}
           body: 'This is an automated PR created from the [`lok-wasm`](https://github.com/coparse-inc/lok-wasm) repository'
           assignees: chase
           reviewers: chase,synoet,whutchinson98
           labels: lok-wasm
-          add-paths: |
-            packages/editor/src/lok
