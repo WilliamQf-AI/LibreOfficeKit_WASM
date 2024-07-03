@@ -341,7 +341,14 @@ public:
             SAL_WARN("wasm", "Failed to setup undo listener");
         }
     }
-
+    explicit DocumentClient(desktop::ExpandedDocument expandedDoc, std::string name)
+        : ref_(++document_id_counter)
+    {
+        desktop::WasmOfficeExtension* ext = static_cast<desktop::WasmOfficeExtension*>(instance()->get());
+        auto doc = ext->documentExpandedLoad(expandedDoc, name, nullptr, ref_);
+        lok::Document* aDoc = new lok::Document(doc);
+        doc_ = aDoc;
+    }
     ~DocumentClient()
     {
         using namespace css::uno;
@@ -760,6 +767,43 @@ public:
     val gotoOutline(int idx) { return writer()->gotoOutline(idx); }
     void setAuthor(std::string author) { doc_->setAuthor(author.c_str()); }
 
+    val getExpandedPart(std::string path)
+    {
+        auto part = ext()->getExpandedPart(path);
+        val result = val::object();
+
+        if (!part)
+        {
+            SAL_WARN("main_wasm", "could not find expanded part with path: (" << path << ")");
+            return result;
+        }
+
+        result.set("path", val(part->first));
+        result.set("content", val(typed_memory_view(part->second.size(), part->second.data())));
+
+        return result;
+    }
+
+    void removePart(std::string path)
+    {
+        ext()->removePart(path);
+    }
+
+    val listExpandedParts()
+    {
+        auto parts = ext()->listParts();
+        val values = val::array();
+
+        for (const auto& part : parts)
+        {
+
+            val item = val::object();
+            item.set("path", val(part.first));
+            item.set("sha", val(part.second));
+            values.call<void>("push", item);
+        }
+        return values;
+    }
     sal_Int32 addExternalUndo() { return writer()->addExternalUndo(); };
     sal_Int32 getNextUndoId() const { return writer()->getNextUndoId(); };
     sal_Int32 getNextRedoId() const { return writer()->getNextRedoId(); };
@@ -879,8 +923,18 @@ EMSCRIPTEN_BINDINGS(lok)
         .function("replace", &wasm::ITextRanges::replace)
         .function("replaceAll", &wasm::ITextRanges::replaceAll);
 
+    class_<desktop::ExpandedDocument>("ExpandedDocument")
+        .constructor()
+        .function("addPart", &desktop::ExpandedDocument::addPart);
+
+    class_<desktop::ExpandedPart>("ExpandedDocPart")
+        .constructor<std::string, std::string>();
+
+    register_vector<desktop::ExpandedPart>("ExpandedPartVector");
+
     class_<DocumentClient>("Document")
         .constructor<std::string>()
+        .constructor<desktop::ExpandedDocument, std::string>()
         .function("valid", &DocumentClient::valid)
         .function("saveAs", &DocumentClient::saveAs)
         .function("getParts", &DocumentClient::getParts)
@@ -929,6 +983,10 @@ EMSCRIPTEN_BINDINGS(lok)
         .function("gotoOutline", &DocumentClient::gotoOutline)
         .function("getOutline", &DocumentClient::getOutline)
         .function("setAuthor", &DocumentClient::setAuthor)
+        .function("newView", &DocumentClient::newView)
+        .function("getExpandedPart", &DocumentClient::getExpandedPart)
+        .function("removeExpandedPart", &DocumentClient::removePart)
+        .function("listExpandedParts", &DocumentClient::listExpandedParts)
         .function("addExternalUndo", &DocumentClient::addExternalUndo)
         .function("getNextUndoId", &DocumentClient::getNextUndoId)
         .function("getNextRedoId", &DocumentClient::getNextRedoId)

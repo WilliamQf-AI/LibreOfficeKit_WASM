@@ -20,7 +20,6 @@
 #ifndef INCLUDED_OOX_HELPER_STORAGEBASE_HXX
 #define INCLUDED_OOX_HELPER_STORAGEBASE_HXX
 
-#include <functional>
 #include <memory>
 #include <vector>
 
@@ -58,6 +57,9 @@ public:
     explicit            StorageBase(
                             const css::uno::Reference< css::io::XStream >& rxOutStream,
                             bool bBaseStreamAccess );
+
+    explicit            StorageBase(
+                            const css::uno::Reference< css::io::XInputStream >& rxInStream, bool bBaseStreamAccess, bool bExpandedStorage);
 
     virtual             ~StorageBase();
 
@@ -104,7 +106,7 @@ public:
             access has been enabled in the constructor, the base stream can be
             accessed by passing an empty string as stream name.
      */
-    css::uno::Reference< css::io::XInputStream >
+    virtual css::uno::Reference< css::io::XInputStream >
                         openInputStream( const OUString& rStreamName );
 
     /** Opens and returns the specified output stream from the storage.
@@ -182,6 +184,7 @@ private:
     OUString            maStorageName;      ///< Name of this storage, if it is a substorage.
     bool                mbBaseStreamAccess; ///< True = access base streams with empty stream name.
     bool                mbReadOnly;         ///< True = storage opened read-only (based on input stream).
+    bool                mbExpanded;         /// < True = being used for expanded storage
 };
 
 

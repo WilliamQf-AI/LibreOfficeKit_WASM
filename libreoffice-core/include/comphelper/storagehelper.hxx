@@ -19,6 +19,8 @@
 #ifndef INCLUDED_COMPHELPER_STORAGEHELPER_HXX
 #define INCLUDED_COMPHELPER_STORAGEHELPER_HXX
 
+#include <oox/helper/storagebase.hxx>
+#include <sot/stg.hxx>
 #include <com/sun/star/uno/Sequence.h>
 #include <com/sun/star/uno/Reference.hxx>
 #include <com/sun/star/embed/ElementModes.hpp>
@@ -34,6 +36,8 @@ inline constexpr OUString PACKAGE_ENCRYPTIONDATA_SHA256UTF8 = u"PackageSHA256UTF
 inline constexpr OUString PACKAGE_ENCRYPTIONDATA_SHA1UTF8 = u"PackageSHA1UTF8EncryptionKey"_ustr;
 inline constexpr OUString PACKAGE_ENCRYPTIONDATA_SHA1MS1252  = u"PackageSHA1MS1252EncryptionKey"_ustr;
 inline constexpr OUString PACKAGE_ENCRYPTIONDATA_SHA1CORRECT  = u"PackageSHA1CorrectEncryptionKey"_ustr;
+
+inline constexpr OUString WORD_DIR_NAME = u"word"_ustr;
 
 namespace com::sun::star {
     namespace beans { struct NamedValue; }
@@ -196,6 +200,15 @@ public:
 
     static OUString
     GetODFVersionFromStorage(const css::uno::Reference<css::embed::XStorage>& xStorage);
+
+    static css::uno::Reference<css::embed::XStorage> GetExpandedStorage();
+    static std::shared_ptr<oox::StorageBase> GetExpandedStorageBase();
+    static void SetExpandedStorage(css::uno::Reference<css::embed::XStorage>& xStorage);
+    static void SetExpandedStorageBase(std::shared_ptr<oox::StorageBase>& xStorage);
+    static bool IsExpandedStorage();
+    static void SetIsExpandedStorage(bool bIsExpanded);
+    static css::uno::Reference<css::embed::XStorage> GetExpandedDocSubStorage();
+
 };
 
 }

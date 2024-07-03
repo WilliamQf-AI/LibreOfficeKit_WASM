@@ -26,6 +26,7 @@ import type {
   Comment,
   Document,
   DocumentRef,
+  ExpandedPart,
   HeaderFooterRect,
   ITextRanges,
   ParagraphStyle,
@@ -87,6 +88,24 @@ const globalHandler: GlobalMethod = {
     docMap[ref] = doc;
     return ref;
   },
+  loadFromExpandedParts: function(name: string, data: Array<ExpandedPart>) {
+    const { Document, ExpandedDocument} = lok;
+    const expandedDoc = new ExpandedDocument();
+    for (const part of data) {
+      expandedDoc.addPart(part.path, part.content);
+    }
+
+    const doc = new Document(expandedDoc, name);
+    const ref = doc.ref();
+
+    if (!doc.valid()) {
+      doc.delete();
+      return null;
+    }
+
+    docMap[ref] = doc;
+    return ref;
+  },
 
   preload: function (): void {
     lok.preload();
@@ -116,11 +135,9 @@ const handler: DocumentMethodHandler<Document> = {
     // only buffer is transferable
     return lok.readUnlink(tmpFile).buffer;
   },
-
   parts: function (doc: Document): number {
     return doc.getParts();
   },
-
   partRectanglesTwips: function (doc: Document): RectangleTwips[] {
     return doc.pageRects().map(rectArrayToRectangleTwips);
   },
@@ -566,6 +583,12 @@ const handler: DocumentMethodHandler<Document> = {
     return doc.setAuthor(author);
   },
 
+  getExpandedPart: function (doc: Document, _viewId: ViewId, path: string) {
+    return doc.getExpandedPart(path);
+  },
+  listExpandedParts: function (doc: Document, _viewId: ViewId) {
+    return doc.listExpandedParts();
+  },
   updateComment: function (
     doc: Document,
     viewId: ViewId,

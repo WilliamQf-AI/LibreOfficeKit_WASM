@@ -976,6 +976,11 @@ public:
         return new Document(pDoc);
     }
 
+    LibreOfficeKit* get()
+    {
+        return mpThis;
+    }
+
     /// Returns the last error as a string, the returned pointer has to be freed by the caller.
     char* getError()
     {

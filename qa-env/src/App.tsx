@@ -1,4 +1,4 @@
-import { loadDocument } from '@lok';
+import { loadDocument, loadDocumentFromExpandedParts } from '@lok';
 import { CallbackType } from '@lok/lok_enums';
 import type { DocumentClient } from '@lok/shared';
 import { Show, createSignal, onCleanup } from 'solid-js';
@@ -8,7 +8,7 @@ import { cleanup } from './OfficeDocument/cleanup';
 import { IS_MAC } from './OfficeDocument/isMac';
 import { Shortcut } from './OfficeDocument/vclKeys';
 import { ZOOM_STEP, updateZoom } from './OfficeDocument/zoom';
-import { downloadFile } from './utils';
+import { downloadFile, unzipDocxFile } from './utils';
 
 const [loading, setLoading] = createSignal(false);
 const [getDoc, setDoc] = createSignal<DocumentClient | null>(null);
@@ -34,7 +34,8 @@ async function fileOpen(files: FileList | null) {
   if (oldDoc) {
     cleanup(oldDoc);
   }
-  const doc = await loadDocument(name, blob);
+  let doc;
+  doc = await loadDocument(name, blob);
   if (!doc) {
     console.error('failure!');
     return;
@@ -52,8 +53,41 @@ async function fileOpen(files: FileList | null) {
     console.log('did paint');
   });
   window.d = doc;
-  // doc.on(CallbackType.STATE_CHANGED, (payload) => console.log(payload));
 }
+
+async function fileOpenExpanded(files: FileList | null) { 
+  if (!files || !files[0]) return;
+  const name = files[0].name;
+  const blob = files[0].slice();
+  setLoading(true);
+  const oldDoc = getDoc();
+  if (oldDoc) {
+    cleanup(oldDoc);
+  }
+   let doc;
+
+  const parts = await unzipDocxFile(blob);
+
+  doc = await loadDocumentFromExpandedParts(name, parts)
+  if (!doc) {
+    console.error('failure!');
+    return;
+  }
+  await doc.initializeForRendering({
+    author: 'Macro User',
+  });
+  setDoc(doc);
+  setLoading(false);
+  doc.on(CallbackType.ERROR, console.error);
+  doc.afterIdle(() => {
+    console.log('did idle');
+  });
+  doc.afterPaint(() => {
+    console.log('did paint');
+  });
+  window.d = doc;
+
+} 
 async function saveAsPDF(doc: DocumentClient | null) {
   if (!doc) return;
   const buffer = await doc.save('pdf');
@@ -135,6 +169,16 @@ function App() {
         file:bg-blue-50 file:text-blue-700
         hover:file:bg-blue-100 h-auto"
           onChange={(evt) => fileOpen(evt.target.files)}
+        />
+        <input
+          type="file"
+          accept=".docx"
+          class="block w-full text-sm text-slate-500 rounded-md
+        file:mr-4 file:py-2 file:px-4 file:rounded-md
+        file:border-0 file:text-sm file:font-semibold
+        file:bg-blue-50 file:text-blue-700
+        hover:file:bg-blue-100 h-auto"
+          onChange={(evt) => fileOpenExpanded(evt.target.files)}
         />
       </div>
       <Show when={getDoc()}>

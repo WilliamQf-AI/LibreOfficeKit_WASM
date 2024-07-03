@@ -157,6 +157,8 @@ public:
         interface of the temporary file will be stored in the 'ComponentData'
         property of the passed media descriptor.
      */
+    void ZipDetect( utl::MediaDescriptor& rMediaDesc, OUString& aFilterName);
+    void ExpandedDetect( utl::MediaDescriptor& rMediaDesc, OUString& aFilterName);
     virtual OUString SAL_CALL
                         detect( css::uno::Sequence< css::beans::PropertyValue >& rMediaDescSeq ) override;
 

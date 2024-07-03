@@ -17,6 +17,7 @@
  *   the License at http://www.apache.org/licenses/LICENSE-2.0 .
  */
 
+#include <comphelper/storagehelper.hxx>
 #include <time.h>
 #include <sfx2/sfxbasecontroller.hxx>
 #include <com/sun/star/awt/XVclWindowPeer.hpp>
@@ -528,7 +529,8 @@ void SAL_CALL SfxBaseController::attachFrame( const Reference< frame::XFrame >& 
     if ( m_pData->m_pViewShell )
     {
         ConnectSfxFrame_Impl( E_CONNECT );
-        ShowInfoBars( );
+        // MACRO: unneeded since this is only for opening from remote storage
+        /* ShowInfoBars( ); */
 
         // attaching the frame to the controller is the last step in the creation of a new view, so notify this
         SfxViewEventHint aHint( SfxEventHintId::ViewCreated, GlobalEventConfig::GetEventName( GlobalEventId::VIEWCREATED ), m_pData->m_pViewShell->GetObjectShell(), Reference< frame::XController2 >( this ) );
@@ -1320,6 +1322,7 @@ void SfxBaseController::ConnectSfxFrame_Impl( const ConnectSfxFrame i_eConnect )
         pViewFrame->GetBindings().Invalidate( nViewNo + SID_VIEWSHELL0 );
 }
 
+// MACRO: unneeded since this is only for opening from remote storage
 void SfxBaseController::ShowInfoBars( )
 {
     if ( !m_pData->m_pViewShell )

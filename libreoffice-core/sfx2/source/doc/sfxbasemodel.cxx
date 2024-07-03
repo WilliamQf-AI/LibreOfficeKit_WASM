@@ -2785,6 +2785,8 @@ sal_Bool SAL_CALL SfxBaseModel::canCheckIn( )
 
 void SfxBaseModel::loadCmisProperties( )
 {
+    return; // MACRO: CMIS properties are only added when loading from a remote file
+            // which we never do
     SfxMedium* pMedium = m_pData->m_pObjectShell->GetMedium();
     if ( !pMedium )
         return;

@@ -18,6 +18,9 @@
  */
 
 #include "OOXMLStreamImpl.hxx"
+#include <com/sun/star/embed/XRelationshipAccess.hdl>
+#include <com/sun/star/uno/Reference.h>
+#include <sal/log.hxx>
 #include <oox/core/fasttokenhandler.hxx>
 
 #include <com/sun/star/embed/XHierarchicalStorageAccess.hpp>

@@ -3028,6 +3028,7 @@ static LibreOfficeKitDocument* lo_documentLoadWithOptions(LibreOfficeKit* pThis,
         // to bring saveas dialog which cannot work with LOK case
         uno::Sequence<css::beans::PropertyValue> aFilterOptions{
             comphelper::makePropertyValue(u"FilterOptions"_ustr, aOptions),
+            comphelper::makePropertyValue(u"FilterName"_ustr, OUString("MS Word 2007 XML")),
             comphelper::makePropertyValue(u"InteractionHandler"_ustr, xInteraction),
             comphelper::makePropertyValue(u"MacroExecutionMode"_ustr, nMacroExecMode),
             comphelper::makePropertyValue(u"AsTemplate"_ustr, false),

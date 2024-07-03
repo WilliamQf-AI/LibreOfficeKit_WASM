@@ -295,6 +295,11 @@ SvGlobalName const & SfxObjectShell::GetClassName() const
 void SfxObjectShell::SetupStorage( const uno::Reference< embed::XStorage >& xStorage,
                                    sal_Int32 nVersion, bool bTemplate ) const
 {
+
+    if (comphelper::OStorageHelper::IsExpandedStorage())
+    {
+        return;
+    }
     uno::Reference< beans::XPropertySet > xProps( xStorage, uno::UNO_QUERY );
 
     if ( !xProps.is() )

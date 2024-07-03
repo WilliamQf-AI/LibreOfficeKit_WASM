@@ -1,5 +1,7 @@
 #pragma once
 
+#include <oox/helper/expandedstorage.hxx>
+#include <sal/types.h>
 #include <LibreOfficeKit/LibreOfficeKit.h>
 #include <LibreOfficeKit/LibreOfficeKitEnums.h>
 
@@ -67,11 +69,32 @@ struct TileRendererData
     void reset();
 };
 
+struct ExpandedPart
+{
+    std::string path;
+    std::string content;
+
+    ExpandedPart(std::string path_, std::string content_)
+        : path(path_)
+        , content(content_){};
+};
+
+struct ExpandedDocument
+{
+    std::vector<ExpandedPart> parts;
+
+    ExpandedDocument(){};
+
+public:
+    void addPart(std::string path, std::string content);
+};
+
 struct DESKTOP_DLLPUBLIC WasmDocumentExtension : public _LibreOfficeKitDocument
 {
     std::vector<pthread_t> tileRendererThreads_;
     std::vector<TileRendererData> tileRendererData_;
     css::uno::Reference<css::lang::XComponent> mxComponent;
+    uno::Reference<oox::ExpandedStorage> expandedStorage;
 
     WasmDocumentExtension(css::uno::Reference<css::lang::XComponent> xComponent);
     TileRendererData& startTileRenderer(int32_t viewId, int32_t tileSize);
@@ -79,5 +102,18 @@ struct DESKTOP_DLLPUBLIC WasmDocumentExtension : public _LibreOfficeKitDocument
 
     std::string getPageColor();
     std::string getPageOrientation();
+
+    _LibreOfficeKitDocument* loadFromExpanded(LibreOfficeKit* pThis, desktop::ExpandedDocument expandedDoc, const char* pFilterOptions = nullptr, const int documentId = 0);
+
+    std::optional<std::pair<std::string, std::vector<sal_Int8>>> getExpandedPart(const std::string& path) const;
+    void removePart(const std::string& path) const;
+    std::vector<std::pair<const std::string, const std::string>> listParts() const;
+
 };
+
+struct DESKTOP_DLLPUBLIC WasmOfficeExtension : public _LibreOfficeKit
+{
+    _LibreOfficeKitDocument* documentExpandedLoad(desktop::ExpandedDocument expandedDoc, std::string name, const char* pFilterOptions, const int documentId = 0);
+};
+
 }

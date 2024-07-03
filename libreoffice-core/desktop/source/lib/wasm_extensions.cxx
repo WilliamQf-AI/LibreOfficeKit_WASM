@@ -1,3 +1,21 @@
+#include <com/sun/star/document/MacroExecMode.hpp>
+#include <com/sun/star/frame/Desktop.hpp>
+#include <com/sun/star/frame/XDesktop2.hpp>
+#include <com/sun/star/ucb/OpenMode.hpp>
+#include <com/sun/star/uno/Any.h>
+#include <com/sun/star/uno/Reference.h>
+#include <comphelper/base64.hxx>
+#include <comphelper/diagnose_ex.hxx>
+#include <comphelper/processfactory.hxx>
+#include <comphelper/seqstream.hxx>
+#include <comphelper/vecstream.hxx>
+#include <comphelper/storagehelper.hxx>
+#include <cppuhelper/exc_hlp.hxx>
+#include <lib/init.hxx>
+#include <oox/helper/expandedstorage.hxx>
+#include <sal/log.hxx>
+#include <sot/stg.hxx>
+#include <unotools/mediadescriptor.hxx>
 #include <com/sun/star/uno/Reference.hxx>
 #include <editeng/sizeitem.hxx>
 #include <sfx2/bindings.hxx>
@@ -21,6 +39,7 @@
 
 namespace desktop
 {
+using cppu::getCaughtException;
 
 static constexpr int MAX_THREADS_TO_NOTIFY = 2;
 
@@ -202,4 +221,128 @@ std::string WasmDocumentExtension::getPageOrientation ()
     return bIsLandscape ? "landscape" : "portrait";
 }
 
+_LibreOfficeKitDocument* WasmOfficeExtension::documentExpandedLoad(desktop::ExpandedDocument expandedDoc, std::string name, const char* pFilterOptions, const int documentId)
+{
+    LibreOfficeKitDocument* pDoc = NULL;
+    desktop::WasmDocumentExtension* ext
+        = static_cast<desktop::WasmDocumentExtension*>(pDoc);
+
+    LibreOfficeKit* pThis = static_cast<LibreOfficeKit*>(this);
+
+
+    return ext->loadFromExpanded(pThis, expandedDoc, pFilterOptions, documentId);
+}
+
+
+void ExpandedDocument::addPart(std::string path, std::string content)
+{
+    parts.emplace_back(std::move(path), std::move(content));
+}
+
+_LibreOfficeKitDocument* WasmDocumentExtension::loadFromExpanded(LibreOfficeKit* pThis, desktop::ExpandedDocument expandedDoc, const char* pFilterOptions, const int documentId)
+{
+    using namespace com::sun::star;
+    uno::Reference<uno::XComponentContext> xContext = comphelper::getProcessComponentContext();
+
+    if (!xContext) {
+        return nullptr;
+    }
+
+    uno::Reference<frame::XDesktop2> xComponentLoader = frame::Desktop::create(xContext);
+
+    if (!xComponentLoader.is())
+    {
+        SAL_WARN("lok", "ComponentLoader is not available");
+        return nullptr;
+    }
+
+
+    // Parts of the import pipeline expect a stream
+    // this stream isn't actually used, but is required to be passed along
+    std::vector<sal_Int8> aEmptyData;
+    uno::Reference<io::XInputStream> xEmptyInputStream(new comphelper::VectorInputStream(aEmptyData));
+
+    uno::Reference<oox::ExpandedStorage> storage(new oox::ExpandedStorage(xContext, xEmptyInputStream));
+
+    auto it = expandedDoc.parts.begin();
+    while(it != expandedDoc.parts.end())
+    {
+        if (it->content.length() == 0 || it->path.length() == 0)
+            continue;
+        storage->addPart(it->path, it->content);
+        it = expandedDoc.parts.erase(it);
+    }
+
+    storage->readRelationshipInfo();
+    // Is this necesarry ?
+    storage->setPropertyValue("OpenMode", uno::Any(ucb::OpenMode::ALL));
+    storage->setPropertyValue("Version", uno::Any(OUString("1")));
+    storage->setPropertyValue("MS Word 2007 XML", uno::Any(OUString("1")));
+
+    uno::Reference<embed::XStorage> xStorage(storage, uno::UNO_QUERY);
+    auto storageBase = std::shared_ptr<oox::StorageBase>(storage.get());
+
+    // ExpandedStorage can represent both a BaseStorage and an XStorage
+    //
+    // Unlike conventional XStorage we don't want to be constantly re-initializing
+    // a storage object since the file content is stored in memory.
+    // Thus we set a storageBase and xStorage globals to be used
+    // throughout the load process.
+    comphelper::OStorageHelper::SetIsExpandedStorage(true);
+    comphelper::OStorageHelper::SetExpandedStorage(xStorage);
+    comphelper::OStorageHelper::SetExpandedStorageBase(storageBase);
+    expandedStorage = uno::Reference<oox::ExpandedStorage>(storage.get());
+
+    utl::MediaDescriptor aMediaDescriptor;
+
+    // Expanded Storage only supports .DOCX
+    aMediaDescriptor["FilterName"] <<= OUString("MS Word 2007 XML"); // just hardcode this for now
+    aMediaDescriptor["MacroExecutionMode"] <<= document::MacroExecMode::NEVER_EXECUTE;
+    // We don't have a general document input stream,
+    // so we pass in an empty one. Down the line its crucial we
+    // check if we are currently loading from expanded storage
+    // and use the storage instead of the stream
+    aMediaDescriptor["InputStream"] <<= xEmptyInputStream;
+    // Silences various exceptions
+    aMediaDescriptor["Silent"] <<= true;
+
+    {
+        SolarMutexGuard aGuard;
+        try
+        {
+            Application::SetDialogCancelMode(DialogCancelMode::LOKSilent);
+            SfxViewShell::SetCurrentDocId(ViewShellDocId(documentId));
+            uno::Reference<lang::XComponent> xComponent = xComponentLoader->loadComponentFromURL(
+                "private:stream", "_blank", documentId, aMediaDescriptor.getAsConstPropertyValueList());
+
+            if (!xComponent.is()) {
+                SAL_WARN("lok", "Could not load in memory doc");
+                return nullptr;
+            }
+
+            return new LibLODocument_Impl(xComponent, documentId);
+        }
+        catch (const uno::Exception& exception)
+        {
+            uno::Any exAny(getCaughtException());
+            SAL_WARN("lok", "Failed to load to in-memory stream: " + exceptionToString(exAny));
+        }
+    }
+    SAL_WARN("lok", "Failed to load to in-memory stream");
+    return nullptr;
+}
+
+std::optional<std::pair<std::string, std::vector<sal_Int8>>> WasmDocumentExtension::getExpandedPart(const std::string& path) const
+{
+    return expandedStorage->getPart(path);
+}
+void WasmDocumentExtension::removePart(const std::string& path) const
+{
+    return expandedStorage->removePart(path);
+}
+
+std::vector<std::pair<const std::string, const std::string>> WasmDocumentExtension::listParts() const
+{
+    return expandedStorage->listParts();
+}
 }

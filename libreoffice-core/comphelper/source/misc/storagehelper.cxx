@@ -16,7 +16,11 @@
  *   except in compliance with the License. You may obtain a copy of
  *   the License at http://www.apache.org/licenses/LICENSE-2.0 .
  */
-
+#include <com/sun/star/embed/ElementModes.hpp>
+#include <com/sun/star/embed/XStorage.hpp>
+#include <com/sun/star/uno/Reference.h>
+#include <oox/helper/expandedstorage.hxx>
+#include <sot/stg.hxx>
 #include <config_gpgme.h>
 
 #include <com/sun/star/embed/ElementModes.hpp>
@@ -40,6 +44,7 @@
 #include <com/sun/star/security/DocumentDigitalSignatures.hpp>
 #include <com/sun/star/security/XCertificate.hpp>
 
+#include <memory>
 #include <vector>
 
 #include <rtl/digest.h>
@@ -72,6 +77,51 @@ using namespace ::com::sun::star;
 
 namespace comphelper {
 
+static uno::Reference<embed::XStorage> expandedStorage;
+static std::shared_ptr<oox::StorageBase> expandedStorageBase;
+static uno::Reference<embed::XStorage> expandedDocSubStorage;
+static bool bIsExpandedStorage = false;
+
+uno::Reference<embed::XStorage> OStorageHelper::GetExpandedStorage()
+{
+    return expandedStorage;
+}
+
+void OStorageHelper::SetExpandedStorage(uno::Reference<embed::XStorage>& xStorage)
+{
+    expandedStorage = xStorage;
+}
+
+bool OStorageHelper::IsExpandedStorage()
+{
+    return bIsExpandedStorage;
+}
+
+void OStorageHelper::SetIsExpandedStorage(bool bIsExpanded)
+{
+    bIsExpandedStorage = bIsExpanded;
+}
+
+void OStorageHelper::SetExpandedStorageBase(std::shared_ptr<oox::StorageBase>& xStorage)
+{
+    expandedStorageBase = xStorage;
+}
+
+uno::Reference<embed::XStorage> OStorageHelper::GetExpandedDocSubStorage()
+{
+    if (!expandedDocSubStorage.is())
+    {
+        auto docSubStorage = expandedStorage->openStorageElement(WORD_DIR_NAME, embed::ElementModes::READWRITE);
+        expandedDocSubStorage = uno::Reference<embed::XStorage>(docSubStorage);
+    }
+
+    return expandedDocSubStorage;
+}
+
+std::shared_ptr<oox::StorageBase> OStorageHelper::GetExpandedStorageBase()
+{
+    return expandedStorageBase;
+}
 
 uno::Reference< lang::XSingleServiceFactory > OStorageHelper::GetStorageFactory(
                             const uno::Reference< uno::XComponentContext >& rxContext )
@@ -92,6 +142,8 @@ uno::Reference< lang::XSingleServiceFactory > OStorageHelper::GetFileSystemStora
 uno::Reference< embed::XStorage > OStorageHelper::GetTemporaryStorage(
             const uno::Reference< uno::XComponentContext >& rxContext )
 {
+    if (IsExpandedStorage())
+        return GetExpandedStorage();
     uno::Reference< embed::XStorage > xTempStorage( GetStorageFactory( rxContext )->createInstance(),
                                                     uno::UNO_QUERY_THROW );
     return xTempStorage;
@@ -103,6 +155,8 @@ uno::Reference< embed::XStorage > OStorageHelper::GetStorageFromURL(
             sal_Int32 nStorageMode,
             const uno::Reference< uno::XComponentContext >& rxContext )
 {
+    if (IsExpandedStorage())
+        return GetExpandedStorage();
     uno::Sequence< uno::Any > aArgs{ uno::Any(aURL), uno::Any(nStorageMode) };
     uno::Reference< embed::XStorage > xTempStorage( GetStorageFactory( rxContext )->createInstanceWithArguments( aArgs ),
                                                     uno::UNO_QUERY_THROW );
@@ -115,6 +169,8 @@ uno::Reference< embed::XStorage > OStorageHelper::GetStorageFromURL2(
             sal_Int32 nStorageMode,
             const uno::Reference< uno::XComponentContext >& rxContext )
 {
+    if (IsExpandedStorage())
+        return GetExpandedStorage();
     uno::Sequence< uno::Any > aArgs{ uno::Any(aURL), uno::Any(nStorageMode) };
 
     uno::Reference< lang::XSingleServiceFactory > xFact;
@@ -151,6 +207,8 @@ uno::Reference< embed::XStorage > OStorageHelper::GetStorageFromInputStream(
             const uno::Reference < io::XInputStream >& xStream,
             const uno::Reference< uno::XComponentContext >& rxContext )
 {
+    if (IsExpandedStorage())
+        return GetExpandedStorage();
     uno::Sequence< uno::Any > aArgs{ uno::Any(xStream), uno::Any(embed::ElementModes::READ) };
     uno::Reference< embed::XStorage > xTempStorage( GetStorageFactory( rxContext )->createInstanceWithArguments( aArgs ),
                                                     uno::UNO_QUERY_THROW );
@@ -163,6 +221,8 @@ uno::Reference< embed::XStorage > OStorageHelper::GetStorageFromStream(
             sal_Int32 nStorageMode,
             const uno::Reference< uno::XComponentContext >& rxContext )
 {
+    if (IsExpandedStorage())
+        return GetExpandedStorage();
     uno::Sequence< uno::Any > aArgs{ uno::Any(xStream), uno::Any(nStorageMode) };
     uno::Reference< embed::XStorage > xTempStorage( GetStorageFactory( rxContext )->createInstanceWithArguments( aArgs ),
                                                     uno::UNO_QUERY_THROW );
@@ -308,6 +368,8 @@ uno::Reference< embed::XStorage > OStorageHelper::GetStorageOfFormatFromURL(
             sal_Int32 nStorageMode,
             const uno::Reference< uno::XComponentContext >& rxContext )
 {
+    if (IsExpandedStorage())
+        return GetExpandedStorage();
     uno::Sequence< beans::PropertyValue > aProps{ comphelper::makePropertyValue("StorageFormat",
                                                                                 aFormat) };
 
@@ -324,6 +386,8 @@ uno::Reference< embed::XStorage > OStorageHelper::GetStorageOfFormatFromInputStr
             const uno::Reference< uno::XComponentContext >& rxContext,
             bool bRepairStorage )
 {
+    if (IsExpandedStorage())
+        return GetExpandedStorage();
     uno::Sequence< beans::PropertyValue > aProps( bRepairStorage ? 2 : 1 );
     auto pProps = aProps.getArray();
     pProps[0].Name = "StorageFormat";
@@ -348,6 +412,8 @@ uno::Reference< embed::XStorage > OStorageHelper::GetStorageOfFormatFromStream(
             const uno::Reference< uno::XComponentContext >& rxContext,
             bool bRepairStorage )
 {
+    if (IsExpandedStorage())
+        return GetExpandedStorage();
     uno::Sequence< beans::PropertyValue > aProps( bRepairStorage ? 2 : 1 );
     auto pProps = aProps.getArray();
     pProps[0].Name = "StorageFormat";
@@ -640,6 +706,8 @@ uno::Reference< embed::XStorage > OStorageHelper::GetStorageAtPath(
         std::u16string_view rPath, sal_uInt32 nOpenMode,
         LifecycleProxy const &rNastiness )
 {
+    if (IsExpandedStorage())
+        return GetExpandedStorage();
     std::vector<OUString> aElems;
     splitPath( aElems, rPath );
     return LookupStorageAtPath( xStorage, aElems, nOpenMode, rNastiness );

@@ -18,6 +18,7 @@
  */
 
 
+#include <com/sun/star/embed/XStorage.hpp>
 #include <sfx2/DocumentMetadataAccess.hxx>
 
 #include <com/sun/star/lang/WrappedTargetRuntimeException.hpp>
@@ -548,6 +549,7 @@ collectFilesFromStorage(uno::Reference<embed::XStorage> const& i_xStorage,
     std::set< OUString > & o_rFiles)
 {
     try {
+
         if (i_xStorage->hasByName(s_content) &&
             i_xStorage->isStreamElement(s_content))
         {
@@ -743,19 +745,24 @@ retry:
     uno::Any rterr;
     ucb::InteractiveAugmentedIOException iaioe;
     bool err(false);
+    bool isExpandedStorage(comphelper::OStorageHelper::IsExpandedStorage());
 
     const uno::Reference <rdf::XURI> xManifest(
         getURIForStream(i_rImpl, s_manifest));
-    try {
-        readStream(i_rImpl, i_xStorage, s_manifest, i_xBaseURI->getStringValue());
-    } catch (const ucb::InteractiveAugmentedIOException & e) {
-        // no manifest.rdf: this is not an error in ODF < 1.2
-        if (ucb::IOErrorCode_NOT_EXISTING_PATH != e.Code) {
-            iaioe = e;
-            err = true;
+
+    if (!isExpandedStorage)
+    {
+        try {
+            readStream(i_rImpl, i_xStorage, s_manifest, i_xBaseURI->getStringValue());
+        } catch (const ucb::InteractiveAugmentedIOException & e) {
+            // no manifest.rdf: this is not an error in ODF < 1.2
+            if (ucb::IOErrorCode_NOT_EXISTING_PATH != e.Code) {
+                iaioe = e;
+                err = true;
+            }
+        } catch (const uno::Exception & e) {
+            rterr <<= e;
         }
-    } catch (const uno::Exception & e) {
-        rterr <<= e;
     }
 
     // init manifest graph
@@ -1084,32 +1091,35 @@ void SAL_CALL DocumentMetadataAccess::loadMetadataFromStorage(
     const uno::Reference<rdf::XURI> & i_xBaseURI,
     const uno::Reference<task::XInteractionHandler> & i_xHandler)
 {
-    if (!i_xStorage.is()) {
+    uno::Reference<embed::XStorage> storage = i_xStorage;
+    bool isExpandedStorage = comphelper::OStorageHelper::IsExpandedStorage();
+
+    if (!storage.is()) {
         throw lang::IllegalArgumentException(
             "DocumentMetadataAccess::loadMetadataFromStorage: "
             "storage is null", *this, 0);
     }
-    if (!i_xBaseURI.is()) {
+    if (!i_xBaseURI.is() && !isExpandedStorage) {
         throw lang::IllegalArgumentException(
             "DocumentMetadataAccess::loadMetadataFromStorage: "
             "base URI is null", *this, 1);
     }
     const OUString baseURI( i_xBaseURI->getStringValue());
-    if (baseURI.indexOf('#') >= 0) {
+    if (baseURI.indexOf('#') >= 0 && !isExpandedStorage) {
         throw lang::IllegalArgumentException(
             "DocumentMetadataAccess::loadMetadataFromStorage: "
             "base URI not absolute", *this, 1);
     }
-    if (!baseURI.endsWith("/")) {
+    if (!baseURI.endsWith("/") && !isExpandedStorage) {
         throw lang::IllegalArgumentException(
             "DocumentMetadataAccess::loadMetadataFromStorage: "
             "base URI does not end with slash", *this, 1);
     }
 
-    initLoading(*m_pImpl, i_xStorage, i_xBaseURI, i_xHandler);
+    initLoading(*m_pImpl, storage, i_xBaseURI, i_xHandler);
 
     std::set< OUString > StgFiles;
-    collectFilesFromStorage(i_xStorage, StgFiles);
+    collectFilesFromStorage(storage, StgFiles);
 
     std::vector< OUString > MfstMetadataFiles;
 
@@ -1174,10 +1184,13 @@ void SAL_CALL DocumentMetadataAccess::loadMetadataFromStorage(
     }
 
     for (const auto& aStgFile : StgFiles)
+    {
+        SAL_WARN("metadata", "adding styles file" <<  aStgFile);
         addContentOrStylesFileImpl(*m_pImpl, aStgFile);
+    }
 
     for (const auto& aMfstMetadataFile : MfstMetadataFiles)
-        importFile(*m_pImpl, i_xStorage, baseURI, i_xHandler, aMfstMetadataFile);
+        importFile(*m_pImpl, storage, baseURI, i_xHandler, aMfstMetadataFile);
 }
 
 void SAL_CALL DocumentMetadataAccess::storeMetadataToStorage(

@@ -21,6 +21,7 @@
 #include <iostream>
 #endif
 
+#include <comphelper/storagehelper.hxx>
 #include <com/sun/star/beans/XPropertySet.hpp>
 #include <com/sun/star/document/XExporter.hpp>
 #include <com/sun/star/document/XFilter.hpp>
@@ -166,16 +167,25 @@ sal_Bool WriterFilter::filter(const uno::Sequence<beans::PropertyValue>& rDescri
         bool bSkipImages
             = aMediaDesc.getUnpackedValueOrDefault("FilterOptions", OUString()) == "SkipImages";
 
+        bool bExpandedStorage = comphelper::OStorageHelper::IsExpandedStorage();
+
+        // If we are using ExpandedStorage, we can load the input stream directly from media descriptors
         uno::Reference<io::XInputStream> xInputStream;
-        try
+        if (bExpandedStorage)
         {
-            // use the oox.core.FilterDetect implementation to extract the decrypted ZIP package
-            rtl::Reference<::oox::core::FilterDetect> xDetector(
-                new ::oox::core::FilterDetect(m_xContext));
-            xInputStream = xDetector->extractUnencryptedPackage(aMediaDesc);
+            xInputStream = aMediaDesc.getUnpackedValueOrDefault(
+                utl::MediaDescriptor::PROP_INPUTSTREAM, uno::Reference<io::XInputStream>());
         }
-        catch (uno::Exception&)
+        else
         {
+            try
+            {
+                // use the oox.core.FilterDetect implementation to extract the decrypted ZIP package
+                rtl::Reference<::oox::core::FilterDetect> xDetector(
+                    new ::oox::core::FilterDetect(m_xContext));
+                xInputStream = xDetector->extractUnencryptedPackage(aMediaDesc);
+            }
+            catch (uno::Exception&){}
         }
 
         if (!xInputStream.is())
@@ -226,8 +236,7 @@ sal_Bool WriterFilter::filter(const uno::Sequence<beans::PropertyValue>& rDescri
         catch (uno::Exception const&)
         {
             css::uno::Any anyEx = cppu::getCaughtException();
-            SAL_WARN("writerfilter",
-                     "WriterFilter::filter(): failed with " << exceptionToString(anyEx));
+            SAL_WARN("writerfilter", "WriterFilter::filter(): failed with " << exceptionToString(anyEx));
             throw lang::WrappedTargetRuntimeException("", getXWeak(), anyEx);
         }
 
@@ -250,37 +259,38 @@ sal_Bool WriterFilter::filter(const uno::Sequence<beans::PropertyValue>& rDescri
 
         oox::core::XmlFilterBase::putPropertiesToDocumentGrabBag(m_xDstDoc, aGrabBagProperties);
 
-        writerfilter::ooxml::OOXMLStream::Pointer_t pVBAProjectStream(
-            writerfilter::ooxml::OOXMLDocumentFactory::createStream(
-                pDocStream, writerfilter::ooxml::OOXMLStream::VBAPROJECT));
-        oox::StorageRef xVbaPrjStrg = std::make_shared<::oox::ole::OleStorage>(
-            m_xContext, pVBAProjectStream->getDocumentStream(), false);
-        if (xVbaPrjStrg && xVbaPrjStrg->isStorage())
-        {
-            ::oox::ole::VbaProject aVbaProject(m_xContext, xModel, u"Writer");
-            uno::Reference<frame::XFrame> xFrame = aMediaDesc.getUnpackedValueOrDefault(
-                utl::MediaDescriptor::PROP_FRAME, uno::Reference<frame::XFrame>());
+        // MACRO: don't support VBA project
+        /* writerfilter::ooxml::OOXMLStream::Pointer_t pVBAProjectStream( */
+        /*     writerfilter::ooxml::OOXMLDocumentFactory::createStream( */
+        /*         pDocStream, writerfilter::ooxml::OOXMLStream::VBAPROJECT)); */
+        /* oox::StorageRef xVbaPrjStrg = std::make_shared<::oox::ole::OleStorage>( */
+        /*     m_xContext, pVBAProjectStream->getDocumentStream(), false); */
+        /* if (xVbaPrjStrg && xVbaPrjStrg->isStorage()) */
+        /* { */
+        /*     ::oox::ole::VbaProject aVbaProject(m_xContext, xModel, u"Writer"); */
+        /*     uno::Reference<frame::XFrame> xFrame = aMediaDesc.getUnpackedValueOrDefault( */
+        /*         utl::MediaDescriptor::PROP_FRAME, uno::Reference<frame::XFrame>()); */
 
-            // if no XFrame try fallback to what we can glean from the Model
-            if (!xFrame.is())
-            {
-                uno::Reference<frame::XController> xController = xModel->getCurrentController();
-                xFrame = xController.is() ? xController->getFrame() : nullptr;
-            }
+        /*     // if no XFrame try fallback to what we can glean from the Model */
+        /*     if (!xFrame.is()) */
+        /*     { */
+        /*         uno::Reference<frame::XController> xController = xModel->getCurrentController(); */
+        /*         xFrame = xController.is() ? xController->getFrame() : nullptr; */
+        /*     } */
 
-            oox::GraphicHelper gHelper(m_xContext, xFrame, xVbaPrjStrg);
-            aVbaProject.importVbaProject(*xVbaPrjStrg, gHelper);
+        /*     oox::GraphicHelper gHelper(m_xContext, xFrame, xVbaPrjStrg); */
+        /*     aVbaProject.importVbaProject(*xVbaPrjStrg, gHelper); */
 
-            writerfilter::ooxml::OOXMLStream::Pointer_t pVBADataStream(
-                writerfilter::ooxml::OOXMLDocumentFactory::createStream(
-                    pDocStream, writerfilter::ooxml::OOXMLStream::VBADATA));
-            if (pVBADataStream)
-            {
-                uno::Reference<io::XInputStream> xDataStream = pVBADataStream->getDocumentStream();
-                if (xDataStream.is())
-                    aVbaProject.importVbaData(xDataStream);
-            }
-        }
+        /*     writerfilter::ooxml::OOXMLStream::Pointer_t pVBADataStream( */
+        /*         writerfilter::ooxml::OOXMLDocumentFactory::createStream( */
+        /*             pDocStream, writerfilter::ooxml::OOXMLStream::VBADATA)); */
+        /*     if (pVBADataStream) */
+        /*     { */
+        /*         uno::Reference<io::XInputStream> xDataStream = pVBADataStream->getDocumentStream(); */
+        /*         if (xDataStream.is()) */
+        /*             aVbaProject.importVbaData(xDataStream); */
+        /*     } */
+        /* } */
 
         pStream.clear();
 
