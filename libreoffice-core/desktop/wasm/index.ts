@@ -340,7 +340,6 @@ function documentClient<T extends DocumentClient>(
   ref: DocumentRef | null,
   viewId: number | undefined = -1
 ): T | null {
-  console.log('ref', ref, viewId)
   if (!ref) return null;
   const clientObject: DocumentClientBase = Object.create(clientBase, {
     viewId: {
@@ -384,10 +383,7 @@ export async function loadDocument<T extends DocumentClient = DocumentClient>(
     a: [name, blob],
   };
   loadWorkerOnce().postMessage(message);
-  return future.promise.then((data) => {
-    console.log('data', data);
-    return documentClient<T>(data);
-  });
+  return future.promise.then(documentClient<T>);
 }
 export async function loadDocumentFromExpandedParts<
   T extends DocumentClient = DocumentClient,
