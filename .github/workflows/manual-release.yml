@@ -1,0 +1,56 @@
+name: Manual Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version'
+        required: true
+        default: 'v0.0.3'
+
+jobs:
+  manual-release:
+    name: Create PR
+    runs-on: runs-on,runner=2cpu-linux-x64
+    steps:
+      - name: Generate a token
+        id: generate-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: 845235 # LOK WASM App Id
+          private-key: ${{ secrets.LOK_WASM_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: 'app-monorepo'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ steps.generate-token.outputs.token }}
+          repository: coparse-inc/app-monorepo
+          ref: main
+
+      - name: Git LFS
+        run: |
+          git config lfs.fetchinclude "*.wasm,*.patch"
+          git lfs install
+          git lfs pull
+
+      - name: Restore artifacts for PR
+        uses: runs-on/cache/restore@v4
+        with:
+          fail-on-cache-miss: true
+          path: packages/editor/src/lok
+          key: release-${{ github.event.inputs.version }}
+
+      - name: Create or update PR on monorepo
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ steps.generate-token.outputs.token }}
+          branch: update-lok-wasm
+          delete-branch: true
+          commit-message: Update LOK WASM to ${{ github.event.inputs.version }}
+          title: Update LOK WASM to ${{ github.event.inputs.version }}
+          body: 'This is an automated PR created from the [`lok-wasm`](https://github.com/coparse-inc/lok-wasm) repository'
+          assignees: chase
+          reviewers: chase,synoet,whutchinson98
+          labels: lok-wasm
