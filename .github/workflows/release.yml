@@ -174,7 +174,7 @@ jobs:
 
   create-pull-request:
     name: Create PR
-    runs-on: runs-on,runner=2cpu-linux-x64
+    runs-on: runs-on,runner=2cpu-linux-x64,ssh=false
     needs: [build_release, check_version]
     steps:
       - name: Generate a token
