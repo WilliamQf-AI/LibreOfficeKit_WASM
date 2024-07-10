@@ -68,7 +68,7 @@ async function fileOpen(files: FileList | null) {
 
 window.saveAsPDF = async function saveAsPDF(doc: DocumentClient | null) {
   if (!doc) return;
-  const buffer = await doc.save('pdf');
+  const buffer = await doc.saveAs('pdf', "Pdf Export.pdf");
   downloadFile('Pdf Export.pdf', buffer, 'application/pdf');
 };
 

@@ -93,10 +93,10 @@ ShaVec getContentHash(const std::vector<sal_Int8>& content)
 ExpandedStorage::ExpandedStorage(const Reference<XComponentContext>& rxContext,
                                  const Reference<io::XInputStream>& rxInStream)
     : StorageBase(rxInStream, false, false)
+    , m_lastCommit(std::shared_ptr<Commit>())
     , m_xContext(rxContext)
     , m_inputStream(rxInStream)
-{
-}
+{}
 
 OUString ExpandedStorage::getFullPath(const OUString& path) const
 {
@@ -106,9 +106,11 @@ OUString ExpandedStorage::getFullPath(const OUString& path) const
 ExpandedStorage::ExpandedStorage(
     const Reference<XComponentContext>& context_, const std::shared_ptr<ExpandedFileMap>& fileMap_,
     const Reference<io::XInputStream>& inputStream_, const OUString& basePath_,
-    css::uno::Sequence<css::uno::Sequence<css::beans::StringPair>> aRelInfo_)
+    css::uno::Sequence<css::uno::Sequence<css::beans::StringPair>> aRelInfo_,
+    std::shared_ptr<Commit> commitLog_)
     : StorageBase(inputStream_, false, false)
     , m_files(fileMap_)
+    , m_lastCommit(commitLog_)
     , m_xContext(context_)
     , m_basePath(basePath_)
     , m_inputStream(inputStream_)
@@ -178,6 +180,16 @@ std::vector<std::pair<const std::string, const std::string>> ExpandedStorage::li
     }
 
     return parts;
+}
+
+std::vector<std::pair<std::string, std::string>> ExpandedStorage::getRecentlyChangedFiles()
+{
+    if (!m_lastCommit || m_lastCommit->filesChanged.empty())
+    {
+        return {};
+    }
+
+    return m_lastCommit->filesChanged;
 }
 
 // XInterface
@@ -339,7 +351,7 @@ Reference<embed::XStorage> SAL_CALL ExpandedStorage::openStorageElement(const OU
     OUString base = m_basePath.has_value() ? m_basePath.value() + "/" : OUString("");
     OUString newPath = base + path;
     Reference<ExpandedStorage> expandedStorage(
-        new ExpandedStorage(m_xContext, m_files, m_inputStream, newPath, m_relAccess.m_aRelInfo));
+        new ExpandedStorage(m_xContext, m_files, m_inputStream, newPath, m_relAccess.m_aRelInfo, m_lastCommit));
     return Reference<embed::XStorage>(expandedStorage);
 }
 
@@ -598,7 +610,7 @@ StorageRef ExpandedStorage::implOpenSubStorage(const OUString& path, bool bCreat
         }
     }
     return std::shared_ptr<StorageBase>(
-        new ExpandedStorage(m_xContext, m_files, m_inputStream, path, m_relAccess.m_aRelInfo));
+        new ExpandedStorage(m_xContext, m_files, m_inputStream, path, m_relAccess.m_aRelInfo, m_lastCommit));
 }
 
 Reference<io::XInputStream> ExpandedStorage::implOpenInputStream(const OUString& rElementName)
@@ -620,19 +632,24 @@ void ExpandedStorage::implCommit() const
     const_cast<ExpandedStorage*>(this)->afterCommit();
 }
 
-void ExpandedStorage::afterCommit() const
+void ExpandedStorage::afterCommit()
 {
+    std::vector<std::pair<std::string, std::string>> filesChanged;
     for (auto& [path, file] : *m_files)
     {
         auto newSha = helpers::getContentHash(file.content);
 
         if (newSha != file.sha)
         {
-            // TODO: emit a callback indicating that the file sha has changed
             file.sha = newSha;
-            SAL_WARN("expanded storage", "file has changed " << path);
+            std::string shaString = helpers::shaVecToString(newSha);
+            filesChanged.push_back({ path, shaString });
         }
     }
+
+    auto ts = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+
+    m_lastCommit.reset(new Commit(std::move(filesChanged), ts));
 }
 
 const beans::StringPair* lcl_findPairByName(const Sequence<beans::StringPair>& rSeq,
