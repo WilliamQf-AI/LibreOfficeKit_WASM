@@ -1,3 +1,5 @@
+#include <com/sun/star/embed/ElementModes.hpp>
+#include <com/sun/star/io/XStream.hpp>
 #include <comphelper/relationshipaccess.hxx>
 #include <com/sun/star/beans/UnknownPropertyException.hpp>
 #include <com/sun/star/beans/XPropertySetInfo.hpp>
@@ -44,7 +46,6 @@ inline constexpr char REL_EXT[] = ".rels";
 namespace helpers
 {
 
-
 std::string toString(const OUString& value) { return std::string(value.toUtf8()); }
 
 // https://github.com/chase/awrit/blob/546772897461f7a4654d30450547f95f11c0f6b6/awrit/string/string_utils.cc#L11-L26
@@ -83,8 +84,8 @@ ShaVec getContentHash(const std::vector<sal_Int8>& content)
     const unsigned char* unsignedData = reinterpret_cast<const unsigned char*>(content.data());
 
     // Generate SHA-256 hash
-    std::vector<unsigned char> hashVec = comphelper::Hash::calculateHash(
-        unsignedData, content.size(), comphelper::HashType::SHA256);
+    ShaVec hashVec = comphelper::Hash::calculateHash(unsignedData, content.size(),
+                                                     comphelper::HashType::SHA256);
 
     return hashVec;
 }
@@ -93,10 +94,13 @@ ShaVec getContentHash(const std::vector<sal_Int8>& content)
 ExpandedStorage::ExpandedStorage(const Reference<XComponentContext>& rxContext,
                                  const Reference<io::XInputStream>& rxInStream)
     : StorageBase(rxInStream, false, false)
+    , m_allRelAccessMap(std::make_shared<boost::unordered_map<
+                            std::string, std::shared_ptr<comphelper::RelationshipAccessImpl>>>())
     , m_lastCommit(std::shared_ptr<Commit>())
     , m_xContext(rxContext)
     , m_inputStream(rxInStream)
-{}
+{
+}
 
 OUString ExpandedStorage::getFullPath(const OUString& path) const
 {
@@ -106,9 +110,12 @@ OUString ExpandedStorage::getFullPath(const OUString& path) const
 ExpandedStorage::ExpandedStorage(
     const Reference<XComponentContext>& context_, const std::shared_ptr<ExpandedFileMap>& fileMap_,
     const Reference<io::XInputStream>& inputStream_, const OUString& basePath_,
-    css::uno::Sequence<css::uno::Sequence<css::beans::StringPair>> aRelInfo_,
+    std::shared_ptr<
+        boost::unordered_map<std::string, std::shared_ptr<comphelper::RelationshipAccessImpl>>>
+        allRelAccessMap_,
     std::shared_ptr<Commit> commitLog_)
     : StorageBase(inputStream_, false, false)
+    , m_allRelAccessMap(allRelAccessMap_)
     , m_files(fileMap_)
     , m_lastCommit(commitLog_)
     , m_xContext(context_)
@@ -121,7 +128,7 @@ ExpandedStorage::ExpandedStorage(
 void ExpandedStorage::addPart(const std::string& path, const std::string& content)
 {
     std::vector<std::string_view> pathParts = helpers::split(path, '/');
-    for (int idx = 0; idx < pathParts.size() - 1; idx++)
+    for (size_t idx = 0; idx < pathParts.size() - 1; idx++)
     {
         bool found = std::find(m_dirs.begin(), m_dirs.end(), OUString::fromUtf8(pathParts[idx]))
                      != m_dirs.end();
@@ -130,14 +137,14 @@ void ExpandedStorage::addPart(const std::string& path, const std::string& conten
             m_dirs.push_back(OUString::fromUtf8(pathParts[idx]));
         }
     }
-    OUString sPath = OUString::createFromAscii(path.c_str());
+    OUString sPath = OUString::fromUtf8(path);
     std::vector<sal_Int8> fileContent(content.begin(), content.end());
     ShaVec sha = helpers::getContentHash(fileContent);
 
-    m_files->insert({ path, { sPath, fileContent, sha } });
+    m_files->insert({ path, { sPath, std::move(fileContent), std::move(sha) } });
 }
 
-std::optional<std::pair<std::string, std::vector<sal_Int8>>>
+std::optional<std::pair<std::string, std::shared_ptr<std::vector<sal_Int8>>>>
 ExpandedStorage::getPart(const std::string& path) const
 {
     auto it = std::find_if(m_files->begin(), m_files->end(),
@@ -169,7 +176,7 @@ std::vector<std::pair<const std::string, const std::string>> ExpandedStorage::li
     for (const auto& [path, file] : *m_files)
     {
         const std::string pathString = helpers::toString(file.path);
-        const std::string shaString = helpers::shaVecToString(file.sha);
+        const std::string shaString = helpers::shaVecToString(*file.sha);
 
         parts.push_back({ pathString, shaString });
     }
@@ -240,7 +247,7 @@ void SAL_CALL ExpandedStorage::copyToStorage(const Reference<embed::XStorage>& x
         Reference<io::XStream> xStream = xDest->openStreamElement(
             file.path, embed::ElementModes::READWRITE | embed::ElementModes::TRUNCATE);
         Reference<io::XOutputStream> xOut = xStream->getOutputStream();
-        xOut->writeBytes(comphelper::containerToSequence(file.content));
+        xOut->writeBytes(comphelper::containerToSequence(*file.content));
         xOut->closeOutput();
     }
 }
@@ -250,26 +257,36 @@ bool shouldCreateStreamElement(sal_Int32 openMode)
            && (openMode != embed::ElementModes::SEEKABLEREAD);
 }
 
+std::string getRelInfoPath(const std::string& path)
+{
+    size_t sepIndex = path.find_last_of('/');
+    std::string base = path.substr(0, sepIndex);
+    std::string name = path.substr(sepIndex + 1);
+    return base + REL_DIR_NAME + name + REL_EXT;
+}
+
 // TODO: @synoet
 // There should be a more efficient way to load relations per file
 // Maybe moving back to the original approach of loading all relations then copying over
 // as needed instead of per element / storage
 std::optional<comphelper::RelInfoSeq> ExpandedStorage::getRelInfoForElement(const std::string& path)
 {
-    std::string base = path.substr(0, path.find_last_of('/'));
-    std::string name = path.substr(path.find_last_of('/') + 1);
-    std::string relInfoPath = base + REL_DIR_NAME + name + REL_EXT;
+    size_t sepIndex = path.find_last_of('/');
+    std::string base = path.substr(0, sepIndex);
+    std::string name = path.substr(sepIndex + 1);
+    std::string relInfoPath = std::move(base) + REL_DIR_NAME + std::move(name) + REL_EXT;
 
     if (!m_files->contains(relInfoPath))
     {
         return {};
     }
 
-    return getRelInfoFromName(OUString::fromUtf8(relInfoPath));
+    return getRelInfoFromName(OUString::fromUtf8(std::move(relInfoPath)));
 }
 
-Reference<io::XStream> ExpandedStorage::openStreamElement(const OUString& name, sal_Int32 nOpenMode,
-                                                          PathType pathType, bool readRelInfo)
+Reference<comphelper::VecStreamSupplier>
+ExpandedStorage::openStreamElementSupplier(const OUString& name, sal_Int32 nOpenMode,
+                                           PathType pathType, bool readRelInfo)
 {
     std::string path = pathType == PathType::Absolute ? helpers::toString(name)
                                                       : helpers::toString(getFullPath(name));
@@ -283,45 +300,71 @@ Reference<io::XStream> ExpandedStorage::openStreamElement(const OUString& name, 
         }
 
         it = m_files
-                 ->insert({ path,
-                            { OUString::fromUtf8(path), std::vector<sal_Int8>(),
-                              std::vector<unsigned char>() } })
+                 ->insert({ path, { OUString::fromUtf8(path), std::vector<sal_Int8>(), ShaVec() } })
                  .first;
     }
 
     auto& file = it->second;
 
-    Reference<io::XInputStream> maybeInputStream;
-    Reference<io::XOutputStream> maybeOutputStream;
+    Reference<comphelper::VectorInputStream> maybeInputStream;
+    Reference<comphelper::VectorOutputStream> maybeOutputStream;
 
-    if (nOpenMode == embed::ElementModes::READWRITE || nOpenMode == embed::ElementModes::READ
-        || nOpenMode == embed::ElementModes::SEEKABLE
-        || nOpenMode == embed::ElementModes::SEEKABLEREAD)
+    // Vector*Stream only holds a reference to the content
+    if (nOpenMode & embed::ElementModes::READ)
     {
-        Reference<io::XInputStream> inputStream(new comphelper::VectorInputStream(file.content));
+        Reference<comphelper::VectorInputStream> inputStream(
+            new comphelper::VectorInputStream(file.content));
         maybeInputStream = inputStream;
     }
 
-    if (nOpenMode == embed::ElementModes::READWRITE || nOpenMode == embed::ElementModes::WRITE
-        || nOpenMode == embed::ElementModes::TRUNCATE)
+    if (nOpenMode & embed::ElementModes::WRITE)
     {
-        Reference<io::XOutputStream> outputStream(new comphelper::VectorOutputStream(file.content));
+        Reference<comphelper::VectorOutputStream> outputStream(
+            new comphelper::VectorOutputStream(file.content));
+        // If we are opening an output stream for the first time, clear the original content
+        if (file.writeRefCount == 0)
+        {
+            file.content->clear();
+        }
+
+        file.writeRefCount++;
+
         maybeOutputStream = outputStream;
     }
 
-    Reference<comphelper::VecStreamSupplier> streamSupplier(
-        new comphelper::VecStreamSupplier(maybeInputStream, maybeOutputStream));
+    Reference<comphelper::VecStreamSupplier> streamSupplier(new comphelper::VecStreamSupplier(
+        std::move(maybeInputStream), std::move(maybeOutputStream)));
 
     if (readRelInfo)
     {
-        auto relInfo = getRelInfoForElement(path);
-        if (relInfo.has_value())
+        std::string relPath = getRelInfoPath(path);
+        auto it = m_allRelAccessMap->find(relPath);
+        if (it == m_allRelAccessMap->end())
         {
-            streamSupplier->m_relAccess.m_aRelInfo = relInfo.value();
+            auto seq = getRelInfoForElement(path);
+            it = m_allRelAccessMap
+                     ->insert({ std::move(relPath),
+                                std::make_shared<comphelper::RelationshipAccessImpl>() })
+                     .first;
+
+            streamSupplier->setRelationshipAccess(it->second);
+            it->second->setRelationships(seq.has_value() ? std::move(seq.value()) : comphelper::RelInfoSeq());
+        }
+        else
+        {
+            streamSupplier->setRelationshipAccess(it->second);
         }
     }
 
-    return Reference<io::XStream>(streamSupplier);
+    return streamSupplier;
+}
+
+uno::Reference<io::XStream> ExpandedStorage::openStreamElement(const OUString& name,
+                                                               sal_Int32 nOpenMode,
+                                                               PathType pathType, bool readRelInfo)
+{
+    return uno::Reference<io::XStream>(
+        openStreamElementSupplier(name, nOpenMode, pathType, readRelInfo), UNO_QUERY);
 }
 
 // name is relative
@@ -347,11 +390,10 @@ Reference<embed::XStorage> SAL_CALL ExpandedStorage::openStorageElement(const OU
     {
         return this;
     }
-
     OUString base = m_basePath.has_value() ? m_basePath.value() + "/" : OUString("");
     OUString newPath = base + path;
-    Reference<ExpandedStorage> expandedStorage(
-        new ExpandedStorage(m_xContext, m_files, m_inputStream, newPath, m_relAccess.m_aRelInfo, m_lastCommit));
+    Reference<ExpandedStorage> expandedStorage(new ExpandedStorage(
+        m_xContext, m_files, m_inputStream, newPath, m_allRelAccessMap, m_lastCommit));
     return Reference<embed::XStorage>(expandedStorage);
 }
 
@@ -360,9 +402,11 @@ Reference<io::XStream> SAL_CALL ExpandedStorage::cloneStreamElement(const OUStri
     auto it = m_files->find(helpers::toString(path));
 
     // copy the content of the original file
-    auto content = std::vector<sal_Int8>(it->second.content);
-    Reference<io::XInputStream> inputStream(new comphelper::VectorInputStream(content));
-    Reference<io::XOutputStream> outputStream(new comphelper::VectorOutputStream(content));
+    auto content = std::make_shared<std::vector<sal_Int8>>(*it->second.content);
+    Reference<comphelper::VectorInputStream> inputStream(
+        new comphelper::VectorInputStream(content));
+    Reference<comphelper::VectorOutputStream> outputStream(
+        new comphelper::VectorOutputStream(content));
 
     return Reference<io::XStream>(
         new comphelper::VecStreamSupplier(std::move(inputStream), std::move(outputStream)));
@@ -428,7 +472,7 @@ void SAL_CALL ExpandedStorage::copyElementTo(const OUString& aElementName,
     Reference<io::XStream> xStream = xDest->openStreamElement(
         aNewName, embed::ElementModes::READWRITE | embed::ElementModes::TRUNCATE);
     Reference<io::XOutputStream> xOut = xStream->getOutputStream();
-    xOut->writeBytes(comphelper::containerToSequence(file.content));
+    xOut->writeBytes(comphelper::containerToSequence(*file.content));
     xOut->closeOutput();
 }
 
@@ -526,19 +570,33 @@ void SAL_CALL ExpandedStorage::removeVetoableChangeListener(
 css::uno::Reference<css::embed::XExtendedStorageStream> SAL_CALL
 ExpandedStorage::openStreamElementByHierarchicalName(const OUString& streamPath, sal_Int32 openMode)
 {
-    css::uno::Reference<io::XStream> xStream
-        = openStreamElement(streamPath, openMode, PathType::Absolute, true);
+    css::uno::Reference<comphelper::VecStreamSupplier> xStream
+        = openStreamElementSupplier(streamPath, openMode, PathType::Absolute, true);
 
     Reference<comphelper::VecStreamContainer> aStreamContainer(
         new comphelper::VecStreamContainer(xStream));
 
-    // Copy over the relationship info
-    auto relInfo = getRelInfoForElement(helpers::toString(streamPath));
-    if (relInfo.has_value())
-        aStreamContainer->m_relAccess.m_aRelInfo = relInfo.value();
+    std::string path = getRelInfoPath(helpers::toString(streamPath));
 
-    Reference<embed::XExtendedStorageStream> xExtendedStream(aStreamContainer, UNO_QUERY_THROW);
-    return xExtendedStream;
+    auto it = m_allRelAccessMap->find(path);
+    if (it == m_allRelAccessMap->end())
+    {
+        auto seq = getRelInfoForElement(helpers::toString(streamPath));
+        it = m_allRelAccessMap
+                 ->insert(
+                     { std::move(path), std::make_shared<comphelper::RelationshipAccessImpl>() })
+                 .first;
+
+        aStreamContainer->setRelationshipAccess(it->second);
+        comphelper::RelInfoSeq relInfo(seq.has_value() ? seq.value() : comphelper::RelInfoSeq());
+        it->second->setRelationships(relInfo);
+    }
+    else
+    {
+        aStreamContainer->setRelationshipAccess(it->second);
+    }
+
+    return Reference<embed::XExtendedStorageStream>(aStreamContainer, UNO_QUERY_THROW);
 }
 
 css::uno::Reference<css::embed::XExtendedStorageStream> SAL_CALL
@@ -609,13 +667,12 @@ StorageRef ExpandedStorage::implOpenSubStorage(const OUString& path, bool bCreat
             throw css::uno::RuntimeException();
         }
     }
-    return std::shared_ptr<StorageBase>(
-        new ExpandedStorage(m_xContext, m_files, m_inputStream, path, m_relAccess.m_aRelInfo, m_lastCommit));
+    return std::shared_ptr<StorageBase>(new ExpandedStorage(m_xContext, m_files, m_inputStream,
+                                                            path, m_allRelAccessMap, m_lastCommit));
 }
 
 Reference<io::XInputStream> ExpandedStorage::implOpenInputStream(const OUString& rElementName)
 {
-    SAL_WARN("expandedstorage", "openInputStream" << rElementName);
     return openStreamElement(rElementName, embed::ElementModes::READ)->getInputStream();
 }
 
@@ -632,19 +689,43 @@ void ExpandedStorage::implCommit() const
     const_cast<ExpandedStorage*>(this)->afterCommit();
 }
 
+void ExpandedStorage::commitRelationships()
+{
+    auto context = comphelper::getProcessComponentContext();
+    for (auto& [path, rels] : *m_allRelAccessMap)
+    {
+        if (path.find(REL_EXT) == std::string::npos)
+            continue;
+        if (!rels || rels->m_aRelInfo.getLength() == 0)
+            continue;
+        uno::Reference<io::XOutputStream> outStream = openOutputStream(OUString::fromUtf8(path));
+        comphelper::OFOPXMLHelper::WriteRelationsInfoSequence(outStream, rels->m_aRelInfo, context);
+
+        auto it = m_files->find(path);
+
+        if (it != m_files->end())
+        {
+            auto newSha = helpers::getContentHash(*it->second.content);
+            if (newSha != *it->second.sha)
+                m_lastCommit->filesChanged.push_back({ path, helpers::shaVecToString(newSha) });
+            it->second.sha->swap(newSha);
+            // Reset the write ref count for all files
+            it->second.writeRefCount = 0;
+        }
+    }
+}
+
 void ExpandedStorage::afterCommit()
 {
     std::vector<std::pair<std::string, std::string>> filesChanged;
     for (auto& [path, file] : *m_files)
     {
-        auto newSha = helpers::getContentHash(file.content);
-
-        if (newSha != file.sha)
-        {
-            file.sha = newSha;
-            std::string shaString = helpers::shaVecToString(newSha);
-            filesChanged.push_back({ path, shaString });
-        }
+        auto newSha = helpers::getContentHash(*file.content);
+        if (newSha != *file.sha)
+            filesChanged.push_back({ path, helpers::shaVecToString(newSha) });
+        file.sha->swap(newSha);
+        // Reset the write ref count for all files
+        file.writeRefCount = 0;
     }
 
     auto ts = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
@@ -683,24 +764,47 @@ void ExpandedStorage::readRelationshipInfo()
         relFilePaths.push_back(path);
     }
 
-    std::vector<Sequence<beans::StringPair>> allRelsVec;
-
-    for (const std::string& path : relFilePaths)
+    if (relFilePaths.empty())
     {
-        auto seq = getRelInfoFromName(OUString::fromUtf8(path));
+        SAL_WARN("expandedstorage",
+                 "no relationship info found for base path" << m_basePath.value());
 
-        for (const auto& rels : seq)
-        {
-            allRelsVec.push_back(rels);
-        }
+        return;
     }
 
-    m_relAccess.m_aRelInfo = comphelper::containerToSequence(allRelsVec);
+    if (relFilePaths.size() > 1)
+    {
+        SAL_WARN("expandedstorage",
+                 "multiple relationship info files found for base path" << m_basePath.value());
+    }
+
+    std::string relInfoPath = relFilePaths.front();
+    auto it = m_allRelAccessMap->find(relInfoPath);
+    if (it == m_allRelAccessMap->end())
+    {
+        auto seq = getRelInfoFromName(OUString::fromUtf8(relInfoPath));
+        it = m_allRelAccessMap
+                 ->insert({ std::move(relInfoPath),
+                            std::make_shared<comphelper::RelationshipAccessImpl>() })
+                 .first;
+        it->second->setRelationships(std::move(seq));
+    }
+
+    m_relAccess = it->second;
 }
 
-css::uno::Reference<css::io::XInputStream> ExpandedStorage::openInputStream(const OUString &rStreamName)
+css::uno::Reference<css::io::XInputStream>
+ExpandedStorage::openInputStream(const OUString& rStreamName)
 {
-    return openStreamElementByHierarchicalName(rStreamName, embed::ElementModes::READ)->getInputStream();
+    return openStreamElementByHierarchicalName(rStreamName, embed::ElementModes::READ)
+        ->getInputStream();
+}
+
+css::uno::Reference<css::io::XOutputStream>
+ExpandedStorage::openOutputStream(const OUString& rStreamName)
+{
+    return openStreamElementByHierarchicalName(rStreamName, embed::ElementModes::READWRITE)
+        ->getOutputStream();
 }
 
 } // namespace oox
