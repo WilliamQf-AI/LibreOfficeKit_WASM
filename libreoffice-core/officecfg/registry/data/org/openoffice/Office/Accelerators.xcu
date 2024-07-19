@@ -575,12 +575,6 @@ Ctrl+Shift+e aka E_SHIFT_MOD1 under GTK/IBUS is for some emoji thing
             <value xml:lang="en-US">.uno:OpenFromCalc</value>
           </prop>
         </node>
-        <node oor:name="1_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:FormatCellDialog</value>
-          </prop>
-        </node>
         <node oor:name="1_SHIFT_MOD1" oor:op="replace">
           <prop oor:name="Command">
             <value xml:lang="x-no-translate">I10N SHORTCUTS - NO TRANSLATE</value>
@@ -593,12 +587,6 @@ Ctrl+Shift+e aka E_SHIFT_MOD1 under GTK/IBUS is for some emoji thing
             <value xml:lang="en-US" oor:os="macosx">.uno:NumberFormatDecimal</value>
           </prop>
         </node>
-        <node oor:name="2_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:SpacePara2</value>
-          </prop>
-        </node>
         <node oor:name="2_SHIFT_MOD1" oor:op="replace">
           <prop oor:name="Command">
             <value xml:lang="x-no-translate">I10N SHORTCUTS - NO TRANSLATE</value>
@@ -609,12 +597,6 @@ Ctrl+Shift+e aka E_SHIFT_MOD1 under GTK/IBUS is for some emoji thing
           <prop oor:name="Command">
             <value xml:lang="x-no-translate">I10N SHORTCUTS - NO TRANSLATE</value>
             <value xml:lang="en-US" oor:os="macosx">.uno:NumberFormatScientific</value>
-          </prop>
-        </node>
-        <node oor:name="3_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">I10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:SetOptimalColumnWidthDirect</value>
           </prop>
         </node>
         <node oor:name="3_SHIFT_MOD1" oor:op="replace">
@@ -641,13 +623,6 @@ Ctrl+Shift+e aka E_SHIFT_MOD1 under GTK/IBUS is for some emoji thing
             <value xml:lang="en-US" oor:os="macosx">.uno:NumberFormatCurrency</value>
           </prop>
         </node>
-        <node oor:name="5_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:SpacePara15</value>
-            <value xml:lang="de">.uno:Strikeout</value>
-          </prop>
-        </node>
         <node oor:name="5_SHIFT_MOD1" oor:op="replace">
           <prop oor:name="Command">
             <value xml:lang="x-no-translate">I10N SHORTCUTS - NO TRANSLATE</value>
@@ -670,20 +645,6 @@ Ctrl+Shift+e aka E_SHIFT_MOD1 under GTK/IBUS is for some emoji thing
           <prop oor:name="Command">
             <value xml:lang="x-no-translate">I10N SHORTCUTS - NO TRANSLATE</value>
             <value xml:lang="en-US" oor:os="macosx">.uno:NumberFormatStandard</value>
-          </prop>
-        </node>
-        <node oor:name="8_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="sv">.uno:Shrink</value>
-            <value xml:lang="de">.uno:HideColumn</value>
-          </prop>
-        </node>
-        <node oor:name="9_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="sv">.uno:Grow</value>
-            <value xml:lang="de">.uno:HideRow</value>
           </prop>
         </node>
         <node oor:name="O_MOD1_MOD2" oor:op="replace">
@@ -1656,38 +1617,6 @@ Ctrl+Shift+e aka E_SHIFT_MOD1 under GTK/IBUS is for some emoji thing
             <value xml:lang="en-US">.uno:SidebarDeck.ShapesDeck</value>
           </prop>
         </node>
-        <node oor:name="1_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:SpacePara1</value>
-          </prop>
-        </node>
-        <node oor:name="2_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:SpacePara2</value>
-          </prop>
-        </node>
-        <node oor:name="5_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:SpacePara15</value>
-          </prop>
-        </node>
-        <node oor:name="8_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="sv">.uno:Shrink</value>
-            <value xml:lang="de">.uno:Shrink</value>
-          </prop>
-        </node>
-        <node oor:name="9_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="sv">.uno:Grow</value>
-            <value xml:lang="de">.uno:Grow</value>
-          </prop>
-        </node>
         <node oor:name="ADD_MOD1" oor:op="replace">
           <prop oor:name="Command">
             <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
@@ -2112,60 +2041,10 @@ Ctrl+Shift+e aka E_SHIFT_MOD1 under GTK/IBUS is for some emoji thing
         </node>
       </node>
       <node oor:name="com.sun.star.text.GlobalDocument" oor:op="replace">
-        <node oor:name="0_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Text body&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
         <node oor:name="0_SHIFT_MOD1" oor:op="replace">
           <prop oor:name="Command">
             <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
             <value xml:lang="en-US">.uno:StyleApply?Style:string=Standard&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="1_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Heading 1&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="2_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Heading 2&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="3_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Heading 3&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="4_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Heading 4&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="5_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Heading 5&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="8_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="sv">.uno:Shrink</value>
-            <value xml:lang="de">.uno:Shrink</value>
-          </prop>
-        </node>
-        <node oor:name="9_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="sv">.uno:Grow</value>
-            <value xml:lang="de">.uno:Grow</value>
           </prop>
         </node>
         <node oor:name="ADD_MOD1" oor:op="replace">
@@ -2971,38 +2850,6 @@ Ctrl+Shift+e aka E_SHIFT_MOD1 under GTK/IBUS is for some emoji thing
             <value xml:lang="en-US">.uno:PreviousAnnotation</value>
           </prop>
         </node>
-        <node oor:name="1_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:SpacePara1</value>
-          </prop>
-        </node>
-        <node oor:name="2_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:SpacePara2</value>
-          </prop>
-        </node>
-        <node oor:name="5_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:SpacePara15</value>
-          </prop>
-        </node>
-        <node oor:name="8_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="sv">.uno:Shrink</value>
-            <value xml:lang="de">.uno:Shrink</value>
-          </prop>
-        </node>
-        <node oor:name="9_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="sv">.uno:Grow</value>
-            <value xml:lang="de">.uno:Grow</value>
-          </prop>
-        </node>
         <node oor:name="ADD_MOD1" oor:op="replace">
           <prop oor:name="Command">
             <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
@@ -3630,60 +3477,10 @@ Ctrl+Shift+e aka E_SHIFT_MOD1 under GTK/IBUS is for some emoji thing
         </node>
       </node>
       <node oor:name="com.sun.star.text.WebDocument" oor:op="replace">
-        <node oor:name="0_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Text body&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
         <node oor:name="0_SHIFT_MOD1" oor:op="replace">
           <prop oor:name="Command">
             <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
             <value xml:lang="en-US">.uno:StyleApply?Style:string=Standard&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="1_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Heading 1&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="2_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Heading 2&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="3_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Heading 3&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="4_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Heading 4&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="5_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Heading 5&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="8_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="sv">.uno:Shrink</value>
-            <value xml:lang="de">.uno:Shrink</value>
-          </prop>
-        </node>
-        <node oor:name="9_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="sv">.uno:Grow</value>
-            <value xml:lang="de">.uno:Grow</value>
           </prop>
         </node>
         <node oor:name="ADD_MOD1" oor:op="replace">
@@ -4447,46 +4244,10 @@ Ctrl+Shift+e aka E_SHIFT_MOD1 under GTK/IBUS is for some emoji thing
         </node>
       </node>
       <node oor:name="com.sun.star.sdb.FormDesign" oor:op="replace">
-        <node oor:name="0_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Text body&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
         <node oor:name="0_SHIFT_MOD1" oor:op="replace">
           <prop oor:name="Command">
             <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
             <value xml:lang="en-US">.uno:StyleApply?Style:string=Standard&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="1_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Heading 1&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="2_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Heading 2&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="3_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Heading 3&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="4_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Heading 4&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="5_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Heading 5&amp;FamilyName:string=ParagraphStyles</value>
           </prop>
         </node>
         <node oor:name="ADD_MOD1" oor:op="replace">
@@ -5239,46 +5000,10 @@ Ctrl+Shift+e aka E_SHIFT_MOD1 under GTK/IBUS is for some emoji thing
         </node>
       </node>
       <node oor:name="com.sun.star.sdb.TextReportDesign" oor:op="replace">
-        <node oor:name="0_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Text body&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
         <node oor:name="0_SHIFT_MOD1" oor:op="replace">
           <prop oor:name="Command">
             <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
             <value xml:lang="en-US">.uno:StyleApply?Style:string=Standard&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="1_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Heading 1&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="2_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Heading 2&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="3_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Heading 3&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="4_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Heading 4&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="5_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Heading 5&amp;FamilyName:string=ParagraphStyles</value>
           </prop>
         </node>
         <node oor:name="ADD_MOD1" oor:op="replace">
@@ -6007,63 +5732,10 @@ Ctrl+Shift+e aka E_SHIFT_MOD1 under GTK/IBUS is for some emoji thing
             <value xml:lang="en-US">.uno:OpenFromWriter</value>
           </prop>
         </node>
-        <node oor:name="0_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Text body&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
         <node oor:name="0_SHIFT_MOD1" oor:op="replace">
           <prop oor:name="Command">
             <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
             <value xml:lang="en-US">.uno:StyleApply?Style:string=Standard&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="1_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Heading 1&amp;FamilyName:string=ParagraphStyles</value>
-            <value xml:lang="de">.uno:SpacePara1</value>
-          </prop>
-        </node>
-        <node oor:name="2_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Heading 2&amp;FamilyName:string=ParagraphStyles</value>
-            <value xml:lang="de">.uno:SpacePara2</value>
-          </prop>
-        </node>
-        <node oor:name="3_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Heading 3&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="4_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Heading 4&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="5_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Heading 5&amp;FamilyName:string=ParagraphStyles</value>
-            <value xml:lang="de">.uno:SpacePara15</value>
-          </prop>
-        </node>
-        <node oor:name="8_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="sv">.uno:Shrink</value>
-            <value xml:lang="de">.uno:Shrink</value>
-          </prop>
-        </node>
-        <node oor:name="9_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="sv">.uno:Grow</value>
-            <value xml:lang="de">.uno:Grow</value>
           </prop>
         </node>
         <node oor:name="5_MOD2" oor:op="replace">
@@ -6980,60 +6652,10 @@ Ctrl+Shift+e aka E_SHIFT_MOD1 under GTK/IBUS is for some emoji thing
         </node>
       </node>
       <node oor:name="com.sun.star.xforms.XMLFormDocument" oor:op="replace">
-        <node oor:name="0_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Text body&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
         <node oor:name="0_SHIFT_MOD1" oor:op="replace">
           <prop oor:name="Command">
             <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
             <value xml:lang="en-US">.uno:StyleApply?Style:string=Standard&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="1_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Heading 1&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="2_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Heading 2&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="3_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Heading 3&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="4_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Heading 4&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="5_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="en-US">.uno:StyleApply?Style:string=Heading 5&amp;FamilyName:string=ParagraphStyles</value>
-          </prop>
-        </node>
-        <node oor:name="8_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="sv">.uno:Shrink</value>
-            <value xml:lang="de">.uno:Shrink</value>
-          </prop>
-        </node>
-        <node oor:name="9_MOD1" oor:op="replace">
-          <prop oor:name="Command">
-            <value xml:lang="x-no-translate">L10N SHORTCUTS - NO TRANSLATE</value>
-            <value xml:lang="sv">.uno:Grow</value>
-            <value xml:lang="de">.uno:Grow</value>
           </prop>
         </node>
         <node oor:name="ADD_MOD1" oor:op="replace">
