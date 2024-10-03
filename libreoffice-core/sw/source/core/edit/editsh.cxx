@@ -56,6 +56,7 @@
 #include <SwNodeNum.hxx>
 #include <unocrsr.hxx>
 #include <calbck.hxx>
+#include <xmloff/odffields.hxx>
 
 using namespace com::sun::star;
 
@@ -184,6 +185,13 @@ void SwEditShell::SplitNode( bool bAutoFormat, bool bCheckTableStart )
     StartAllAction();
     GetDoc()->GetIDocumentUndoRedo().StartUndo(SwUndoId::EMPTY, nullptr);
 
+    // MACRO-2286: Check if paragraph starts with checkbox {
+    bool hasCheckbox = false;
+    SwPaM* pCursorPos = GetCursor();
+    if(nullptr != pCursorPos && nullptr != pCursorPos->GetPoint())
+        hasCheckbox = GetDoc()->getIDocumentContentOperations().NodeStartsWithCheckbox(*pCursorPos->GetPoint());
+    // MACRO-2286 }
+
     for(SwPaM& rPaM : GetCursor()->GetRingContainer())
     {
         // Here, a table cell becomes a normal text cell.
@@ -191,10 +199,26 @@ void SwEditShell::SplitNode( bool bAutoFormat, bool bCheckTableStart )
         GetDoc()->getIDocumentContentOperations().SplitNode( *rPaM.GetPoint(), bCheckTableStart );
     }
 
+    // MACRO-2286: Insert a checkbox at the start of the new paragraph {
+    if (hasCheckbox) {
+        GetDoc()->getIDocumentContentOperations().InsertString( *pCursorPos, "\t");
+        GetDoc()->getIDocumentMarkAccess()->makeNoTextFieldBookmark(*pCursorPos, OUString(), ODF_FORMCHECKBOX);
+        GetDoc()->getIDocumentContentOperations().InsertString( *pCursorPos, " ");
+    }
+    // MACRO-2286 }
+
     GetDoc()->GetIDocumentUndoRedo().EndUndo(SwUndoId::EMPTY, nullptr);
 
     if( bAutoFormat )
         AutoFormatBySplitNode();
+
+    // MACRO-2286: Move Cursor to after the checkbox {
+    if (hasCheckbox) {
+        pCursorPos->Move();
+        pCursorPos->Move();
+        pCursorPos->Move();
+    }
+    // MACRO-2286 }
 
     ClearTableBoxContent();
 

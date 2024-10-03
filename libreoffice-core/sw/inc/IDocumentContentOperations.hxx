@@ -205,6 +205,10 @@ public:
         const SwPaM &rRg, const OUString& rObjName, sal_Int64 nAspect,
         const SfxItemSet* pFlyAttrSet, const SfxItemSet* pGrfAttrSet) = 0;
 
+    // MACRO-2286: Check if paragraph starts with checkbox
+    virtual bool NodeStartsWithCheckbox(const SwPosition &rPos) = 0;
+    // MACRO-2286
+
     /** Split a node at rPos (implemented only for TextNode).
     */
     virtual bool SplitNode(const SwPosition &rPos, bool bChkTableStart) = 0;
