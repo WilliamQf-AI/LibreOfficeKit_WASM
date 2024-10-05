@@ -6,7 +6,7 @@ on:
       version:
         description: 'Version'
         required: true
-        default: 'v0.0.3'
+        default: 'v0.1.6'
 
 jobs:
   manual-release:
@@ -43,7 +43,7 @@ jobs:
           key: release-${{ github.event.inputs.version }}
 
       - name: Create or update PR on monorepo
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ steps.generate-token.outputs.token }}
           branch: update-lok-wasm
