@@ -195,7 +195,7 @@ jobs:
         with:
           token: ${{ steps.generate-token.outputs.token }}
           repository: coparse-inc/app-monorepo
-          ref: main
+          ref: dev
           lfs: true
 
       - name: Restore artifacts for PR
@@ -215,5 +215,5 @@ jobs:
           title: Update LOK WASM to ${{ needs.check_version.outputs.version }}
           body: 'This is an automated PR created from the [`lok-wasm`](https://github.com/coparse-inc/lok-wasm) repository'
           assignees: chase
-          reviewers: chase,synoet,whutchinson98
+          reviewers: chase,synoet,whutchinson98,danielkweon
           labels: lok-wasm

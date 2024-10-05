@@ -27,7 +27,7 @@ jobs:
         with:
           token: ${{ steps.generate-token.outputs.token }}
           repository: coparse-inc/app-monorepo
-          ref: main
+          ref: dev
 
       - name: Git LFS
         run: |
@@ -52,5 +52,5 @@ jobs:
           title: Update LOK WASM to ${{ github.event.inputs.version }}
           body: 'This is an automated PR created from the [`lok-wasm`](https://github.com/coparse-inc/lok-wasm) repository'
           assignees: chase
-          reviewers: chase,synoet,whutchinson98
+          reviewers: chase,synoet,whutchinson98,danielkweon
           labels: lok-wasm
