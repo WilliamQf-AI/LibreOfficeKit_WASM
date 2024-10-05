@@ -46,6 +46,7 @@ jobs:
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ steps.generate-token.outputs.token }}
+          base: dev
           branch: update-lok-wasm
           delete-branch: true
           commit-message: Update LOK WASM to ${{ github.event.inputs.version }}
