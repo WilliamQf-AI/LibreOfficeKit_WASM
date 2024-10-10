@@ -852,6 +852,114 @@ public:
 
     std::optional<std::string> getCursor(int viewId) { return ext()->getCursor(viewId); }
 
+    // MACRO-3360: Comments in DOCX should insert Macrotations {
+    std::optional<std::string> getCustomStringProperty(const std::string& property)
+    {
+        using namespace css;
+        using namespace css::uno;
+
+        OUString propertyName = OUString::fromUtf8(property);
+        try
+        {
+            Reference<document::XDocumentPropertiesSupplier> xPropSupplier(ext()->mxComponent,
+                                                                           UNO_QUERY);
+            if (!xPropSupplier.is())
+            {
+                SAL_WARN("wasm", "Failed to get XDocumentPropertiesSupplier");
+                return {};
+            }
+
+            Reference<document::XDocumentProperties> xDocProps
+                = xPropSupplier->getDocumentProperties();
+            if (!xDocProps.is())
+            {
+                SAL_WARN("wasm", "Failed to get XDocumentProperties");
+                return {};
+            }
+
+            Reference<beans::XPropertyContainer> xUserDefinedProps
+                = xDocProps->getUserDefinedProperties();
+            if (!xUserDefinedProps.is())
+            {
+                SAL_WARN("wasm", "Failed to get user-defined properties");
+                return {};
+            }
+
+            Reference<beans::XPropertySet> xPropSet(xUserDefinedProps, UNO_QUERY);
+            if (xPropSet->getPropertySetInfo()->hasPropertyByName(propertyName))
+            {
+                OUString propertyOUString;
+                xPropSet->getPropertyValue(propertyName) >>= propertyOUString;
+                return propertyOUString.toUtf8().getStr();
+            }
+            else
+            {
+                SAL_WARN("wasm", "Property '" << property << "' not found.");
+                return {};
+            }
+        }
+        catch (const Exception& e)
+        {
+            SAL_WARN("wasm", "Error getting document property: "
+                                 << property << ". Error: "
+                                 << OUStringToOString(e.Message, RTL_TEXTENCODING_UTF8).getStr());
+            return {};
+        }
+    }
+
+    void setCustomStringProperty(const std::string& property, const std::string& value)
+    {
+        using namespace css;
+        using namespace css::uno;
+
+        Reference<document::XDocumentPropertiesSupplier> xPropSupplier(ext()->mxComponent,
+                                                                       UNO_QUERY);
+        if (!xPropSupplier.is())
+        {
+            SAL_WARN("wasm", "Failed to get XDocumentPropertiesSupplier");
+            return;
+        }
+
+        Reference<document::XDocumentProperties> xDocProps = xPropSupplier->getDocumentProperties();
+        if (!xDocProps.is())
+        {
+            SAL_WARN("wasm", "Failed to get XDocumentProperties");
+            return;
+        }
+
+        Reference<beans::XPropertyContainer> xUserDefinedProps
+            = xDocProps->getUserDefinedProperties();
+        if (!xUserDefinedProps.is())
+        {
+            SAL_WARN("wasm", "Failed to get user-defined properties");
+            return;
+        }
+
+        try
+        {
+            OUString propertyName = OUString::fromUtf8(property);
+            Any propertyValue;
+            propertyValue <<= OUString::fromUtf8(value);
+
+            Reference<beans::XPropertySet> xPropSet(xUserDefinedProps, UNO_QUERY);
+            if (xPropSet->getPropertySetInfo()->hasPropertyByName(propertyName))
+            {
+                xPropSet->setPropertyValue(propertyName, propertyValue);
+            }
+            else
+            {
+                xUserDefinedProps->addProperty(propertyName, 0, propertyValue);
+            }
+        }
+        catch (const Exception& e)
+        {
+            SAL_WARN("wasm", "Failed to set document property: '"
+                                 << property << "'. Error: "
+                                 << OUStringToOString(e.Message, RTL_TEXTENCODING_UTF8).getStr());
+        }
+    }
+    // MACRO-3360 }
+
 private:
     struct DocWithId
     {
@@ -1035,5 +1143,7 @@ EMSCRIPTEN_BINDINGS(lok)
         .function("redo", &DocumentClient::redo)
         .function("getRedlineTextRange", &DocumentClient::getRedlineTextRange)
         .function("getCursor", &DocumentClient::getCursor)
-        .function("newView", &DocumentClient::newView);
+        .function("newView", &DocumentClient::newView)
+        .function("getCustomStringProperty", &DocumentClient::getCustomStringProperty)
+        .function("setCustomStringProperty", &DocumentClient::setCustomStringProperty);
 }
