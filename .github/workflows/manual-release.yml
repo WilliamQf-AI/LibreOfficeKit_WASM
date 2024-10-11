@@ -38,7 +38,14 @@ jobs:
       - name: Restore artifacts for PR
         uses: runs-on/cache/restore@v4
         with:
-          fail-on-cache-miss: true
+          fail-on-cache-miss: false
+          path: packages/lok
+          key: release-${{ github.event.inputs.version }}
+
+      - name: Restore artifacts for PR
+        uses: runs-on/cache/restore@v4
+        with:
+          fail-on-cache-miss: false
           path: packages/editor/src/lok
           key: release-${{ github.event.inputs.version }}
 
@@ -64,15 +71,16 @@ jobs:
         env:
           PR_EXISTS: ${{ steps.check_pr.outputs.PR_EXISTS }}
         run: |
+          [ -e packages/editor/src/lok ] && mv packages/{editor/src/,}lok
           if [ "$PR_EXISTS" = "true" ]; then
             git checkout update/lok
             git reset --soft origin/dev
-            git add packages/editor/src/lok
+            git add packages/lok
             git commit --amend -m "Update LOK WASM to ${{ github.event.inputs.version }}"
             git push -f origin update/lok
           else
             git checkout -b update/lok
-            git add packages/editor/src/lok
+            git add packages/lok
             git commit -m "Update LOK WASM to ${{ github.event.inputs.version }}"
             git push -f origin update/lok
           fi

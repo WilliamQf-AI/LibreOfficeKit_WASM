@@ -162,14 +162,14 @@ jobs:
 
       - name: Prepare artifacts for PR
         run: |
-          mkdir -p packages/editor/src/lok
+          mkdir -p packages/lok
           # intentionally skip the .data and .metadata files, they rarely change and can be manually updated
-          cp ./build/*{.js,.d.ts,.wasm,.mjs} ./packages/editor/src/lok/
+          cp ./build/*{.js,.d.ts,.wasm,.mjs} ./packages/lok/
 
       - name: Save artifacts for PR
         uses: runs-on/cache/save@v4
         with:
-          path: packages/editor/src/lok
+          path: packages/lok
           key: release-${{ needs.check_version.outputs.version }}
 
   create-pull-request:
@@ -202,7 +202,7 @@ jobs:
         uses: runs-on/cache/restore@v4
         with:
           fail-on-cache-miss: true
-          path: packages/editor/src/lok
+          path: packages/lok
           key: release-${{ needs.check_version.outputs.version }}
 
       - name: Setup Git
@@ -228,13 +228,13 @@ jobs:
           if [ "$PR_EXISTS" = "true" ]; then
             git checkout update/lok
             git reset --soft origin/dev
-            git add packages/editor/src/lok
-            git commit --amend -m "Update LOK WASM to ${{ github.event.inputs.version }}"
+            git add packages/lok
+            git commit --amend -m "Update LOK WASM to ${{ needs.check_version.outputs.version }}"
             git push -f origin update/lok
           else
             git checkout -b update/lok
-            git add packages/editor/src/lok
-            git commit -m "Update LOK WASM to ${{ github.event.inputs.version }}"
+            git add packages/lok
+            git commit -m "Update LOK WASM to ${{ needs.check_version.outputs.version }}"
             git push -f origin update/lok
           fi
       - name: Create or update PR
@@ -245,7 +245,7 @@ jobs:
         run: |
           if [ "$PR_EXISTS" = "true" ]; then
             gh pr edit $PR_NUMBER \
-              --title "Update LOK WASM to ${{ github.event.inputs.version }}" \
+              --title "Update LOK WASM to ${{ needs.check_version.outputs.version }}" \
               --body "This is an automated PR created from the [\`lok-wasm\`](https://github.com/coparse-inc/lok-wasm) repository" \
               --add-label "lok-wasm" \
               --add-assignee "chase" \
@@ -253,7 +253,7 @@ jobs:
             echo "Pull request updated: https://github.com/${{ github.repository }}/pull/$PR_NUMBER"
           else
             PR_URL=$(gh pr create --base dev --head ${{ github.repository_owner }}:update/lok \
-              --title "Update LOK WASM to ${{ github.event.inputs.version }}" \
+              --title "Update LOK WASM to ${{ needs.check_version.outputs.version }}" \
               --body "This is an automated PR created from the [\`lok-wasm\`](https://github.com/coparse-inc/lok-wasm) repository" \
               --label "lok-wasm" \
               --assignee "chase" \
