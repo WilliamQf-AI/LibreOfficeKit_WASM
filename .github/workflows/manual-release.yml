@@ -73,8 +73,9 @@ jobs:
         run: |
           [ -e packages/editor/src/lok ] && cp -rf packages/editor/src/lok/* packages/lok/
           # Apply a patch to revert the package loading changes
-          cat << ENDPATCH | git apply -
+          cat << EOF | patch -p1
           diff --git a/packages/lok/soffice.mjs b/packages/lok/soffice.mjs
+          index e66092af1..55b6536e9 100644
           --- a/packages/lok/soffice.mjs
           +++ b/packages/lok/soffice.mjs
           @@ -918,12 +918,11 @@ if (Module.withFcCache) {
@@ -91,7 +92,7 @@ jobs:
                 var REMOTE_PACKAGE_SIZE = metadata["remote_package_size"];
                 function fetchRemotePackage(packageName, packageSize, callback, errback) {
                   if (typeof process === "object" && typeof process.versions === "object" && typeof process.versions.node === "string") {
-          @@ -1068,10 +1067,10 @@ if (Module.withFcCache) {
+          @@ -1068,7 +1067,7 @@ if (Module.withFcCache) {
               };
               function runMetaWithFS() {
                 Module["addRunDependency"]("soffice_fccache.data.js.metadata");
@@ -99,12 +100,9 @@ jobs:
           +      var REMOTE_METADATA_NAME = new URL("./soffice_fccache.data.js.metadata", import.meta.url).href;
                 var xhr = new XMLHttpRequest;
                 xhr.onreadystatechange = function() {
-          -        if (xhr.readyState === 4 && xhr.status === 200) {
-          +        if (xhr.readyState === 4 && xhr.status === 200) {q
-                    loadPackage(JSON.parse(xhr.responseText));
-                  }
-                };
-          ENDPATCH
+                  if (xhr.readyState === 4 && xhr.status === 200) {
+
+          EOF
 
           if [ "$PR_EXISTS" = "true" ]; then
             git checkout update/lok
