@@ -73,7 +73,7 @@ jobs:
         run: |
           [ -e packages/editor/src/lok ] && cp -rf packages/editor/src/lok/* packages/lok/
           # Apply a patch to revert the package loading changes
-          echo "
+          cat << ENDPATCH | git apply -
           diff --git a/packages/lok/soffice.mjs b/packages/lok/soffice.mjs
           --- a/packages/lok/soffice.mjs
           +++ b/packages/lok/soffice.mjs
@@ -104,7 +104,7 @@ jobs:
                     loadPackage(JSON.parse(xhr.responseText));
                   }
                 };
-          " | git apply -
+          ENDPATCH
 
           if [ "$PR_EXISTS" = "true" ]; then
             git checkout update/lok
