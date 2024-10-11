@@ -71,7 +71,7 @@ jobs:
         env:
           PR_EXISTS: ${{ steps.check_pr.outputs.PR_EXISTS }}
         run: |
-          [ -e packages/editor/src/lok ] && cp -rf packages/editor/src/lok/* packages/editor/src/lok/
+          [ -e packages/editor/src/lok ] && cp -rf packages/editor/src/lok/* packages/lok/
           if [ "$PR_EXISTS" = "true" ]; then
             git checkout update/lok
             git reset --soft origin/dev
