@@ -34,18 +34,18 @@ type Rectangle = {
 
 export type RectanglePx = Rectangle & {};
 export type RectangleTwips = Rectangle & {};
-export type SetClipbaordItem = {
+export type SetClipboardItem = {
   mimeType: string;
   buffer: string | ArrayBuffer;
 };
 
-export type GetClipbaordItem =
+export type GetClipboardItem =
   | {
-      mimeType: 'text/plain' | 'text/html';
+      mimeType: 'text/plain' | 'text/html' | 'text/rtf';
       text: string;
     }
   | {
-      mimeType: string;
+      mimeType: 'image/png';
       data: Uint8Array;
     };
 
@@ -92,8 +92,8 @@ export type DocumentWithViewMethods = {
     modifiers: number
   ): void;
   setTextSelection(type: number, x: number, y: Number): void;
-  setClipboard(items: SetClipbaordItem[]): boolean;
-  getClipboard(mimeTypes: string[]): GetClipbaordItem[];
+  setClipboard(items: SetClipboardItem[]): boolean;
+  getClipboard(mimeTypes: string[]): GetClipboardItem[];
   paste(mimeType: string, data: string | ArrayBuffer): void;
   setGraphicSelection(type: number, x: number, y: number): void;
   resetSelection(): void;
