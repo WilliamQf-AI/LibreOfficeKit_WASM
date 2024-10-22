@@ -1,11 +1,11 @@
 /// <reference types="emscripten" />
 
-type SetClipbaordItem = {
+export type SetClipbaordItem = {
   mimeType: string;
   buffer: string | ArrayBuffer;
 };
 
-type GetClipbaordItem =
+export type GetClipbaordItem =
   | {
       mimeType: 'text/plain' | 'text/html';
       text: string;

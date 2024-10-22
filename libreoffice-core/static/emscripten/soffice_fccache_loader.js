@@ -32,7 +32,6 @@ if (Module.withFcCache) {
         );
       }
       var PACKAGE_NAME = "soffice_fccache.data";
-      var REMOTE_PACKAGE_BASE = "soffice_fccache.data";
       if (
         typeof Module["locateFilePackage"] === "function" &&
         !Module["locateFile"]
@@ -42,9 +41,7 @@ if (Module.withFcCache) {
           "warning: you defined Module.locateFilePackage, that has been renamed to Module.locateFile (using your locateFilePackage for now)"
         );
       }
-      var REMOTE_PACKAGE_NAME = Module["locateFile"]
-        ? Module["locateFile"](REMOTE_PACKAGE_BASE, "")
-        : REMOTE_PACKAGE_BASE;
+      var REMOTE_PACKAGE_NAME = new URL("./soffice_fccache.data", import.meta.url).href;
       var REMOTE_PACKAGE_SIZE = metadata["remote_package_size"];
 
       function fetchRemotePackage(packageName, packageSize, callback, errback) {
@@ -239,9 +236,7 @@ if (Module.withFcCache) {
 
     function runMetaWithFS() {
       Module["addRunDependency"]("soffice_fccache.data.js.metadata");
-      var REMOTE_METADATA_NAME = Module["locateFile"]
-        ? Module["locateFile"]("soffice_fccache.data.js.metadata", "")
-        : "soffice_fccache.data.js.metadata";
+      var REMOTE_METADATA_NAME = new URL("./soffice_fccache.data.js.metadata", import.meta.url).href;
       var xhr = new XMLHttpRequest();
       xhr.onreadystatechange = function () {
         if (xhr.readyState === 4 && xhr.status === 200) {

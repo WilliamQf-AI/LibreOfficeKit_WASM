@@ -8,13 +8,11 @@ import type {
   ForwardingMethodHandler,
   ForwardingMethodHandlers,
   FromWorker,
-  GetClipbaordItem,
   GlobalMethod,
   InitializeForRenderingOptions,
   KeysMessage,
   Message,
   RectangleTwips,
-  SetClipbaordItem,
   TileDim,
   TileRendererData,
   ToTileRenderer,
@@ -23,6 +21,8 @@ import type {
   WorkerCallback,
 } from './shared';
 import type {
+  GetClipbaordItem,
+  SetClipbaordItem,
   Comment,
   Document,
   DocumentRef,

@@ -41,13 +41,13 @@ export type SetClipboardItem = {
 
 export type GetClipboardItem =
   | {
-      mimeType: 'text/plain' | 'text/html' | 'text/rtf';
-      text: string;
-    }
+    mimeType: 'text/plain' | 'text/html' | 'text/rtf';
+    text: string;
+  }
   | {
-      mimeType: 'image/png';
-      data: Uint8Array;
-    };
+    mimeType: 'image/png';
+    data: Uint8Array;
+  };
 
 export type InitializeForRenderingOptions = Partial<{
   autoSpellcheck: boolean;
@@ -66,7 +66,7 @@ export type DocumentMethods = {
   /** closes the document */
   close(): void;
   /** returns a copy of the document in the provided `format` */
-  saveAs(format: 'docx' | 'pdf', filename: string): ArrayBuffer;
+  saveAs(format: 'docx' | 'pdf' | 'rtf', filename: string): ArrayBuffer;
   save(): Array<{ path: string; sha: string }>;
   /** returns the id of the new view created */
   newView(): number;
@@ -186,8 +186,8 @@ export type DocumentWithViewMethods = {
 
   setAuthor(author: string): void;
 
-  getExpandedPart(path: string): {path: string, content: ArrayBuffer} | null;
-  listExpandedParts(): Array<{path: string, sha: string}>;
+  getExpandedPart(path: string): { path: string, content: ArrayBuffer } | null;
+  listExpandedParts(): Array<{ path: string, sha: string }>;
   getRedlineTextRange(id: number): RectArray[] | undefined;
   getCursor(): string | undefined;
 
@@ -238,8 +238,8 @@ export type ForwardingMethod<
 export type ForwardedResolverMap<
   K extends keyof ResolverToForwardingMethod = keyof ResolverToForwardingMethod,
 > = {
-  [T in K]: (id: ForwardingId<K>) => ReturnType<ForwardingMethod<K>>;
-};
+    [T in K]: (id: ForwardingId<K>) => ReturnType<ForwardingMethod<K>>;
+  };
 
 export type ForwardingMethodHandler<
   C,
@@ -257,28 +257,28 @@ export type ForwardingMethodHandlers<
   M extends ResolverToForwardingMethod[K] = ResolverToForwardingMethod[K],
   FK extends keyof M = keyof M,
 > = {
-  [T in FK]: M[FK] extends (...args: any) => any
+    [T in FK]: M[FK] extends (...args: any) => any
     ? ForwardingMethodHandler<C, M[FK]>
     : never;
-};
+  };
 
 export type ForwardedMethodMap<
   K extends ForwardedResolver = ForwardedResolver,
 > = {
-  [T in K]: {
-    [X in keyof ReturnType<ForwardingMethod<K>>]: true;
+    [T in K]: {
+      [X in keyof ReturnType<ForwardingMethod<K>>]: true;
+    };
   };
-};
 
 export type ForwardingMessage<
   K extends ForwardedResolver = ForwardedResolver,
   M extends ResolverToForwardingMethod[K] = ResolverToForwardingMethod[K],
   FK extends keyof M = keyof M,
 > = {
-  [T in FK]: M[FK] extends (...args: infer P) => infer R
+    [T in FK]: M[FK] extends (...args: infer P) => infer R
     ? (docRef: DocumentRef, viewId: ViewId, ...args: P) => ForwardingId
     : never;
-};
+  };
 
 export type ForwardedMethodMessage<
   K extends ForwardedResolver = ForwardedResolver,
@@ -286,12 +286,12 @@ export type ForwardedMethodMessage<
   R extends ReturnType<F> = ReturnType<F>,
   RK extends keyof R = keyof R,
 > = {
-  [T in K]: (
-    method: RK,
-    fwd: ForwardingId,
-    ...args: Parameters<R[RK]>
-  ) => ReturnType<R[RK]>;
-};
+    [T in K]: (
+      method: RK,
+      fwd: ForwardingId,
+      ...args: Parameters<R[RK]>
+    ) => ReturnType<R[RK]>;
+  };
 
 type DocumentMessageUnion = DocumentMessage & DocumentWithViewMessage;
 
@@ -343,8 +343,8 @@ type FlatForwardMethod<
   K extends keyof ResolverToForwardingMethod = keyof ResolverToForwardingMethod,
   M extends ResolverToForwardingMethod[K] = ResolverToForwardingMethod[K],
 > = {
-  [FK in keyof M]: M[FK];
-};
+    [FK in keyof M]: M[FK];
+  };
 
 export type DocumentClient = {
   [K in keyof Omit<DocumentMethods, 'newView'>]: (
@@ -403,44 +403,44 @@ export type ForwardedFromWorker<
 
 export type ToTileRenderer =
   | {
-      /** initialize */
-      t: 'i';
-      c: OffscreenCanvas[];
-      d: TileRenderData;
-      /** absolute scale */
-      s: number;
-      /** top position in pixels */
-      y: number;
-      /** dpi */
-      dpi: number;
-    }
+    /** initialize */
+    t: 'i';
+    c: OffscreenCanvas[];
+    d: TileRenderData;
+    /** absolute scale */
+    s: number;
+    /** top position in pixels */
+    y: number;
+    /** dpi */
+    dpi: number;
+  }
   | {
-      /** scroll */
-      t: 's';
-      /** view height in pixels */
-      y: number;
-    }
+    /** scroll */
+    t: 's';
+    /** view height in pixels */
+    y: number;
+  }
   | {
-      /** resize */
-      t: 'r';
-      /** height */
-      h: number;
-    }
+    /** resize */
+    t: 'r';
+    /** height */
+    h: number;
+  }
   | {
-      /** zoom */
-      t: 'z';
-      /** absolute scale */
-      s: number;
-      /** dpi */
-      d: number;
-      /** scrollTop position in px */
-      y: number;
-    }
+    /** zoom */
+    t: 'z';
+    /** absolute scale */
+    s: number;
+    /** dpi */
+    d: number;
+    /** scrollTop position in px */
+    y: number;
+  }
   | {
-      /** width change */
-      t: 'w';
-      /** width */
-      w: number;
+    /** width change */
+    t: 'w';
+    /** width */
+    w: number;
   };
 
 export type Ref<T> = {
