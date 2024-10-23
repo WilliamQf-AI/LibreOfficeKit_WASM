@@ -296,8 +296,18 @@ WasmDocumentExtension::loadFromExpanded(LibreOfficeKit* pThis,
     // throughout the load process.
     comphelper::OStorageHelper::SetIsExpandedStorage(true);
     comphelper::OStorageHelper::SetExpandedStorage(xStorage);
-    comphelper::OStorageHelper::SetExpandedStorageBase(storageBase);
+
+
+    /*
+        storage instance MUST be set before storage base
+        instance and base are the same objects, just casted differently
+        instance is stored in an uno::Reference while base is stored in a shared_ptr
+        
+        if the base is released first (as the shared_ptr is set), the uno reference
+        has a bad time when it tries to access a null object at with it's pointer
+    */
     comphelper::OStorageHelper::SetExpandedStorageInstance(storage);
+    comphelper::OStorageHelper::SetExpandedStorageBase(storageBase);
 
     utl::MediaDescriptor aMediaDescriptor;
 

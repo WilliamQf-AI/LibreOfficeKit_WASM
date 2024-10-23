@@ -154,7 +154,11 @@ export function OfficeDocument(props: Props) {
     };
     props.doc.on(CallbackType.DOCUMENT_SIZE_CHANGED, callback);
     onCleanup(() => {
-      props.doc.off(CallbackType.DOCUMENT_SIZE_CHANGED, callback);
+      try {
+        props.doc.off(CallbackType.DOCUMENT_SIZE_CHANGED, callback);
+      } catch (e) {
+        console.log('error', e);
+      }
     });
   });
 
