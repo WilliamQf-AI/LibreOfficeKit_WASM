@@ -154,7 +154,12 @@ export function OfficeDocument(props: Props) {
     };
     props.doc.on(CallbackType.DOCUMENT_SIZE_CHANGED, callback);
     onCleanup(() => {
-      props.doc.off(CallbackType.DOCUMENT_SIZE_CHANGED, callback);
+      // m273 this needs to be fixed, but this only occurs in this repo
+      try {
+        props.doc.off(CallbackType.DOCUMENT_SIZE_CHANGED, callback);
+      } catch (e) {
+        console.log('error', e);
+      }
     });
   });
 
