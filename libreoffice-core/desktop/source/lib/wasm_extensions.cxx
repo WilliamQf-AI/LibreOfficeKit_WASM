@@ -140,6 +140,11 @@ void WasmDocumentExtension::stopTileRenderer(int32_t viewId)
         auto threadIt = tileRendererThreads_[data->threadId];
 
         pthread_join(threadIt, nullptr);
+        // WARN: DO NOT REMOVE THE LOG BELOW
+        // It is necessary for the join to complete because it forces the emscripten runtime
+        // to be invoked and collect the unused pool workers
+        SAL_WARN("tile", "thread joined");
+
         // Don't erase it, since the position is used as an ID now
         // tileRendererThreads_.erase(threadIt);
         delete[] data->paintedTile;
