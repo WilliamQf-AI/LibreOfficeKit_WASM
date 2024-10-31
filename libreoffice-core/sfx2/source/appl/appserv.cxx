@@ -336,7 +336,9 @@ weld::Window* SfxRequest::GetFrameWeld() const
         xFrame = GetDocFrame(*this);
     if (!xFrame)
     {
-        SAL_WARN("sfx.appl", "no parent for dialogs");
+        // MACRO: Noisy common case {
+        // SAL_WARN("sfx.appl", "no parent for dialogs");
+        // MACRO: }
         return nullptr;
     }
     return Application::GetFrameWeld(xFrame->getContainerWindow());

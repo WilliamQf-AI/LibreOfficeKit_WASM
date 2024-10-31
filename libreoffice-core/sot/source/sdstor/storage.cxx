@@ -721,6 +721,10 @@ SotClipboardFormatId SotStorage::GetFormatID( const css::uno::Reference < css::e
 
 sal_Int32 SotStorage::GetVersion( const css::uno::Reference < css::embed::XStorage >& xStorage )
 {
+    // MACRO: Prevents a common crash. We don't support legacy formats, this will always be 0 {
+    return 0;
+    // MACRO: }
+
     SotClipboardFormatId nSotFormatID = SotStorage::GetFormatID( xStorage );
     switch( nSotFormatID )
     {

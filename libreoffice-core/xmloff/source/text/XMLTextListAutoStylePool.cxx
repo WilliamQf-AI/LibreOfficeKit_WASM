@@ -160,7 +160,9 @@ XMLTextListAutoStylePool::XMLTextListAutoStylePool( SvXMLExport& rExp ) :
         m_sPrefix = "ML";
 
     Reference<XStyleFamiliesSupplier> xFamiliesSupp(m_rExport.GetModel(), UNO_QUERY);
-    SAL_WARN_IF(!xFamiliesSupp.is(), "xmloff", "getStyleFamilies() from XModel failed for export!");
+    // MACRO: Noisy common case {
+    // SAL_WARN_IF(!xFamiliesSupp.is(), "xmloff", "getStyleFamilies() from XModel failed for export!");
+    // MACRO: }
     Reference< XNameAccess > xFamilies;
     if (xFamiliesSupp.is())
         xFamilies = xFamiliesSupp->getStyleFamilies();

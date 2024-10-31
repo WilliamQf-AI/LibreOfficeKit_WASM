@@ -33,7 +33,7 @@ struct TileRendererData
     const int32_t viewId;
     const int32_t tileSize;
     const int32_t paintedTileAllocSize;
-    pthread_t threadId;
+    const int32_t threadId;
 
     // individual tile paint
     _Atomic RenderState state = RenderState::IDLE;
@@ -54,7 +54,7 @@ struct TileRendererData
     LibreOfficeKitDocument* doc;
 
     TileRendererData(LibreOfficeKitDocument* doc_, int32_t viewId_, int32_t tileSize_,
-                     uint32_t docWidthTwips_, uint32_t docHeightTwips_, pthread_t threadId_)
+                     uint32_t docWidthTwips_, uint32_t docHeightTwips_, int32_t threadId_)
         : viewId(viewId_)
         , tileSize(tileSize_)
         , paintedTileAllocSize(tileSize_ * tileSize_ * 4)
@@ -78,14 +78,14 @@ struct ExpandedPart
 
     ExpandedPart(std::string path_, std::string content_)
         : path(std::move(path_))
-        , content(std::move(content_)){};
+        , content(std::move(content_)) {};
 };
 
 struct ExpandedDocument
 {
     std::vector<ExpandedPart> parts;
 
-    ExpandedDocument(){};
+    ExpandedDocument() {};
 
 public:
     void addPart(std::string path, std::string content);

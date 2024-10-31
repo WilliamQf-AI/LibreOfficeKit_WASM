@@ -97,9 +97,11 @@ static void* tileRendererWorker(void* data_)
                 break;
             }
             case RenderState::QUIT:
+                pthread_exit(nullptr);
                 return nullptr;
         }
     }
+    pthread_exit(nullptr);
     return nullptr;
 }
 
@@ -112,14 +114,14 @@ TileRendererData& WasmDocumentExtension::startTileRenderer(int32_t viewId_, int3
 {
     long w, h;
     pClass->getDocumentSize(this, &w, &h);
-    pthread_t& threadId = tileRendererThreads_.emplace_back();
-    TileRendererData& data
-        = tileRendererData_.emplace_back(this, viewId_, tileSize_, w, h, threadId);
-    if (pthread_create(&threadId, nullptr, tileRendererWorker, &data))
+    pthread_t& thread = tileRendererThreads_.emplace_back();
+    TileRendererData& data = tileRendererData_.emplace_back(this, viewId_, tileSize_, w, h,
+                                                            tileRendererThreads_.size());
+    if (pthread_create(&thread, nullptr, tileRendererWorker, &data))
     {
         std::abort();
     }
-    pthread_detach(threadId);
+    pthread_detach(thread);
 
     return data;
 }
@@ -135,17 +137,17 @@ void WasmDocumentExtension::stopTileRenderer(int32_t viewId)
         TileRendererData* data = &*it;
         changeState(data, RenderState::QUIT);
 
-        auto threadIt = std::find_if(tileRendererThreads_.begin(), tileRendererThreads_.end(),
-                                     [data](const pthread_t& threadId)
-                                     { return pthread_equal(threadId, data->threadId); });
+        auto threadIt = tileRendererThreads_[data->threadId];
 
-        if (threadIt != tileRendererThreads_.end())
-        {
-            pthread_join(*threadIt, nullptr);
-            tileRendererThreads_.erase(threadIt);
-        }
+        pthread_join(threadIt, nullptr);
+        // Don't erase it, since the position is used as an ID now
+        // tileRendererThreads_.erase(threadIt);
         delete[] data->paintedTile;
         delete data;
+    }
+    else
+    {
+        SAL_WARN("tile", "missing tile render data");
     }
 }
 
@@ -297,12 +299,11 @@ WasmDocumentExtension::loadFromExpanded(LibreOfficeKit* pThis,
     comphelper::OStorageHelper::SetIsExpandedStorage(true);
     comphelper::OStorageHelper::SetExpandedStorage(xStorage);
 
-
     /*
         storage instance MUST be set before storage base
         instance and base are the same objects, just casted differently
         instance is stored in an uno::Reference while base is stored in a shared_ptr
-        
+
         if the base is released first (as the shared_ptr is set), the uno reference
         has a bad time when it tries to access a null object at with it's pointer
     */

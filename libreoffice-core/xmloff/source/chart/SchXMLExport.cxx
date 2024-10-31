@@ -3975,7 +3975,9 @@ void SchXMLExportHelper_Impl::InitRangeSegmentationProperties( const Reference< 
     try
     {
         Reference< chart2::data::XDataProvider > xDataProvider( xChartDoc->getDataProvider() );
-        SAL_WARN_IF( !xDataProvider.is(), "xmloff.chart", "No DataProvider" );
+        // FIXME: MACRO: macro common error, but seems like expanded storage related {
+        // SAL_WARN_IF( !xDataProvider.is(), "xmloff.chart", "No DataProvider" );
+        // FIXME MACRO: }
         if( xDataProvider.is())
         {
             Reference< chart2::data::XDataSource > xDataSource( lcl_pressUsedDataIntoRectangularFormat( xChartDoc, mbHasCategoryLabels ));

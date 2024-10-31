@@ -66,12 +66,13 @@
 */
 #define OSL_LOG_PREFIX SAL_DETAIL_WHERE
 
+
 /** Prints trace message.
 
     The arguments have the same meaning as the arguments of printf.
 */
 #define OSL_TRACE(...) \
-    SAL_DETAIL_INFO_IF_FORMAT(OSL_DEBUG_LEVEL > 0, "legacy.osl", __VA_ARGS__)
+    ((void)0)
 
 /** @defgroup assert Assertions
 
@@ -82,11 +83,11 @@
 
 /** If cond is false, reports an error. */
 #define OSL_ASSERT(c) \
-    SAL_DETAIL_WARN_IF_FORMAT(!(c), "legacy.osl", "OSL_ASSERT: %s", #c)
+    ((void)0)
 /** If cond is false, reports an error with message msg. */
-#define OSL_ENSURE(c, m) SAL_DETAIL_WARN_IF_FORMAT(!(c), "legacy.osl", "%s", m)
+#define OSL_ENSURE(c, m) ((void)0)
 /** Reports an error with message msg unconditionally. */
-#define OSL_FAIL(m) SAL_DETAIL_WARN_IF_FORMAT(sal_True, "legacy.osl", "%s", m)
+#define OSL_FAIL(m) ((void)0)
 
 /** Evaluates the expression and if it is false, reports an error. The
     expression is evaluated once without regard of the value of
@@ -104,6 +105,7 @@
     @endcode
 */
 #define OSL_VERIFY(c) do { if (!(c)) OSL_ASSERT(0); } while (0)
+// MACRO: }
 
 /** Check the precondition of functions.
 

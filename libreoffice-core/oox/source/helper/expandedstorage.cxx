@@ -769,8 +769,11 @@ void ExpandedStorage::readRelationshipInfo()
 
     if (relFilePaths.empty())
     {
-        SAL_WARN("expandedstorage",
-                 "no relationship info found for base path" << m_basePath.value());
+        // FIXME: This shouldn't be used for the Configurations2 directory, probably need to pre-init
+        // writer outside of the document load to prevent this
+
+        // SAL_WARN("expandedstorage",
+        //          "no relationship info found for base path" << m_basePath.value());
 
         return;
     }
