@@ -53,6 +53,7 @@
 #include <unx/salunxtime.h>
 #include <comphelper/lok.hxx>
 #include <tools/debug.hxx>
+#include <comphelper/lok.hxx>
 
 SvpSalInstance* SvpSalInstance::s_pDefaultInstance = nullptr;
 
@@ -396,12 +397,15 @@ bool SvpSalInstance::ImplYield(bool bWait, bool bHandleAllCurrentEvents)
     if (!bHandleAllCurrentEvents && bWasEvent)
         return true;
 
+    // CheckTimeout() invokes the sal timer, which invokes the scheduler.
     bWasEvent = CheckTimeout() || bWasEvent;
     const bool bMustSleep = bWait && !bWasEvent;
 
     // This is wrong and must be removed!
     // We always want to drop the SolarMutex on yield; that is the whole point of yield.
-    if (!bMustSleep)
+    // If we know the LOK client has pending input events, then don't yet return, so those events
+    // can be processed as well.
+    if (!bMustSleep && !comphelper::LibreOfficeKit::anyInput())
         return bWasEvent;
 
     sal_Int64 nTimeoutMicroS = 0;
@@ -422,38 +426,7 @@ bool SvpSalInstance::ImplYield(bool bWait, bool bHandleAllCurrentEvents)
 
     SolarMutexReleaser aReleaser;
 
-    if (vcl::lok::isUnipoll())
-    {
-        ImplSVData* pSVData = ImplGetSVData();
-        if (pSVData->mpPollClosure)
-        {
-            int nPollResult = pSVData->mpPollCallback(pSVData->mpPollClosure, nTimeoutMicroS);
-            if (nPollResult < 0)
-                pSVData->maAppData.mbAppQuit = true;
-            bWasEvent = bWasEvent || (nPollResult != 0);
-        }
-    }
-    else if (bMustSleep)
-    {
-        SvpSalYieldMutex *const pMutex(static_cast<SvpSalYieldMutex*>(GetYieldMutex()));
-        std::unique_lock<std::mutex> g(pMutex->m_WakeUpMainMutex);
-        // wait for doRelease() or Wakeup() to set the condition
-        if (nTimeoutMicroS == -1)
-        {
-            pMutex->m_WakeUpMainCond.wait(g,
-                    [pMutex]() { return pMutex->m_wakeUpMain; });
-        }
-        else
-        {
-            int nTimeoutMS = nTimeoutMicroS / 1000;
-            if (nTimeoutMicroS % 1000)
-                nTimeoutMS += 1;
-            pMutex->m_WakeUpMainCond.wait_for(g,
-                    std::chrono::milliseconds(nTimeoutMS),
-                    [pMutex]() { return pMutex->m_wakeUpMain; });
-        }
-        // here no need to check m_Request because Acquire will do it
-    }
+    // MACRO: instead of using the unipoll mechanism, the loop actually yields to JS
 
     return bWasEvent;
 }

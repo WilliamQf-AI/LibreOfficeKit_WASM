@@ -20,6 +20,7 @@
 #include <config_features.h>
 #include <config_version.h>
 
+#include <emscripten/emscripten.h>
 #include <osl/file.hxx>
 #include <osl/thread.hxx>
 #include <osl/module.hxx>
@@ -356,28 +357,15 @@ void Application::notifyInvalidation(tools::Rectangle const* /*pRect*/) const
 {
 }
 
+
+// MACRO: Yield is called in a loop in JS, execute just preps the app {
 void Application::Execute()
 {
     ImplSVData* pSVData = ImplGetSVData();
     pSVData->maAppData.mbInAppExecute = true;
     pSVData->maAppData.mbAppQuit = false;
-
-    int nExitCode = 0;
-    if (!pSVData->mpDefInst->DoExecute(nExitCode))
-    {
-        if (Application::IsOnSystemEventLoop())
-        {
-            SAL_WARN("vcl.schedule", "Can't omit DoExecute when running on system event loop!");
-            std::abort();
-        }
-        while (!pSVData->maAppData.mbAppQuit)
-            Application::Yield();
-    }
-
-    pSVData->maAppData.mbInAppExecute = false;
-
-    GetpApp()->Shutdown();
 }
+// MACRO: }
 
 static bool ImplYield(bool i_bWait, bool i_bAllEvents)
 {
@@ -490,6 +478,10 @@ void Application::Quit()
 {
     ImplGetSVData()->maAppData.mbAppQuit = true;
     Application::PostUserEvent( LINK( nullptr, ImplSVAppData, ImplQuitMsg ) );
+
+    // MACRO: {
+    emscripten_cancel_main_loop();
+    // MACRO: }
 }
 
 comphelper::SolarMutex& Application::GetSolarMutex()
@@ -1732,8 +1724,8 @@ void unregisterPollCallbacks()
 
 bool isUnipoll()
 {
-    ImplSVData * pSVData = ImplGetSVData();
-    return pSVData && pSVData->mpPollCallback != nullptr;
+    // MACRO: always true
+    return true;
 }
 
 void numberOfViewsChanged(int count)

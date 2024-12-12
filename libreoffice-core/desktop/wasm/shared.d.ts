@@ -1,6 +1,6 @@
 export type Id = number & {};
 export type ViewId = number & {};
-import type { CallbackType } from './lok_enums';
+import type { CallbackType } from "./lok_enums";
 import type {
   Document,
   RootComment,
@@ -15,12 +15,16 @@ import type {
   TileRenderData,
   DocumentRef,
   ExpandedPart,
-} from './soffice';
+} from "./soffice";
 export type GlobalMessage = {
   /** load the document with the file name `name` and content `blob`
   @returns the corresponding document on success, null otherwise */
   load(name: string, blob: Blob): DocumentRef | null;
-  loadFromExpandedParts(name: string, data: Array<ExpandedPart>, readOnly: boolean): DocumentRef | null;
+  loadFromExpandedParts(
+    name: string,
+    data: Array<ExpandedPart>,
+    readOnly: boolean,
+  ): DocumentRef | null;
   preload(): void;
   setIsMacOSForConfig(): void;
 };
@@ -41,11 +45,11 @@ export type SetClipboardItem = {
 
 export type GetClipboardItem =
   | {
-    mimeType: 'text/plain' | 'text/html' | 'text/rtf';
+    mimeType: "text/plain" | "text/html" | "text/rtf";
     text: string;
   }
   | {
-    mimeType: 'image/png';
+    mimeType: "image/png";
     data: Uint8Array;
   };
 
@@ -66,7 +70,7 @@ export type DocumentMethods = {
   /** closes the document */
   close(): void;
   /** returns a copy of the document in the provided `format` */
-  saveAs(format: 'docx' | 'pdf' | 'rtf', filename: string): ArrayBuffer;
+  saveAs(format: "docx" | "pdf" | "rtf", filename: string): ArrayBuffer;
   save(): Array<{ path: string; sha: string }>;
   /** returns the id of the new view created */
   newView(): number;
@@ -89,7 +93,7 @@ export type DocumentWithViewMethods = {
     y: number,
     count: number,
     buttons: number,
-    modifiers: number
+    modifiers: number,
   ): void;
   setTextSelection(type: number, x: number, y: Number): void;
   setClipboard(items: SetClipboardItem[]): boolean;
@@ -103,23 +107,26 @@ export type DocumentWithViewMethods = {
   dispatchCommand(
     command: string,
     args?: any,
-    notifyWhenFinished?: boolean
+    notifyWhenFinished?: boolean,
   ): void;
   removeText(charsBefore: number, charsAfter: number): void;
   setClientVisibleArea(
     x: number,
     y: number,
     width: number,
-    height: number
+    height: number,
   ): void;
 
   startRendering(
     canvases: OffscreenCanvas[],
     tileSize: TileDim,
     /** Non-negative float, 1.0 is unchange, less than 1.0 is smaller, greater than 1.0 is larger */
-    scale: number,
+    zoom: number,
+    dpi: number,
+    widthTwips: number,
+    heightPx: number,
     /** scroll top position in pixels */
-    yPosPx?: number
+    yPosPx: number,
   ): TileRendererData;
 
   setScrollTop(yPx: number): number;
@@ -131,7 +138,7 @@ export type DocumentWithViewMethods = {
   resetRendering(
     canvas: OffscreenCanvas[],
     /** Non-negative float, 1.0 is unchanged, less than 1.0 is smaller, greater than 1.0 is larger */
-    scale: number
+    scale: number,
   ): void;
   /** TODO: implement */
   stopRendering(): void;
@@ -166,11 +173,11 @@ export type DocumentWithViewMethods = {
   /** gets a paragraph style with the given name and returns the requested properties of that style if found, undefined otherwise */
   getParagraphStyle<T extends string[]>(
     name: string,
-    properties: T
+    properties: T,
   ): ParagraphStyle<T>;
 
   /** get a list of all paragraph styles */
-  paragraphStyles: Document['paragraphStyles'];
+  paragraphStyles: Document["paragraphStyles"];
 
   getOutline(): OutlineItem[];
   gotoOutline(index: number): RectArray;
@@ -186,8 +193,8 @@ export type DocumentWithViewMethods = {
 
   setAuthor(author: string): void;
 
-  getExpandedPart(path: string): { path: string, content: ArrayBuffer } | null;
-  listExpandedParts(): Array<{ path: string, sha: string }>;
+  getExpandedPart(path: string): { path: string; content: ArrayBuffer } | null;
+  listExpandedParts(): Array<{ path: string; sha: string }>;
   getRedlineTextRange(id: number): RectArray[] | undefined;
   getCursor(): string | undefined;
 
@@ -347,7 +354,7 @@ type FlatForwardMethod<
   };
 
 export type DocumentClient = {
-  [K in keyof Omit<DocumentMethods, 'newView'>]: (
+  [K in keyof Omit<DocumentMethods, "newView">]: (
     ...args: Parameters<DocumentMethods[K]>
   ) => Promise<ReturnType<DocumentMethods[K]>>;
 } & {
@@ -367,14 +374,14 @@ export type ToWorker<K extends keyof Message = keyof Message> = {
 };
 
 export type WorkerCallback = {
-  f: 'c';
+  f: "c";
   d: DocumentRef;
   t: number;
   p: string;
 };
 
 export type KeysMessage = {
-  f: '_keys';
+  f: "_keys";
   keys: string[];
   forwarded: {
     [K in keyof ForwardedMethodMap]: string[];
@@ -400,48 +407,6 @@ export type ForwardedFromWorker<
 > = FromWorker<K> & {
   m: keyof ReturnType<ForwardingMethod<K>>;
 };
-
-export type ToTileRenderer =
-  | {
-    /** initialize */
-    t: 'i';
-    c: OffscreenCanvas[];
-    d: TileRenderData;
-    /** absolute scale */
-    s: number;
-    /** top position in pixels */
-    y: number;
-    /** dpi */
-    dpi: number;
-  }
-  | {
-    /** scroll */
-    t: 's';
-    /** view height in pixels */
-    y: number;
-  }
-  | {
-    /** resize */
-    t: 'r';
-    /** height */
-    h: number;
-  }
-  | {
-    /** zoom */
-    t: 'z';
-    /** absolute scale */
-    s: number;
-    /** dpi */
-    d: number;
-    /** scrollTop position in px */
-    y: number;
-  }
-  | {
-    /** width change */
-    t: 'w';
-    /** width */
-    w: number;
-  };
 
 export type Ref<T> = {
   current?: T;

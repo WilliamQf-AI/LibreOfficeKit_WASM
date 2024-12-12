@@ -1,4 +1,8 @@
+#include "vcl/svapp.hxx"
+#include <cstdlib>
+#include <emscripten/html5.h>
 #include <optional>
+#include <thread>
 #define LOK_USE_UNSTABLE_API
 #include <unordered_set>
 #include <LibreOfficeKit/LibreOfficeKitEnums.h>
@@ -48,6 +52,16 @@ namespace
 {
 using namespace emscripten;
 
+// aka. any input callback
+static bool pauseLayoutOnIdle(void*)
+{
+    if (!desktop::g_activeTileRenderData)
+        return false;
+    desktop::TileRendererData& d = *desktop::g_activeTileRenderData;
+
+    return !d.isVisibleAreaPainted || d.hasInvalidations;
+}
+
 //static
 lok::Office* instance()
 {
@@ -58,12 +72,16 @@ lok::Office* instance()
         instance_->setOptionalFeatures(
             LOK_FEATURE_PART_IN_INVALIDATION_CALLBACK | LOK_FEATURE_NO_TILED_ANNOTATIONS
             | LOK_FEATURE_RANGE_HEADERS | LOK_FEATURE_VIEWID_IN_VISCURSOR_INVALIDATION_CALLBACK);
+        instance_->registerAnyInputCallback(pauseLayoutOnIdle, nullptr);
+
+        GetpApp()->GetSolarMutex().acquire();
     }
     return instance_;
 }
 
 //static
 void preload() { instance(); }
+void yield() { if (GetpApp()) GetpApp()->Yield(); }
 
 static constexpr std::string_view TEXT_PLAIN = "text/plain";
 
@@ -343,11 +361,14 @@ public:
         }
     }
 
-    DocumentClient(desktop::ExpandedDocument expandedDoc, std::string name, std::optional<bool> readOnly)
+    DocumentClient(desktop::ExpandedDocument expandedDoc, std::string name,
+                   std::optional<bool> readOnly)
         : ref_(++document_id_counter)
     {
-        desktop::WasmOfficeExtension* officeExt = static_cast<desktop::WasmOfficeExtension*>(instance()->get());
-        auto doc = officeExt->documentExpandedLoad(expandedDoc, name, ref_, readOnly.value_or(false));
+        desktop::WasmOfficeExtension* officeExt
+            = static_cast<desktop::WasmOfficeExtension*>(instance()->get());
+        auto doc
+            = officeExt->documentExpandedLoad(expandedDoc, name, ref_, readOnly.value_or(false));
         lok::Document* aDoc = new lok::Document(doc);
         doc_ = aDoc;
 
@@ -638,19 +659,29 @@ public:
         val result = val::object();
         result.set("viewId", data.viewId);
         result.set("tileSize", data.tileSize);
-        result.set("state", typed_memory_view(1, (int32_t*)&data.state));
-        result.set("tileTwips", typed_memory_view(4, (uint32_t*)&data.tileTwips));
-        result.set("paintedTile", typed_memory_view(data.paintedTileAllocSize, data.paintedTile));
+        result.set("paintedTiles",
+                   typed_memory_view(data.scratchTilesAllocSize, data.paintedTiles.get()));
         result.set("pendingFullPaint", typed_memory_view(1, (int32_t*)&data.pendingFullPaint));
         result.set("hasInvalidations", typed_memory_view(1, (int32_t*)&data.hasInvalidations));
+        result.set("isVisibleAreaPainted",
+                   typed_memory_view(1, (int32_t*)&data.isVisibleAreaPainted));
         result.set("invalidationStack", typed_memory_view(4 * desktop::MAX_INVALIDATION_STACK,
                                                           (uint32_t*)&data.invalidationStack));
         result.set("invalidationStackHead",
                    typed_memory_view(1, (int32_t*)&data.invalidationStackHead));
+        result.set("tileDimTwips", typed_memory_view(1, (uint32_t*)&data.tileDimTwips));
+        result.set("scrollHeightTwips", typed_memory_view(1, (uint32_t*)&data.scrollHeightTwips));
+        result.set("widthTileStride", typed_memory_view(1, (uint32_t*)&data.widthTileStride));
         result.set("docWidthTwips", typed_memory_view(1, (uint32_t*)&data.docWidthTwips));
         result.set("docHeightTwips", typed_memory_view(1, (uint32_t*)&data.docHeightTwips));
 
         return result;
+    }
+
+    void paintTiles(int viewId, uint32_t startIndex, uint32_t endIndex)
+    {
+        doc_->setView(viewId);
+        ext()->paintTiles(startIndex, endIndex);
     }
 
     void stopTileRenderer(int32_t viewId) { ext()->stopTileRenderer(viewId); }
@@ -815,15 +846,13 @@ public:
         }
 
         result.set("path", val(part->first));
-        result.set("content", val(typed_memory_view(part->second->size(), (uint8_t*)part->second->data())));
+        result.set("content",
+                   val(typed_memory_view(part->second->size(), (uint8_t*)part->second->data())));
 
         return result;
     }
 
-    void removePart(std::string path)
-    {
-        ext()->removePart(path);
-    }
+    void removePart(std::string path) { ext()->removePart(path); }
 
     val listExpandedParts()
     {
@@ -832,7 +861,6 @@ public:
 
         for (const auto& part : parts)
         {
-
             val item = val::object();
             item.set("path", val(part.first));
             item.set("sha", val(part.second));
@@ -967,7 +995,7 @@ private:
         const int viewId_;
         DocWithId(DocumentClient* doc, int viewId)
             : cli_(doc)
-            , viewId_(viewId){};
+            , viewId_(viewId) {};
     };
 
     const uint32_t ref_;
@@ -996,7 +1024,7 @@ private:
         {
             if (!safePayload.first)
                 safePayload = makeSafeString(payload);
-            MAIN_THREAD_ASYNC_EM_ASM(
+            EM_ASM(
                 {
                     Module.callbackHandlers.callback($0, $1, UTF8ToString($2));
                     Module.freeSafeString($3);
@@ -1036,7 +1064,7 @@ private:
         {
             if (!safePayload.first)
                 safePayload = makeSafeString(payload.getStr());
-            MAIN_THREAD_ASYNC_EM_ASM(
+            EM_ASM(
                 {
                     Module.callbackHandlers.callback($0, $1, UTF8ToString($2));
                     Module.freeSafeString($3);
@@ -1055,6 +1083,7 @@ EMSCRIPTEN_BINDINGS(lok)
     register_optional<int>();
     function("preload", &preload);
     function("freeSafeString", &freeSafeString);
+    function("yield", &yield);
 
     class_<wasm::ITextRanges>("TextRanges")
         .smart_ptr<std::shared_ptr<wasm::ITextRanges>>("TextRanges")
@@ -1073,8 +1102,7 @@ EMSCRIPTEN_BINDINGS(lok)
         .constructor()
         .function("addPart", &desktop::ExpandedDocument::addPart);
 
-    class_<desktop::ExpandedPart>("ExpandedDocPart")
-        .constructor<std::string, std::string>();
+    class_<desktop::ExpandedPart>("ExpandedDocPart").constructor<std::string, std::string>();
 
     register_vector<desktop::ExpandedPart>("ExpandedPartVector");
 
@@ -1106,6 +1134,7 @@ EMSCRIPTEN_BINDINGS(lok)
         .function("dispatchCommand", &DocumentClient::dispatchCommand)
         .function("removeText", &DocumentClient::removeText)
         .function("startTileRenderer", &DocumentClient::startTileRenderer)
+        .function("paintTiles", &DocumentClient::paintTiles)
         .function("stopTileRenderer", &DocumentClient::stopTileRenderer)
         .function("ref", &DocumentClient::ref)
         .function("setClientVisibleArea", &DocumentClient::setClientVisibleArea)

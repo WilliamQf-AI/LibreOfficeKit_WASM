@@ -25,7 +25,7 @@
 #include <osl/file.hxx>
 #include <osl/signal.h>
 
-#include <desktop/exithelper.h>
+#include <desktop/dllapi.h>
 
 #include <comphelper/accessibleeventnotifier.hxx>
 #include <comphelper/processfactory.hxx>
@@ -364,17 +364,7 @@ bool InitVCL()
 
     try
     {
-        //Now that uno has been bootstrapped we can ask the config what the UI language is so that we can
-        //force that in as $LANGUAGE. That way we can get gtk to render widgets RTL
-        //if we have a RTL UI in an otherwise LTR locale and get gettext using externals (e.g. python)
-        //to match their translations to our preferred UI language
-        OUString aLocaleString(SvtSysLocaleOptions().GetRealUILanguageTag().getGlibcLocaleString(u".UTF-8"));
-        if (!aLocaleString.isEmpty())
-        {
-            MsLangId::getSystemUILanguage(); //call this now to pin what the system UI really was
-            OUString envVar("LANGUAGE");
-            osl_setEnvironment(envVar.pData, aLocaleString.pData);
-        }
+        MsLangId::getSystemUILanguage(); //call this now to pin what the system UI really was
     }
     catch (const uno::Exception &)
     {
@@ -407,12 +397,6 @@ bool InitVCL()
 
 #if OSL_DEBUG_LEVEL > 0
     DebugEventInjector::getCreate();
-#endif
-
-#ifndef _WIN32
-    // Clear startup notification details for child processes
-    // See https://bugs.freedesktop.org/show_bug.cgi?id=11375 for discussion
-    unsetenv("DESKTOP_STARTUP_ID");
 #endif
 
     return true;

@@ -19,12 +19,33 @@
 
 # UnoApiTarget
 
+# MACRO: arm64 segfault workaround {
+ifneq ($(filter arm64 aarch64,$(shell uname -m)),)
+gb_UnoApiTarget_UNOIDLWRITEDEPS :=
+gb_UnoApiTarget_UNOIDLWRITECOMMAND := ([ ! -e $(WORKDIR)/UnoApiTarget/offapi.rdb ] && tar --skip-old-files -xzf /libreoffice-core/uno-snapshot-for-build.tgz -C $(WORKDIR) && \
+tar --skip-old-files -xzf /libreoffice-core/uno-snapshot.tgz -C $(WORKDIR) && \
+touch $(WORKDIR)/Executable/unoidl-write.run) || true
+gb_UnoApiTarget_UNOIDLCHECKDEPS :=
+gb_UnoApiTarget_UNOIDLCHECKCOMMAND := ([ ! -e $(WORKDIR)/UnoApiTarget/offapi.rdb ] && touch $(WORKDIR)/Executable/unoidl-check.run) || true
+else
 gb_UnoApiTarget_UNOIDLWRITEDEPS := $(call gb_Executable_get_runtime_dependencies,unoidl-write)
 gb_UnoApiTarget_UNOIDLWRITECOMMAND := $(call gb_Executable_get_command,unoidl-write)
-
 gb_UnoApiTarget_UNOIDLCHECKDEPS := $(call gb_Executable_get_runtime_dependencies,unoidl-check)
 gb_UnoApiTarget_UNOIDLCHECKCOMMAND := $(call gb_Executable_get_command,unoidl-check)
+endif
 
+ifneq ($(filter arm64 aarch64,$(shell uname -m)),)
+define gb_UnoApiTarget__command
+mkdir -p $(dir $(1)) \
+$(if $(UNOAPI_ENTITIES), \
+	&& RESPONSEFILE=$(call gb_var2file,$(shell $(gb_MKTEMP)),$(UNOAPI_ENTITIES))) \
+&& $(gb_UnoApiTarget_UNOIDLWRITECOMMAND) \
+$(if $(UNOAPI_ENTITIES),&& rm -f $${RESPONSEFILE}) \
+$(if $(UNOAPI_REFERENCE), \
+	$(call gb_Output_announce,$(2),$(true),DBc,3) \
+	&& true)
+endef
+else
 define gb_UnoApiTarget__command
 mkdir -p $(dir $(1)) \
 $(if $(UNOAPI_ENTITIES), \
@@ -41,6 +62,8 @@ $(if $(UNOAPI_REFERENCE), \
 		|| { printf 'ERROR: Published UNO API must not be changed incompatibly!\n(If published UNO API shall be changed incompatibly after all, see\n<https://wiki.documentfoundation.org/Development/Incompatible_UNO_API_Changes>.)\n'; \
 		     false; } })
 endef
+endif
+# MACRO: }
 
 $(call gb_UnoApiTarget_get_target,%) :
 	$(call gb_Output_announce,$*,$(true),UNO,4)
@@ -132,6 +155,15 @@ endif
 gb_UnoApiHeadersTarget_CPPUMAKERDEPS := $(call gb_Executable_get_runtime_dependencies,cppumaker)
 gb_UnoApiHeadersTarget_CPPUMAKERCOMMAND := $(call gb_Executable_get_command,cppumaker)
 
+ifneq ($(filter arm64 aarch64,$(shell uname -m)),)
+define gb_UnoApiHeadersTarget__command
+	([ ! -d $(WORKDIR)/UnoApiHeadersTarget/offapi ] && \
+	tar --skip-old-files -xzf /libreoffice-core/uno-snapshot-for-build.tgz -C $(WORKDIR) && \
+	tar --skip-old-files -xzf /libreoffice-core/uno-snapshot.tgz -C $(WORKDIR) && \
+	touch $(1)) || true;
+
+endef
+else
 define gb_UnoApiHeadersTarget__command
 	$(gb_UnoApiHeadersTarget_CPPUMAKERCOMMAND) \
 		-Gc $(4) -O$(3) $(call gb_UnoApiTarget_get_target,$(2)) \
@@ -139,6 +171,7 @@ define gb_UnoApiHeadersTarget__command
 	touch $(1)
 
 endef
+endif
 
 $(call gb_UnoApiHeadersTarget_get_real_bootstrap_target,%) : \
 		$(gb_UnoApiHeadersTarget_CPPUMAKERDEPS)
