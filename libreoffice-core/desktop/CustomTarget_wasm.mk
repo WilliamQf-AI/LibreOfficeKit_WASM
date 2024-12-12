@@ -6,7 +6,7 @@ $(eval $(call gb_CustomTarget_register_targets,desktop/wasm,\
 	version \
 	lok_enums.js \
 	shared.d.ts \
-	tile_renderer_worker.d.ts \
+	tile_renderer.d.ts \
 	index.d.ts \
 	worker.d.ts \
 	fccache.d.ts \
