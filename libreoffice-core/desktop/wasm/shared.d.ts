@@ -340,6 +340,7 @@ export type DocumentClientBase = {
   afterIdle(callback: () => any): () => void;
   /** !!!USE SPARINGLY: Impacts performance!!! Calls the callback, returns the method to unregister the callback */
   afterPaint(callback: () => any): () => void;
+  afterUncaughtError(callback: () => any): () => void;
 };
 
 export type AsyncFunctions<T extends { [K: string]: (...args: any) => any }> = {
