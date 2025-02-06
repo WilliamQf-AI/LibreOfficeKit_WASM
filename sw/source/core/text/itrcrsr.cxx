@@ -644,7 +644,12 @@ void SwTextCursor::GetCharRect_( SwRect* pOrig, TextFrameIndex const nOfst,
                 if ( aInf.GetIdx() + pPor->GetLen() < nOfst + nExtra )
                 {
                     if ( pPor->InSpaceGrp() && nSpaceAdd )
-                        nX += pPor->PrtWidth() +
+                        // tdf#163042 In the case of shrunk lines with a single portion,
+                        // adjust the line width to show the cursor in the correct position
+                        nX += ( ( std::abs( m_pCurr->Width() - pPor->PrtWidth() ) <= 1 &&
+                                        m_pCurr->ExtraShrunkWidth() > 0 )
+                                    ? m_pCurr->ExtraShrunkWidth()
+                                    : pPor->PrtWidth() ) +
                               pPor->CalcSpacing( nSpaceAdd, aInf );
                     else
                     {
@@ -1331,6 +1336,46 @@ static bool ConsiderNextPortionForCursorOffset(const SwLinePortion* pPor, SwTwip
     return true;
 }
 
+static auto SearchLine(SwLineLayout const*const pLineOfFoundPor,
+    SwLinePortion const*const pFoundPor,
+    int & rLines, std::vector<SwFieldPortion const*> & rPortions,
+    SwLineLayout const*const pLine) -> bool
+{
+    for (SwLinePortion const* pLP = pLine; pLP; pLP = pLP->GetNextPortion())
+    {
+        if (pLP == pFoundPor)
+        {
+            return true;
+        }
+        if (pLP->InFieldGrp())
+        {
+            SwFieldPortion const* pField(static_cast<SwFieldPortion const*>(pLP));
+            if (!pField->IsFollow())
+            {
+                rLines = 0;
+                rPortions.clear();
+            }
+            if (pLine == pLineOfFoundPor)
+            {
+                rPortions.emplace_back(pField);
+            }
+        }
+        else if (pLP->IsMultiPortion())
+        {
+            SwMultiPortion const*const pMulti(static_cast<SwMultiPortion const*>(pLP));
+            for (SwLineLayout const* pMLine = &pMulti->GetRoot();
+                    pMLine; pMLine = pMLine->GetNext())
+            {
+                if (SearchLine(pLineOfFoundPor, pFoundPor, rLines, rPortions, pMLine))
+                {
+                    return true;
+                }
+            }
+        }
+    }
+    return (pLine == pLineOfFoundPor);
+}
+
 // Return: Offset in String
 TextFrameIndex SwTextCursor::GetModelPositionForViewPoint( SwPosition *pPos, const Point &rPoint,
                                     bool bChgNode, SwCursorMoveState* pCMS ) const
@@ -1375,8 +1420,12 @@ TextFrameIndex SwTextCursor::GetModelPositionForViewPoint( SwPosition *pPos, con
 
     // nWidth is the width of the line, or the width of
     // the paragraph with the font change, in which nX is situated.
-
-    SwTwips nWidth = pPor->Width();
+    // tdf#16342 In the case of shrunk lines with a single portion,
+    // adjust the line width to move the cursor to the click position
+    SwTwips nWidth =
+        ( std::abs( m_pCurr->Width() - pPor->Width() ) <= 1 && m_pCurr->ExtraShrunkWidth() > 0 )
+            ? m_pCurr->ExtraShrunkWidth()
+            :  pPor->Width();
     if ( m_pCurr->IsSpaceAdd() || pKanaComp )
     {
         if ( pPor->InSpaceGrp() && nSpaceAdd )
@@ -1784,23 +1833,7 @@ TextFrameIndex SwTextCursor::GetModelPositionForViewPoint( SwPosition *pPos, con
                         for (SwLineLayout const* pLine = GetInfo().GetParaPortion();
                                 true; pLine = pLine->GetNext())
                         {
-                            for (SwLinePortion const* pLP = pLine; pLP && pLP != pPor; pLP = pLP->GetNextPortion())
-                            {
-                                if (pLP->InFieldGrp())
-                                {
-                                    SwFieldPortion const* pField(static_cast<SwFieldPortion const*>(pLP));
-                                    if (!pField->IsFollow())
-                                    {
-                                        nLines = 0;
-                                        portions.clear();
-                                    }
-                                    if (pLine == m_pCurr)
-                                    {
-                                        portions.emplace_back(pField);
-                                    }
-                                }
-                            }
-                            if (pLine == m_pCurr)
+                            if (SearchLine(m_pCurr, pPor, nLines, portions, pLine))
                             {
                                 break;
                             }
@@ -1841,8 +1874,11 @@ TextFrameIndex SwTextCursor::GetModelPositionForViewPoint( SwPosition *pPos, con
                 SwFrame* pLower = pTmp->GetLower();
                 // Allow non-text-frames to get SwGrfNode for as-char anchored images into pPos
                 // instead of the closest SwTextNode, to be consistent with at-char behavior.
-                bool bChgNodeInner = pLower
-                    && (pLower->IsTextFrame() || pLower->IsLayoutFrame() || pLower->IsNoTextFrame());
+                bool bChgNodeInner
+                    = pLower
+                      && (pLower->IsTextFrame() || pLower->IsLayoutFrame()
+                          || (pLower->IsNoTextFrame()
+                              && (!pCMS || pCMS->m_eState != CursorMoveState::SetOnlyText)));
                 Point aTmpPoint( rPoint );
 
                 if ( m_pFrame->IsRightToLeft() )

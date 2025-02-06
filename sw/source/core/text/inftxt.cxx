@@ -25,6 +25,7 @@
 #include <svl/ctloptions.hxx>
 #include <sfx2/infobar.hxx>
 #include <sfx2/printer.hxx>
+#include <sfx2/StylePreviewRenderer.hxx>
 #include <sal/log.hxx>
 #include <editeng/hyphenzoneitem.hxx>
 #include <editeng/hngpnctitem.hxx>
@@ -217,6 +218,7 @@ SwTextSizeInfo::SwTextSizeInfo()
 , m_bForbiddenChars(false)
 , m_bSnapToGrid(false)
 , m_nDirection(0)
+, m_nExtraSpace(0)
 {}
 
 SwTextSizeInfo::SwTextSizeInfo( const SwTextSizeInfo &rNew )
@@ -247,7 +249,8 @@ SwTextSizeInfo::SwTextSizeInfo( const SwTextSizeInfo &rNew )
       m_bScriptSpace( rNew.HasScriptSpace() ),
       m_bForbiddenChars( rNew.HasForbiddenChars() ),
       m_bSnapToGrid( rNew.SnapToGrid() ),
-      m_nDirection( rNew.GetDirection() )
+      m_nDirection( rNew.GetDirection() ),
+      m_nExtraSpace( rNew.GetExtraSpace() )
 {
 #if OSL_DEBUG_LEVEL > 0
     ChkOutDev( *this );
@@ -259,6 +262,7 @@ void SwTextSizeInfo::CtorInitTextSizeInfo( OutputDevice* pRenderContext, SwTextF
 {
     m_pKanaComp = nullptr;
     m_nKanaIdx = 0;
+    m_nExtraSpace = 0;
     m_pFrame = pFrame;
     CtorInitTextInfo( m_pFrame );
     SwDoc const& rDoc(m_pFrame->GetDoc());
@@ -359,7 +363,8 @@ SwTextSizeInfo::SwTextSizeInfo( const SwTextSizeInfo &rNew, const OUString* pTex
       m_bScriptSpace( rNew.HasScriptSpace() ),
       m_bForbiddenChars( rNew.HasForbiddenChars() ),
       m_bSnapToGrid( rNew.SnapToGrid() ),
-      m_nDirection( rNew.GetDirection() )
+      m_nDirection( rNew.GetDirection() ),
+      m_nExtraSpace( rNew.GetExtraSpace() )
 {
 #if OSL_DEBUG_LEVEL > 0
     ChkOutDev( *this );
@@ -1276,9 +1281,7 @@ void SwTextPaintInfo::DrawCSDFHighlighting(const SwLinePortion &rPor) const
     if (!pView)
         return;
 
-    StylesHighlighterColorMap& rCharStylesColorMap = pView->GetStylesHighlighterCharColorMap();
-
-    if (rCharStylesColorMap.empty() && !pView->IsHighlightCharDF())
+    if (!pView->IsSpotlightCharStyles() && !pView->IsHighlightCharDF())
         return;
 
     SwRect aRect;
@@ -1305,17 +1308,31 @@ void SwTextPaintInfo::DrawCSDFHighlighting(const SwLinePortion &rPor) const
     // check for CS formatting, if not CS formatted check for direct character formatting
     if (!sCurrentCharStyle.isEmpty())
     {
-        if (!rCharStylesColorMap.empty())
+        OUString sCharStyleDisplayName = SwStyleNameMapper::GetUIName(sCurrentCharStyle,
+                                                             SwGetPoolIdFromName::ChrFmt);
+        if (comphelper::LibreOfficeKit::isActive())
         {
-            OUString sCharStyleDisplayName;
-            sCharStyleDisplayName = SwStyleNameMapper::GetUIName(sCurrentCharStyle,
-                                                                 SwGetPoolIdFromName::ChrFmt);
-            if (!sCharStyleDisplayName.isEmpty()
-                    && rCharStylesColorMap.find(sCharStyleDisplayName)
-                    != rCharStylesColorMap.end())
+            // For simplicity in kit mode, we render in the document "all styles" that exist
+            if (const SwCharFormat* pCharFormat = pFrame->GetDoc().FindCharFormatByName(sCharStyleDisplayName))
             {
-                aFillColor = rCharStylesColorMap[sCharStyleDisplayName].first;
-                sCSNumberOrDF = OUString::number(rCharStylesColorMap[sCharStyleDisplayName].second);
+                // Do this so these are stable across views regardless of an individual
+                // user's selection mode in the style panel.
+                sCSNumberOrDF = OUString::number(pFrame->GetDoc().GetCharFormats()->GetPos(pCharFormat));
+                aFillColor = ColorHash(sCharStyleDisplayName);
+            }
+        }
+        else
+        {
+            StylesHighlighterColorMap& rCharStylesColorMap = pView->GetStylesHighlighterCharColorMap();
+            if (!rCharStylesColorMap.empty())
+            {
+                if (!sCharStyleDisplayName.isEmpty()
+                        && rCharStylesColorMap.find(sCharStyleDisplayName)
+                        != rCharStylesColorMap.end())
+                {
+                    sCSNumberOrDF = OUString::number(rCharStylesColorMap[sCharStyleDisplayName].second);
+                    aFillColor = rCharStylesColorMap[sCharStyleDisplayName].first;
+                }
             }
         }
     }
@@ -1567,14 +1584,13 @@ void SwTextFormatInfo::CtorInitTextFormatInfo( OutputDevice* pRenderContext, SwT
     m_nLineNetHeight = 0;
     SetLineStart(TextFrameIndex(0));
 
-    SvtCTLOptions::TextNumerals const nTextNumerals(
-            SvtCTLOptions::GetCTLTextNumerals());
+    SvtCTLOptions::TextNumerals const nTextNumerals(SW_MOD()->GetCTLTextNumerals());
     // cannot cache for NUMERALS_CONTEXT because we need to know the string
     // for the whole paragraph now
     if (nTextNumerals != SvtCTLOptions::NUMERALS_CONTEXT)
     {
         // set digit mode to what will be used later to get same results
-        SwDigitModeModifier const m(*m_pRef, LANGUAGE_NONE /*dummy*/);
+        SwDigitModeModifier const m(*m_pRef, LANGUAGE_NONE /*dummy*/, nTextNumerals);
         assert(m_pRef->GetDigitLanguage() != LANGUAGE_NONE);
         SetCachedVclData(OutputDevice::CreateTextLayoutCache(*m_pText));
     }
@@ -1941,6 +1957,11 @@ SwTwips SwTextFormatInfo::GetLineWidth()
         // right, center, decimal can back-fill all the available space - same as TabOverMargin
         if (pLastTab->GetWhichPor() == PortionType::TabLeft)
             nLineWidth = nTextFrameWidth - pLastTab->GetTabPos();
+    }
+    else
+    {   // tdf#158658 Put content after tab into margin like Word.
+        // Try to limit the paragraph to 55.87cm, it's max tab pos in Word UI.
+        nLineWidth = o3tl::toTwips(558, o3tl::Length::mm) - X();
     }
     return nLineWidth;
 }

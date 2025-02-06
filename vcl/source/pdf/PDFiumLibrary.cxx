@@ -20,6 +20,7 @@
 #include <fpdf_save.h>
 #include <fpdf_signature.h>
 #include <fpdf_formfill.h>
+#include <fpdf_attachment.h>
 
 #include <osl/endian.h>
 #include <vcl/bitmap.hxx>
@@ -28,6 +29,9 @@
 #include <o3tl/string_view.hxx>
 
 #include <vcl/BitmapWriteAccess.hxx>
+#include <vcl/bitmapex.hxx>
+#include <vcl/dibtools.hxx>
+#include <functional>
 
 using namespace com::sun::star;
 
@@ -168,6 +172,36 @@ static_assert(static_cast<int>(vcl::pdf::PDFAnnotAActionType::Calculate)
                   == FPDF_ANNOT_AACTION_CALCULATE,
               "PDFAnnotAActionType::Calculate) value mismatch");
 
+static_assert(int(vcl::pdf::PDFAnnotationSubType::Unknown) == FPDF_ANNOT_UNKNOWN);
+static_assert(int(vcl::pdf::PDFAnnotationSubType::Text) == FPDF_ANNOT_TEXT);
+static_assert(int(vcl::pdf::PDFAnnotationSubType::Link) == FPDF_ANNOT_LINK);
+static_assert(int(vcl::pdf::PDFAnnotationSubType::FreeText) == FPDF_ANNOT_FREETEXT);
+static_assert(int(vcl::pdf::PDFAnnotationSubType::Line) == FPDF_ANNOT_LINE);
+static_assert(int(vcl::pdf::PDFAnnotationSubType::Square) == FPDF_ANNOT_SQUARE);
+static_assert(int(vcl::pdf::PDFAnnotationSubType::Circle) == FPDF_ANNOT_CIRCLE);
+static_assert(int(vcl::pdf::PDFAnnotationSubType::Polygon) == FPDF_ANNOT_POLYGON);
+static_assert(int(vcl::pdf::PDFAnnotationSubType::Polyline) == FPDF_ANNOT_POLYLINE);
+static_assert(int(vcl::pdf::PDFAnnotationSubType::Highlight) == FPDF_ANNOT_HIGHLIGHT);
+static_assert(int(vcl::pdf::PDFAnnotationSubType::Underline) == FPDF_ANNOT_UNDERLINE);
+static_assert(int(vcl::pdf::PDFAnnotationSubType::Squiggly) == FPDF_ANNOT_SQUIGGLY);
+static_assert(int(vcl::pdf::PDFAnnotationSubType::Strikeout) == FPDF_ANNOT_STRIKEOUT);
+static_assert(int(vcl::pdf::PDFAnnotationSubType::Stamp) == FPDF_ANNOT_STAMP);
+static_assert(int(vcl::pdf::PDFAnnotationSubType::Caret) == FPDF_ANNOT_CARET);
+static_assert(int(vcl::pdf::PDFAnnotationSubType::Ink) == FPDF_ANNOT_INK);
+static_assert(int(vcl::pdf::PDFAnnotationSubType::Popup) == FPDF_ANNOT_POPUP);
+static_assert(int(vcl::pdf::PDFAnnotationSubType::FileAttachment) == FPDF_ANNOT_FILEATTACHMENT);
+static_assert(int(vcl::pdf::PDFAnnotationSubType::Sound) == FPDF_ANNOT_SOUND);
+static_assert(int(vcl::pdf::PDFAnnotationSubType::Movie) == FPDF_ANNOT_MOVIE);
+static_assert(int(vcl::pdf::PDFAnnotationSubType::Widget) == FPDF_ANNOT_WIDGET);
+static_assert(int(vcl::pdf::PDFAnnotationSubType::Screen) == FPDF_ANNOT_SCREEN);
+static_assert(int(vcl::pdf::PDFAnnotationSubType::Printermark) == FPDF_ANNOT_PRINTERMARK);
+static_assert(int(vcl::pdf::PDFAnnotationSubType::Trapnet) == FPDF_ANNOT_TRAPNET);
+static_assert(int(vcl::pdf::PDFAnnotationSubType::Watermark) == FPDF_ANNOT_WATERMARK);
+static_assert(int(vcl::pdf::PDFAnnotationSubType::Threed) == FPDF_ANNOT_THREED);
+static_assert(int(vcl::pdf::PDFAnnotationSubType::Richmedia) == FPDF_ANNOT_RICHMEDIA);
+static_assert(int(vcl::pdf::PDFAnnotationSubType::XFAWidget) == FPDF_ANNOT_XFAWIDGET);
+static_assert(int(vcl::pdf::PDFAnnotationSubType::Redact) == FPDF_ANNOT_REDACT);
+
 namespace
 {
 /// Callback class to be used with FPDF_SaveWithVersion().
@@ -186,6 +220,35 @@ int CompatibleWriterCallback(FPDF_FILEWRITE* pFileWrite, const void* pData, unsi
     auto pImpl = static_cast<CompatibleWriter*>(pFileWrite);
     pImpl->m_rStream.WriteBytes(pData, nSize);
     return 1;
+}
+
+OUString getUnicodeString(std::function<int(FPDF_WCHAR*, unsigned long)> aPDFiumFunctionCall)
+{
+    OUString sReturnText;
+
+    int nBytes = aPDFiumFunctionCall(nullptr, 0);
+    if (nBytes == 0)
+        return sReturnText;
+    assert(nBytes % 2 == 0);
+    nBytes /= 2;
+
+    std::vector<sal_Unicode> pText(nBytes, 0);
+
+    int nActualBytes = aPDFiumFunctionCall(reinterpret_cast<FPDF_WCHAR*>(pText.data()), nBytes * 2);
+    assert(nActualBytes % 2 == 0);
+    nActualBytes /= 2;
+    if (nActualBytes > 1)
+    {
+#ifdef OSL_BIGENDIAN
+        for (int i = 0; i != nActualBytes; ++i)
+        {
+            pText[i] = OSL_SWAPWORD(pText[i]);
+        }
+#endif
+        sReturnText = OUString(pText.data());
+    }
+
+    return sReturnText;
 }
 }
 
@@ -214,6 +277,7 @@ public:
     int getWidth() override;
     int getHeight() override;
     PDFBitmapType getFormat() override;
+    BitmapEx createBitmapFromBuffer() override;
 };
 
 class PDFiumPathSegmentImpl final : public PDFiumPathSegment
@@ -264,11 +328,13 @@ public:
     std::vector<basegfx::B2DPoint> getLineGeometry() override;
     PDFFormFieldType getFormFieldType(PDFiumDocument* pDoc) override;
     float getFontSize(PDFiumDocument* pDoc) override;
+    Color getFontColor(PDFiumDocument* pDoc) override;
     OUString getFormFieldAlternateName(PDFiumDocument* pDoc) override;
     int getFormFieldFlags(PDFiumDocument* pDoc) override;
     OUString getFormAdditionalActionJavaScript(PDFiumDocument* pDoc,
                                                PDFAnnotAActionType eEvent) override;
     OUString getFormFieldValue(PDFiumDocument* pDoc) override;
+    int getOptionCount(PDFiumDocument* pDoc) override;
 };
 
 class PDFiumPageObjectImpl final : public PDFiumPageObject
@@ -423,6 +489,23 @@ public:
     FPDF_FORMHANDLE getPointer();
 };
 
+class PDFiumAttachmentImpl final : public PDFiumAttachment
+{
+private:
+    FPDF_ATTACHMENT mpAttachment;
+    PDFiumAttachmentImpl(const PDFiumSignatureImpl&) = delete;
+    PDFiumAttachmentImpl& operator=(const PDFiumSignatureImpl&) = delete;
+
+public:
+    PDFiumAttachmentImpl(FPDF_ATTACHMENT pAttachment)
+        : mpAttachment(pAttachment)
+    {
+    }
+
+    OUString getName() override;
+    bool getFile(std::vector<unsigned char>& rOutBuffer) override;
+};
+
 class PDFiumDocumentImpl : public PDFiumDocument
 {
 private:
@@ -443,11 +526,13 @@ public:
     basegfx::B2DSize getPageSize(int nIndex) override;
     int getPageCount() override;
     int getSignatureCount() override;
+    int getAttachmentCount() override;
     int getFileVersion() override;
     bool saveWithVersion(SvMemoryStream& rStream, int nFileVersion) override;
 
     std::unique_ptr<PDFiumPage> openPage(int nIndex) override;
     std::unique_ptr<PDFiumSignature> getSignature(int nIndex) override;
+    std::unique_ptr<PDFiumAttachment> getAttachment(int nIndex) override;
     std::vector<unsigned int> getTrailerEnds() override;
 };
 
@@ -663,6 +748,29 @@ util::DateTime PDFiumSignatureImpl::getTime()
     return aRet;
 }
 
+OUString PDFiumAttachmentImpl::getName()
+{
+    return getUnicodeString([this](FPDF_WCHAR* buffer, unsigned long length) {
+        return FPDFAttachment_GetName(mpAttachment, buffer, length);
+    });
+}
+
+bool PDFiumAttachmentImpl::getFile(std::vector<unsigned char>& rOutBuffer)
+{
+    rOutBuffer.clear();
+
+    unsigned long nLength{};
+    if (!FPDFAttachment_GetFile(mpAttachment, nullptr, 0, &nLength))
+        return false;
+
+    rOutBuffer.resize(nLength);
+    unsigned long nActualLength{};
+    if (!FPDFAttachment_GetFile(mpAttachment, rOutBuffer.data(), nLength, &nActualLength))
+        return false;
+    rOutBuffer.resize(nActualLength);
+    return true;
+}
+
 PDFiumDocumentImpl::PDFiumDocumentImpl(FPDF_DOCUMENT pPdfDocument)
     : mpPdfDocument(pPdfDocument)
     , m_aFormCallbacks()
@@ -703,6 +811,17 @@ std::unique_ptr<PDFiumSignature> PDFiumDocumentImpl::getSignature(int nIndex)
     return pPDFiumSignature;
 }
 
+std::unique_ptr<PDFiumAttachment> PDFiumDocumentImpl::getAttachment(int nIndex)
+{
+    std::unique_ptr<PDFiumAttachment> pPDFiumAttachment;
+    FPDF_ATTACHMENT pAttachment = FPDFDoc_GetAttachment(mpPdfDocument, nIndex);
+    if (pAttachment)
+    {
+        pPDFiumAttachment = std::make_unique<PDFiumAttachmentImpl>(pAttachment);
+    }
+    return pPDFiumAttachment;
+}
+
 std::vector<unsigned int> PDFiumDocumentImpl::getTrailerEnds()
 {
     int nNumTrailers = FPDF_GetTrailerEnds(mpPdfDocument, nullptr, 0);
@@ -725,6 +844,8 @@ basegfx::B2DSize PDFiumDocumentImpl::getPageSize(int nIndex)
 int PDFiumDocumentImpl::getPageCount() { return FPDF_GetPageCount(mpPdfDocument); }
 
 int PDFiumDocumentImpl::getSignatureCount() { return FPDF_GetSignatureCount(mpPdfDocument); }
+
+int PDFiumDocumentImpl::getAttachmentCount() { return FPDFDoc_GetAttachmentCount(mpPdfDocument); }
 
 int PDFiumDocumentImpl::getFileVersion()
 {
@@ -811,32 +932,10 @@ PDFiumPageObjectImpl::PDFiumPageObjectImpl(FPDF_PAGEOBJECT pPageObject)
 
 OUString PDFiumPageObjectImpl::getText(std::unique_ptr<PDFiumTextPage> const& rTextPage)
 {
-    OUString sReturnText;
-
     auto pTextPage = static_cast<PDFiumTextPageImpl*>(rTextPage.get());
-    int nBytes = FPDFTextObj_GetText(mpPageObject, pTextPage->getPointer(), nullptr, 0);
-    assert(nBytes % 2 == 0);
-    nBytes /= 2;
-
-    std::unique_ptr<sal_Unicode[]> pText(new sal_Unicode[nBytes]);
-
-    int nActualBytes = FPDFTextObj_GetText(mpPageObject, pTextPage->getPointer(),
-                                           reinterpret_cast<FPDF_WCHAR*>(pText.get()), nBytes * 2);
-    assert(nActualBytes % 2 == 0);
-    nActualBytes /= 2;
-    if (nActualBytes > 1)
-    {
-#if defined OSL_BIGENDIAN
-        // The data returned by FPDFTextObj_GetText is documented to always be UTF-16LE:
-        for (int i = 0; i != nActualBytes; ++i)
-        {
-            pText[i] = OSL_SWAPWORD(pText[i]);
-        }
-#endif
-        sReturnText = OUString(pText.get());
-    }
-
-    return sReturnText;
+    return getUnicodeString([this, pTextPage](FPDF_WCHAR* buffer, unsigned long length) {
+        return FPDFTextObj_GetText(mpPageObject, pTextPage->getPointer(), buffer, length);
+    });
 }
 
 PDFPageObjectType PDFiumPageObjectImpl::getType()
@@ -1097,6 +1196,67 @@ PDFBitmapType PDFiumBitmapImpl::getFormat()
     return static_cast<PDFBitmapType>(FPDFBitmap_GetFormat(mpBitmap));
 }
 
+BitmapEx PDFiumBitmapImpl::createBitmapFromBuffer()
+{
+    BitmapEx aBitmapEx;
+
+    const vcl::pdf::PDFBitmapType eFormat = getFormat();
+    if (eFormat == vcl::pdf::PDFBitmapType::Unknown)
+        return aBitmapEx;
+
+    const int nWidth = getWidth();
+    const int nHeight = getHeight();
+    const int nStride = getStride();
+
+    switch (eFormat)
+    {
+        case vcl::pdf::PDFBitmapType::BGR:
+        {
+            aBitmapEx = BitmapEx(Size(nWidth, nHeight), vcl::PixelFormat::N24_BPP);
+            ReadRawDIB(aBitmapEx, getBuffer(), ScanlineFormat::N24BitTcBgr, nHeight, nStride);
+        }
+        break;
+
+        case vcl::pdf::PDFBitmapType::BGRx:
+        {
+            aBitmapEx = BitmapEx(Size(nWidth, nHeight), vcl::PixelFormat::N24_BPP);
+            ReadRawDIB(aBitmapEx, getBuffer(), ScanlineFormat::N32BitTcRgba, nHeight, nStride);
+        }
+        break;
+
+        case vcl::pdf::PDFBitmapType::BGRA:
+        {
+            Bitmap aBitmap(Size(nWidth, nHeight), vcl::PixelFormat::N24_BPP);
+            AlphaMask aMask(Size(nWidth, nHeight));
+            {
+                BitmapScopedWriteAccess pWriteAccess(aBitmap);
+                BitmapScopedWriteAccess pMaskAccess(aMask);
+                ConstScanline pBuffer = getBuffer();
+                std::vector<sal_uInt8> aScanlineAlpha(nWidth);
+                for (int nRow = 0; nRow < nHeight; ++nRow)
+                {
+                    ConstScanline pLine = pBuffer + (nStride * nRow);
+                    pWriteAccess->CopyScanline(nRow, pLine, ScanlineFormat::N32BitTcBgra, nStride);
+                    for (int nCol = 0; nCol < nWidth; ++nCol)
+                    {
+                        aScanlineAlpha[nCol] = pLine[3];
+                        pLine += 4;
+                    }
+                    pMaskAccess->CopyScanline(nRow, aScanlineAlpha.data(), ScanlineFormat::N8BitPal,
+                                              nWidth);
+                }
+            }
+            aBitmapEx = BitmapEx(aBitmap, aMask);
+        }
+        break;
+
+        default:
+            break;
+    }
+
+    return aBitmapEx;
+}
+
 PDFiumAnnotationImpl::PDFiumAnnotationImpl(FPDF_ANNOTATION pAnnotation)
     : mpAnnotation(pAnnotation)
 {
@@ -1216,95 +1376,50 @@ float PDFiumAnnotationImpl::getFontSize(PDFiumDocument* pDoc)
     return fRet;
 }
 
-OUString PDFiumAnnotationImpl::getFormFieldAlternateName(PDFiumDocument* pDoc)
+Color PDFiumAnnotationImpl::getFontColor(PDFiumDocument* pDoc)
 {
     auto pDocImpl = static_cast<PDFiumDocumentImpl*>(pDoc);
-    OUString aString;
-    unsigned long nSize = FPDFAnnot_GetFormFieldAlternateName(pDocImpl->getFormHandlePointer(),
-                                                              mpAnnotation, nullptr, 0);
-    assert(nSize % 2 == 0);
-    nSize /= 2;
-    if (nSize > 1)
+    unsigned int nR, nG, nB;
+    if (!FPDFAnnot_GetFontColor(pDocImpl->getFormHandlePointer(), mpAnnotation, &nR, &nG, &nB))
     {
-        std::unique_ptr<sal_Unicode[]> pText(new sal_Unicode[nSize]);
-        unsigned long nStringSize = FPDFAnnot_GetFormFieldAlternateName(
-            pDocImpl->getFormHandlePointer(), mpAnnotation,
-            reinterpret_cast<FPDF_WCHAR*>(pText.get()), nSize * 2);
-        assert(nStringSize % 2 == 0);
-        nStringSize /= 2;
-        if (nStringSize > 0)
-        {
-#if defined OSL_BIGENDIAN
-            for (unsigned long i = 0; i != nStringSize; ++i)
-            {
-                pText[i] = OSL_SWAPWORD(pText[i]);
-            }
-#endif
-            aString = OUString(pText.get());
-        }
+        return Color();
     }
-    return aString;
+
+    return Color(nR, nG, nB);
+}
+
+OUString PDFiumAnnotationImpl::getFormFieldAlternateName(PDFiumDocument* pDoc)
+{
+    auto* pDocImpl = static_cast<PDFiumDocumentImpl*>(pDoc);
+    return getUnicodeString([this, pDocImpl](FPDF_WCHAR* buffer, unsigned long length) {
+        return FPDFAnnot_GetFormFieldAlternateName(pDocImpl->getFormHandlePointer(), mpAnnotation,
+                                                   buffer, length);
+    });
 }
 
 OUString PDFiumAnnotationImpl::getFormFieldValue(PDFiumDocument* pDoc)
 {
-    auto pDocImpl = static_cast<PDFiumDocumentImpl*>(pDoc);
-    OUString aString;
-    unsigned long nSize
-        = FPDFAnnot_GetFormFieldValue(pDocImpl->getFormHandlePointer(), mpAnnotation, nullptr, 0);
-    assert(nSize % 2 == 0);
-    nSize /= 2;
-    if (nSize > 1)
-    {
-        std::unique_ptr<sal_Unicode[]> pText(new sal_Unicode[nSize]);
-        unsigned long nStringSize
-            = FPDFAnnot_GetFormFieldValue(pDocImpl->getFormHandlePointer(), mpAnnotation,
-                                          reinterpret_cast<FPDF_WCHAR*>(pText.get()), nSize * 2);
-        assert(nStringSize % 2 == 0);
-        nStringSize /= 2;
-        if (nStringSize > 0)
-        {
-#if defined OSL_BIGENDIAN
-            for (unsigned long i = 0; i != nStringSize; ++i)
-            {
-                pText[i] = OSL_SWAPWORD(pText[i]);
-            }
-#endif
-            aString = OUString(pText.get());
-        }
-    }
-    return aString;
+    auto* pDocImpl = static_cast<PDFiumDocumentImpl*>(pDoc);
+    return getUnicodeString([this, pDocImpl](FPDF_WCHAR* buffer, unsigned long length) {
+        return FPDFAnnot_GetFormFieldValue(pDocImpl->getFormHandlePointer(), mpAnnotation, buffer,
+                                           length);
+    });
+}
+int PDFiumAnnotationImpl::getOptionCount(PDFiumDocument* pDoc)
+{
+    auto* pDocImpl = static_cast<PDFiumDocumentImpl*>(pDoc);
+    return FPDFAnnot_GetOptionCount(pDocImpl->getFormHandlePointer(), mpAnnotation);
 }
 
 OUString PDFiumAnnotationImpl::getFormAdditionalActionJavaScript(PDFiumDocument* pDoc,
                                                                  PDFAnnotAActionType eEvent)
 {
-    auto pDocImpl = static_cast<PDFiumDocumentImpl*>(pDoc);
-    OUString aString;
-    unsigned long nSize = FPDFAnnot_GetFormAdditionalActionJavaScript(
-        pDocImpl->getFormHandlePointer(), mpAnnotation, static_cast<int>(eEvent), nullptr, 0);
-    assert(nSize % 2 == 0);
-    nSize /= 2;
-    if (nSize > 1)
-    {
-        std::unique_ptr<sal_Unicode[]> pText(new sal_Unicode[nSize]);
-        unsigned long nStringSize = FPDFAnnot_GetFormAdditionalActionJavaScript(
-            pDocImpl->getFormHandlePointer(), mpAnnotation, static_cast<int>(eEvent),
-            reinterpret_cast<FPDF_WCHAR*>(pText.get()), nSize * 2);
-        assert(nStringSize % 2 == 0);
-        nStringSize /= 2;
-        if (nStringSize > 0)
-        {
-#if defined OSL_BIGENDIAN
-            for (unsigned long i = 0; i != nStringSize; ++i)
-            {
-                pText[i] = OSL_SWAPWORD(pText[i]);
-            }
-#endif
-            aString = OUString(pText.get());
-        }
-    }
-    return aString;
+    auto* pDocImpl = static_cast<PDFiumDocumentImpl*>(pDoc);
+    return getUnicodeString([this, pDocImpl, eEvent](FPDF_WCHAR* buffer, unsigned long length) {
+        return FPDFAnnot_GetFormAdditionalActionJavaScript(pDocImpl->getFormHandlePointer(),
+                                                           mpAnnotation, static_cast<int>(eEvent),
+                                                           buffer, length);
+    });
 }
 
 namespace
@@ -1362,30 +1477,9 @@ PDFObjectType PDFiumAnnotationImpl::getValueType(OString const& rKey)
 
 OUString PDFiumAnnotationImpl::getString(OString const& rKey)
 {
-    OUString rString;
-    unsigned long nSize = FPDFAnnot_GetStringValue(mpAnnotation, rKey.getStr(), nullptr, 0);
-    assert(nSize % 2 == 0);
-    nSize /= 2;
-    if (nSize > 1)
-    {
-        std::unique_ptr<sal_Unicode[]> pText(new sal_Unicode[nSize]);
-        unsigned long nStringSize = FPDFAnnot_GetStringValue(
-            mpAnnotation, rKey.getStr(), reinterpret_cast<FPDF_WCHAR*>(pText.get()), nSize * 2);
-        assert(nStringSize % 2 == 0);
-        nStringSize /= 2;
-        if (nStringSize > 0)
-        {
-#if defined OSL_BIGENDIAN
-            // The data returned by FPDFAnnot_GetStringValue is documented to always be UTF-16LE:
-            for (unsigned long i = 0; i != nStringSize; ++i)
-            {
-                pText[i] = OSL_SWAPWORD(pText[i]);
-            }
-#endif
-            rString = OUString(pText.get());
-        }
-    }
-    return rString;
+    return getUnicodeString([this, rKey](FPDF_WCHAR* buffer, unsigned long length) {
+        return FPDFAnnot_GetStringValue(mpAnnotation, rKey.getStr(), buffer, length);
+    });
 }
 
 std::vector<std::vector<basegfx::B2DPoint>> PDFiumAnnotationImpl::getInkStrokes()

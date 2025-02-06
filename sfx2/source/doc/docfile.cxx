@@ -133,6 +133,7 @@
 #include <sfx2/viewfrm.hxx>
 #include <comphelper/threadpool.hxx>
 #include <o3tl/string_view.hxx>
+#include <svl/cryptosign.hxx>
 #include <condition_variable>
 
 #include <com/sun/star/io/WrongFormatException.hpp>
@@ -3958,6 +3959,10 @@ void SfxMedium::SaveVersionList_Impl()
 
 bool SfxMedium::IsReadOnly() const
 {
+    // Application-wide read-only mode first
+    if (officecfg::Office::Common::Misc::ViewerAppMode::get())
+        return true;
+
     // a) ReadOnly filter can't produce read/write contents!
     bool bReadOnly = pImpl->m_pFilter && (pImpl->m_pFilter->GetFilterFlags() & SfxFilterFlags::OPENREADONLY);
 
@@ -4173,7 +4178,7 @@ void SfxMedium::CreateTempFileNoCopy()
 
 bool SfxMedium::SignDocumentContentUsingCertificate(
     const css::uno::Reference<css::frame::XModel>& xModel, bool bHasValidDocumentSignature,
-    const Reference<XCertificate>& xCertificate)
+    svl::crypto::SigningContext& rSigningContext)
 {
     bool bChanges = false;
 
@@ -4241,7 +4246,7 @@ bool SfxMedium::SignDocumentContentUsingCertificate(
                     xStream.set(xMetaInf->openStreamElement(xSigner->getDocumentContentSignatureDefaultStreamName(), embed::ElementModes::READWRITE), uno::UNO_SET_THROW);
 
                 bool bSuccess = xModelSigner->SignModelWithCertificate(
-                    xModel, xCertificate, GetZipStorageToSign_Impl(), xStream);
+                    xModel, rSigningContext, GetZipStorageToSign_Impl(), xStream);
 
                 if (bSuccess)
                 {
@@ -4262,7 +4267,7 @@ bool SfxMedium::SignDocumentContentUsingCertificate(
 
                     // We need read-write to be able to add the signature relation.
                 bool bSuccess = xModelSigner->SignModelWithCertificate(
-                    xModel, xCertificate, GetZipStorageToSign_Impl(/*bReadOnly=*/false), xStream);
+                    xModel, rSigningContext, GetZipStorageToSign_Impl(/*bReadOnly=*/false), xStream);
 
                 if (bSuccess)
                 {
@@ -4280,7 +4285,7 @@ bool SfxMedium::SignDocumentContentUsingCertificate(
                 std::unique_ptr<SvStream> pStream(utl::UcbStreamHelper::CreateStream(GetName(), StreamMode::READ | StreamMode::WRITE));
                 uno::Reference<io::XStream> xStream(new utl::OStreamWrapper(*pStream));
                 if (xModelSigner->SignModelWithCertificate(
-                        xModel, xCertificate, uno::Reference<embed::XStorage>(), xStream))
+                        xModel, rSigningContext, uno::Reference<embed::XStorage>(), xStream))
                     bChanges = true;
             }
         }
@@ -4298,9 +4303,11 @@ bool SfxMedium::SignDocumentContentUsingCertificate(
 }
 
 // note: this is the only function creating scripting signature
-bool SfxMedium::SignContents_Impl(weld::Window* pDialogParent,
+void SfxMedium::SignContents_Impl(weld::Window* pDialogParent,
                                   bool bSignScriptingContent,
                                   bool bHasValidDocumentSignature,
+                                  SfxViewShell* pViewShell,
+                                  const std::function<void(bool)>& rCallback,
                                   const OUString& aSignatureLineId,
                                   const Reference<XCertificate>& xCert,
                                   const Reference<XGraphic>& xValidGraphic,
@@ -4312,7 +4319,8 @@ bool SfxMedium::SignContents_Impl(weld::Window* pDialogParent,
     if (IsOpen() || GetErrorIgnoreWarning())
     {
         SAL_WARN("sfx.doc", "The medium must be closed by the signer!");
-        return bChanges;
+        rCallback(bChanges);
+        return;
     }
 
     // The component should know if there was a valid document signature, since
@@ -4329,6 +4337,14 @@ bool SfxMedium::SignContents_Impl(weld::Window* pDialogParent,
     // we can reuse the temporary file if there is one already
     CreateTempFile( false );
     GetMedium_Impl();
+
+    auto onSignDocumentContentFinished = [this, rCallback](bool bRet) {
+        CloseAndRelease();
+
+        ResetError();
+
+        rCallback(bRet);
+    };
 
     try
     {
@@ -4372,6 +4388,8 @@ bool SfxMedium::SignContents_Impl(weld::Window* pDialogParent,
                 throw uno::RuntimeException();
         }
 
+        auto xModelSigner = dynamic_cast<sfx2::DigitalSignatures*>(xSigner.get());
+        assert(xModelSigner);
         if ( bSignScriptingContent )
         {
             // If the signature has already the document signature it will be removed
@@ -4385,8 +4403,10 @@ bool SfxMedium::SignContents_Impl(weld::Window* pDialogParent,
             // xWriteableZipStor because a writable storage can't have 2
             // instances of sub-storage for the same directory open, but with
             // independent storages it somehow works
-            if (xSigner->signScriptingContent(GetScriptingStorageToSign_Impl(), xStream))
-            {
+            xModelSigner->SignScriptingContentAsync(
+                GetScriptingStorageToSign_Impl(), xStream,
+                [this, xSigner, xMetaInf, xWriteableZipStor,
+                 onSignDocumentContentFinished](bool bRet) {
                 // remove the document signature if any
                 OUString aDocSigName = xSigner->getDocumentContentSignatureDefaultStreamName();
                 if ( !aDocSigName.isEmpty() && xMetaInf->hasByName( aDocSigName ) )
@@ -4413,29 +4433,48 @@ bool SfxMedium::SignContents_Impl(weld::Window* pDialogParent,
                     || !uno::Reference<util::XModifiable>(pImpl->xStorage, uno::UNO_QUERY_THROW)->isModified());
                 // the temporary file has been written, commit it to the original file
                 Commit();
-                bChanges = true;
-            }
+                onSignDocumentContentFinished(bRet);
+            });
+            return;
         }
         else
         {
+            // Signing the entire document.
             if (xMetaInf.is())
             {
                 // ODF.
                 uno::Reference< io::XStream > xStream;
+                uno::Reference< io::XStream > xScriptingStream;
                 if (GetFilter() && GetFilter()->IsOwnFormat())
+                {
+                    bool bImplicitScriptSign = officecfg::Office::Common::Security::Scripting::ImplicitScriptSign::get();
+                    if (comphelper::LibreOfficeKit::isActive())
+                    {
+                        bImplicitScriptSign = true;
+                    }
+
+                    OUString aDocSigName = xSigner->getDocumentContentSignatureDefaultStreamName();
+                    bool bHasSignatures = xMetaInf->hasByName(aDocSigName);
+
+                    // C.f. DocumentSignatureHelper::CreateElementList() for the
+                    // DocumentSignatureMode::Macros case.
+                    bool bHasMacros = xWriteableZipStor->hasByName(u"Basic"_ustr)
+                                      || xWriteableZipStor->hasByName(u"Dialogs"_ustr)
+                                      || xWriteableZipStor->hasByName(u"Scripts"_ustr);
+
                     xStream.set(xMetaInf->openStreamElement(xSigner->getDocumentContentSignatureDefaultStreamName(), embed::ElementModes::READWRITE), uno::UNO_SET_THROW);
+                    if (bImplicitScriptSign && bHasMacros && !bHasSignatures)
+                    {
+                        xScriptingStream.set(
+                            xMetaInf->openStreamElement(
+                                xSigner->getScriptingContentSignatureDefaultStreamName(),
+                                embed::ElementModes::READWRITE),
+                            uno::UNO_SET_THROW);
+                    }
+                }
 
                 bool bSuccess = false;
-                if (xCert.is())
-                    bSuccess = xSigner->signSignatureLine(
-                        GetZipStorageToSign_Impl(), xStream, aSignatureLineId, xCert,
-                        xValidGraphic, xInvalidGraphic, aComment);
-                else
-                    bSuccess = xSigner->signDocumentContent(GetZipStorageToSign_Impl(),
-                                                            xStream);
-
-                if (bSuccess)
-                {
+                auto onODFSignDocumentContentFinished = [this, xMetaInf, xWriteableZipStor]() {
                     uno::Reference< embed::XTransactedObject > xTransact( xMetaInf, uno::UNO_QUERY_THROW );
                     xTransact->commit();
                     xTransact.set( xWriteableZipStor, uno::UNO_QUERY_THROW );
@@ -4443,6 +4482,34 @@ bool SfxMedium::SignContents_Impl(weld::Window* pDialogParent,
 
                     // the temporary file has been written, commit it to the original file
                     Commit();
+                };
+                if (xCert.is())
+                    bSuccess = xSigner->signSignatureLine(
+                        GetZipStorageToSign_Impl(), xStream, aSignatureLineId, xCert,
+                        xValidGraphic, xInvalidGraphic, aComment);
+                else
+                {
+                    if (xScriptingStream.is())
+                    {
+                        xModelSigner->SetSignScriptingContent(xScriptingStream);
+                    }
+
+                    // Async, all code before return has to go into the callback.
+                    xModelSigner->SignDocumentContentAsync(GetZipStorageToSign_Impl(),
+                                                            xStream, pViewShell, [onODFSignDocumentContentFinished, onSignDocumentContentFinished](bool bRet) {
+                        if (bRet)
+                        {
+                            onODFSignDocumentContentFinished();
+                        }
+
+                        onSignDocumentContentFinished(bRet);
+                    });
+                    return;
+                }
+
+                if (bSuccess)
+                {
+                    onODFSignDocumentContentFinished();
                     bChanges = true;
                 }
             }
@@ -4451,6 +4518,13 @@ bool SfxMedium::SignContents_Impl(weld::Window* pDialogParent,
                 // OOXML.
                 uno::Reference<io::XStream> xStream;
 
+                auto onOOXMLSignDocumentContentFinished = [this, xWriteableZipStor]() {
+                    uno::Reference<embed::XTransactedObject> xTransact(xWriteableZipStor, uno::UNO_QUERY_THROW);
+                    xTransact->commit();
+
+                    // the temporary file has been written, commit it to the original file
+                    Commit();
+                };
                 bool bSuccess = false;
                 if (xCert.is())
                 {
@@ -4461,17 +4535,21 @@ bool SfxMedium::SignContents_Impl(weld::Window* pDialogParent,
                 else
                 {
                     // We need read-write to be able to add the signature relation.
-                    bSuccess =xSigner->signDocumentContent(
-                        GetZipStorageToSign_Impl(/*bReadOnly=*/false), xStream);
+                    xModelSigner->SignDocumentContentAsync(
+                        GetZipStorageToSign_Impl(/*bReadOnly=*/false), xStream, pViewShell, [onOOXMLSignDocumentContentFinished, onSignDocumentContentFinished](bool bRet) {
+                        if (bRet)
+                        {
+                            onOOXMLSignDocumentContentFinished();
+                        }
+
+                        onSignDocumentContentFinished(bRet);
+                    });
+                    return;
                 }
 
                 if (bSuccess)
                 {
-                    uno::Reference<embed::XTransactedObject> xTransact(xWriteableZipStor, uno::UNO_QUERY_THROW);
-                    xTransact->commit();
-
-                    // the temporary file has been written, commit it to the original file
-                    Commit();
+                    onOOXMLSignDocumentContentFinished();
                     bChanges = true;
                 }
             }
@@ -4479,9 +4557,11 @@ bool SfxMedium::SignContents_Impl(weld::Window* pDialogParent,
             {
                 // Something not ZIP based: e.g. PDF.
                 std::unique_ptr<SvStream> pStream(utl::UcbStreamHelper::CreateStream(GetName(), StreamMode::READ | StreamMode::WRITE));
-                uno::Reference<io::XStream> xStream(new utl::OStreamWrapper(*pStream));
-                if (xSigner->signDocumentContent(uno::Reference<embed::XStorage>(), xStream))
-                    bChanges = true;
+                uno::Reference<io::XStream> xStream(new utl::OStreamWrapper(std::move(pStream)));
+                xModelSigner->SignDocumentContentAsync(uno::Reference<embed::XStorage>(), xStream, pViewShell, [onSignDocumentContentFinished](bool bRet) {
+                    onSignDocumentContentFinished(bRet);
+                });
+                return;
             }
         }
     }
@@ -4490,11 +4570,7 @@ bool SfxMedium::SignContents_Impl(weld::Window* pDialogParent,
         TOOLS_WARN_EXCEPTION("sfx.doc", "Couldn't use signing functionality!");
     }
 
-    CloseAndRelease();
-
-    ResetError();
-
-    return bChanges;
+    onSignDocumentContentFinished(bChanges);
 }
 
 

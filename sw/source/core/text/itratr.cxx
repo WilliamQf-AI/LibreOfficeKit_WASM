@@ -32,6 +32,7 @@
 #include <fmtflcnt.hxx>
 #include <fmtcntnt.hxx>
 #include <fmtftn.hxx>
+#include <fmtpdsc.hxx>
 #include <frmatr.hxx>
 #include <frmfmt.hxx>
 #include <fmtfld.hxx>
@@ -1480,6 +1481,11 @@ std::vector<SwFlyAtContentFrame*> SwTextFrame::GetSplitFlyDrawObjs() const
     return aObjs;
 }
 
+bool SwTextFrame::HasSplitFlyDrawObjs() const
+{
+    return !GetSplitFlyDrawObjs().empty();
+}
+
 SwFlyAtContentFrame* SwTextFrame::HasNonLastSplitFlyDrawObj() const
 {
     const SwTextFrame* pFollow = GetFollow();
@@ -1553,12 +1559,16 @@ bool SwTextFrame::IsEmptyWithSplitFly() const
         return false;
     }
 
-    if (GetTextNodeFirst()->GetSwAttrSet().HasItem(RES_PAGEDESC))
+    if (SvxBreak const eBreak = GetBreakItem().GetBreak();
+           eBreak == SvxBreak::ColumnBefore || eBreak == SvxBreak::ColumnBoth
+        || eBreak == SvxBreak::PageBefore || eBreak == SvxBreak::PageBoth
+        || GetPageDescItem().GetPageDesc() != nullptr)
     {
         return false;
     }
 
-    if (getFrameArea().Bottom() <= GetUpper()->getFramePrintArea().Bottom())
+    SwRectFnSet fnUpper(GetUpper());
+    if (fnUpper.YDiff(fnUpper.GetBottom(getFrameArea()), fnUpper.GetPrtBottom(*GetUpper())) <= 0)
     {
         return false;
     }

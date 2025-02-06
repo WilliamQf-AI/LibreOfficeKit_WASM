@@ -451,7 +451,8 @@ class XFillGradientItem;
 #define SID_ATTR_TEXTCOLUMNS_NUMBER                     ( SID_SVX_START + 340 )
 #define SID_ATTR_TEXTCOLUMNS_SPACING                    ( SID_SVX_START + 341 )
 
-// FREE                                                 ( SID_SVX_START + 342 )
+#define SID_ADD_TO_WORDBOOK                             ( SID_SVX_START + 342 )
+
 // FREE                                                 ( SID_SVX_START + 343 )
 // FREE                                                 ( SID_SVX_START + 344 )
 // FREE                                                 ( SID_SVX_START + 345 )
@@ -1058,8 +1059,10 @@ class XFillGradientItem;
 #define SID_CHAR_DLG_FOR_PARAGRAPH                      ( SID_SVX_START + 1210 )
 #define SID_SET_DOCUMENT_LANGUAGE                       TypedWhichId<SfxBoolItem>( SID_SVX_START + 1211 )
 
+#define SID_ATTR_POSTIT_HTML                            TypedWhichId<SvxPostItTextItem>( SID_SVX_START + 1212 )
+
 // IMPORTANT NOTE: adjust SID_SVX_FIRSTFREE, when adding new slot id
-#define SID_SVX_FIRSTFREE                               ( SID_SVX_START + 1211 + 1 )
+#define SID_SVX_FIRSTFREE                               ( SID_SVX_START + 1212 + 1 )
 
 
 // Overflow check for slot IDs

@@ -31,6 +31,7 @@
 #include <svx/svdtypes.hxx>
 #include <svx/svdobjkind.hxx>
 #include <svx/svxdllapi.h>
+#include <svx/UniqueID.hxx>
 #include <tools/link.hxx>
 #include <tools/gen.hxx>
 #include <unotools/resmgr.hxx>
@@ -51,6 +52,7 @@ class SdrItemPool;
 class SdrModel;
 class SdrObjList;
 class SdrObject;
+class SdrOle2Obj;
 class SdrPage;
 class SdrPageView;
 class SdrTextObj;
@@ -298,6 +300,8 @@ public:
     virtual void SAL_CALL acquire() noexcept override final;
     virtual void SAL_CALL release() noexcept override final;
 
+    sal_uInt64 GetUniqueID() const { return maUniqueID.getID(); }
+
     // SdrModel/SdrPage access on SdrObject level
     SdrPage* getSdrPageFromSdrObject() const;
     SdrModel& getSdrModelFromSdrObject() const;
@@ -396,6 +400,10 @@ public:
     /// SdrObjects in the SdrObjList.
     sal_uInt32 GetOrdNum() const;
 
+    /// Ensure this object is sorted immediatedly after rFirst
+    /// ie. rFirst.GetOrdNum() + 1 == this->GetOrdNum()
+    void ensureSortedImmediatelyAfter(const SdrObject& rFirst);
+
     // setting the order number should only happen from the model or from the page
     void SetOrdNum(sal_uInt32 nNum);
 
@@ -429,7 +437,7 @@ public:
 
     void BroadcastObjectChange() const;
 
-    const SfxBroadcaster* GetBroadcaster() const;
+    SfxBroadcaster* GetBroadcaster() const;
 
     // set modified-flag in the model
     virtual void SetChanged();
@@ -764,6 +772,7 @@ public:
     void SetMarkProtect(bool bProt);
     bool IsMarkProtect() const { return m_bMarkProt;}
     virtual bool IsSdrTextObj() const { return false; }
+    virtual bool IsSdrOle2Obj() const { return false; }
     virtual bool IsTextPath() const { return false ; }
 
     /// Whether the aspect ratio should be kept by default when resizing.
@@ -964,6 +973,7 @@ private:
     std::unique_ptr<Impl>             mpImpl;
     SdrObjList*                       mpParentOfSdrObject;     // list that includes this object
     sal_uInt32                        m_nOrdNum;      // order number of the object in the list
+    class UniqueID                          maUniqueID;
     std::unique_ptr<SfxGrabBagItem>   m_pGrabBagItem; // holds the GrabBagItem property
     // Position in the navigation order. SAL_MAX_UINT32 when not used.
     sal_uInt32                        mnNavigationPosition;
@@ -1003,6 +1013,8 @@ SVXCORE_DLLPUBLIC E3dObject* DynCastE3dObject(SdrObject*);
 inline const E3dObject* DynCastE3dObject(const SdrObject* p) { return DynCastE3dObject(const_cast<SdrObject*>(p)); }
 SVXCORE_DLLPUBLIC SdrTextObj* DynCastSdrTextObj(SdrObject*);
 inline const SdrTextObj* DynCastSdrTextObj(const SdrObject* p) { return DynCastSdrTextObj(const_cast<SdrObject*>(p)); }
+SVXCORE_DLLPUBLIC SdrOle2Obj* DynCastSdrOle2Obj(SdrObject*);
+inline const SdrOle2Obj* DynCastSdrOle2Obj(const SdrObject* p) { return DynCastSdrOle2Obj(const_cast<SdrObject*>(p)); }
 
 
 struct SdrObjCreatorParams

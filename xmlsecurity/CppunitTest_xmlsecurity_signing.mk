@@ -22,10 +22,12 @@ $(eval $(call gb_CppunitTest_use_libraries,xmlsecurity_signing, \
 	sal \
 	sax \
 	sfx \
+	svl \
 	svx \
 	subsequenttest \
 	test \
 	tl \
+	ucbhelper \
 	unotest \
 	utl \
 	vcl \

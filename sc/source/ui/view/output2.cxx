@@ -74,6 +74,7 @@
 #include <stlsheet.hxx>
 #include <spellcheckcontext.hxx>
 #include <scopetools.hxx>
+#include <tabvwsh.hxx>
 
 #include <com/sun/star/i18n/DirectionProperty.hpp>
 #include <comphelper/scopeguard.hxx>
@@ -577,8 +578,17 @@ void ScDrawStringsVars::RepeatToFill( tools::Long nColWidth )
     if ( nRepeatPos == -1 || nRepeatPos > aString.getLength() )
         return;
 
-    tools::Long nCharWidth = GetFmtTextWidth(OUString(nRepeatChar));
+    // Measuring a string containing a single copy of the repeat char is inaccurate.
+    // To increase accuracy, start with a representative sample of a padding sequence.
+    constexpr sal_Int32 nSampleSize = 20;
+    OUStringBuffer aFill(nSampleSize);
+    comphelper::string::padToLength(aFill, nSampleSize, nRepeatChar);
 
+    tools::Long nSampleWidth = GetFmtTextWidth(aFill.makeStringAndClear());
+    double nAvgCharWidth = static_cast<double>(nSampleWidth) / static_cast<double>(nSampleSize);
+
+    // Intentionally truncate to round toward zero
+    auto nCharWidth = static_cast<tools::Long>(nAvgCharWidth);
     if ( nCharWidth < 1 || (bPixelToLogic && nCharWidth < pOutput->mpRefDevice->PixelToLogic(Size(1,0)).Width()) )
         return;
 
@@ -594,8 +604,9 @@ void ScDrawStringsVars::RepeatToFill( tools::Long nColWidth )
     if ( nSpaceToFill <= nCharWidth )
         return;
 
-    sal_Int32 nCharsToInsert = nSpaceToFill / nCharWidth;
-    OUStringBuffer aFill(nCharsToInsert);
+    // Intentionally truncate to round toward zero
+    auto nCharsToInsert = static_cast<sal_Int32>(static_cast<double>(nSpaceToFill) / nAvgCharWidth);
+    aFill.ensureCapacity(nCharsToInsert);
     comphelper::string::padToLength(aFill, nCharsToInsert, nRepeatChar);
     aString = aString.replaceAt( nRepeatPos, 0, aFill );
     TextChanged();
@@ -2484,6 +2495,13 @@ bool ScOutputData::DrawEditParam::readCellContent(
     return true;
 }
 
+static Color GetConfBackgroundColor()
+{
+    if (const ScTabViewShell* pTabViewShellBg = ScTabViewShell::GetActiveViewShell())
+        return pTabViewShellBg->GetViewRenderingData().GetDocColor();
+    return SC_MOD()->GetColorConfig().GetColorValue(svtools::DOCCOLOR).nColor;
+}
+
 void ScOutputData::DrawEditParam::setPatternToEngine(bool bUseStyleColor)
 {
     // syntax highlighting mode is ignored here
@@ -2492,7 +2510,7 @@ void ScOutputData::DrawEditParam::setPatternToEngine(bool bUseStyleColor)
     if (SfxPoolItem::areSame(mpPattern, mpOldPattern) && mpCondSet == mpOldCondSet && mpPreviewFontSet == mpOldPreviewFontSet )
         return;
 
-    Color nConfBackColor = SC_MOD()->GetColorConfig().GetColorValue(svtools::DOCCOLOR).nColor;
+    Color nConfBackColor = GetConfBackgroundColor();
     bool bCellContrast = bUseStyleColor &&
             Application::GetSettings().GetStyleSettings().GetHighContrastMode();
 
@@ -3069,8 +3087,8 @@ void ScOutputData::DrawEditStandard(DrawEditParam& rParam)
             }
         }
 
-
-        if ( rParam.mbCellIsValue && ( aAreaParam.mbLeftClip || aAreaParam.mbRightClip ) )
+        if (rParam.mnX >= nX1 && rParam.mbCellIsValue
+            && (aAreaParam.mbLeftClip || aAreaParam.mbRightClip))
         {
             SetEngineTextAndGetWidth( rParam, "###", nNeededPixel, ( nLeftM + nRightM ) );
             tools::Long nLayoutSign = bLayoutRTL ? -1 : 1;
@@ -4581,8 +4599,7 @@ void ScOutputData::DrawRotated(bool bPixelToLogic)
         if (pRowInfo[nRotY].nRotMaxCol != SC_ROTMAX_NONE && pRowInfo[nRotY].nRotMaxCol > nRotMax)
             nRotMax = pRowInfo[nRotY].nRotMaxCol;
 
-    ScModule* pScMod = SC_MOD();
-    Color nConfBackColor = pScMod->GetColorConfig().GetColorValue(svtools::DOCCOLOR).nColor;
+    Color nConfBackColor = GetConfBackgroundColor();
     bool bCellContrast = mbUseStyleColor &&
             Application::GetSettings().GetStyleSettings().GetHighContrastMode();
 

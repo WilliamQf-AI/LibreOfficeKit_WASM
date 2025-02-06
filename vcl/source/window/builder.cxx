@@ -191,6 +191,8 @@ std::unique_ptr<weld::Builder> Application::CreateBuilder(weld::Widget* pParent,
             return JSInstanceBuilder::CreateSidebarBuilder(pParent, AllSettings::GetUIRootDir(), rUIFile, nLOKWindowId);
         else if (jsdialog::isBuilderEnabledForPopup(rUIFile))
             return JSInstanceBuilder::CreatePopupBuilder(pParent, AllSettings::GetUIRootDir(), rUIFile);
+        else if (jsdialog::isBuilderEnabledForMenu(rUIFile))
+            return JSInstanceBuilder::CreateMenuBuilder(pParent, AllSettings::GetUIRootDir(), rUIFile);
         else if (jsdialog::isBuilderEnabled(rUIFile, bMobile))
             return JSInstanceBuilder::CreateDialogBuilder(pParent, AllSettings::GetUIRootDir(), rUIFile);
     }
@@ -205,8 +207,12 @@ std::unique_ptr<weld::Builder> Application::CreateInterimBuilder(vcl::Window* pP
         // Notebookbar sub controls
         if (jsdialog::isInterimBuilderEnabledForNotebookbar(rUIFile))
             return JSInstanceBuilder::CreateNotebookbarBuilder(pParent, AllSettings::GetUIRootDir(), rUIFile, css::uno::Reference<css::frame::XFrame>(), nLOKWindowId);
-        else if (rUIFile == u"modules/scalc/ui/inputbar.ui")
-            return JSInstanceBuilder::CreateFormulabarBuilder(pParent, AllSettings::GetUIRootDir(), rUIFile, nLOKWindowId);
+        else if (jsdialog::isBuilderEnabledForFormulabar(rUIFile))
+            return JSInstanceBuilder::CreateFormulabarBuilder(pParent, AllSettings::GetUIRootDir(),
+                                                              rUIFile, nLOKWindowId);
+        else if (jsdialog::isBuilderEnabledForAddressInput(rUIFile))
+            return JSInstanceBuilder::CreateAddressInputBuilder(
+                pParent, AllSettings::GetUIRootDir(), rUIFile, nLOKWindowId);
     }
 
     return ImplGetSVData()->mpDefInst->CreateInterimBuilder(pParent, AllSettings::GetUIRootDir(), rUIFile, bAllowCycleFocusOut, nLOKWindowId);

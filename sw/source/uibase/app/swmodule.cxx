@@ -130,6 +130,7 @@ SwModule::SwModule( SfxObjectFactory* pWebFact,
                     SfxObjectFactory* pGlobalFact )
     : SfxModule("sw"_ostr, {pWebFact, pFact, pGlobalFact}),
     m_pView(nullptr),
+    m_eCTLTextNumerals(SvtCTLOptions::GetCTLTextNumerals()),
     m_bAuthorInitialised(false),
     m_bEmbeddedLoadSave( false ),
     m_pDragDrop( nullptr ),
@@ -310,9 +311,7 @@ void SwDLL::RegisterControls()
     SwInsertAuthMarkWrapper::RegisterChildWindow( false, pMod );
     SwWordCountWrapper::RegisterChildWindow( false, pMod );
     SvxRubyChildWindow::RegisterChildWindow( false, pMod);
-    SwSpellDialogChildWindow::RegisterChildWindow(
-        false, pMod, comphelper::LibreOfficeKit::isActive() ? SfxChildWindowFlags::NEVERCLONE
-                                                            : SfxChildWindowFlags::NONE);
+    SwSpellDialogChildWindow::RegisterChildWindow(false, pMod);
     DevelopmentToolChildWindow::RegisterChildWindow(false, pMod);
 
     SvxGrafRedToolBoxControl::RegisterControl( SID_ATTR_GRAF_RED, pMod );

@@ -1043,6 +1043,7 @@ SfxVoidItem EditGlossary FN_GLOSSARY_DLG
     AutoUpdate = FALSE,
     FastCall = FALSE,
     ReadOnlyDoc = TRUE,
+    ViewerApp = FALSE,
     Toggle = FALSE,
     Container = FALSE,
     RecordAbsolute = FALSE,
@@ -2519,7 +2520,10 @@ SfxVoidItem IndexMarkToIndex FN_IDX_MARK_TO_IDX
 ]
 
 SfxVoidItem InsertAnnotation FN_POSTIT
-(SvxPostItTextItem Text SID_ATTR_POSTIT_TEXT,SvxPostItAuthorItem Author SID_ATTR_POSTIT_AUTHOR,SvxPostItDateItem Date SID_ATTR_POSTIT_DATE)
+(SvxPostItTextItem Text SID_ATTR_POSTIT_TEXT,
+ SvxPostItTextItem Html SID_ATTR_POSTIT_HTML,
+ SvxPostItAuthorItem Author SID_ATTR_POSTIT_AUTHOR,
+ SvxPostItDateItem Date SID_ATTR_POSTIT_DATE)
 [
     AutoUpdate = FALSE,
     FastCall = FALSE,
@@ -2636,6 +2640,20 @@ SfxVoidItem DeleteBookmarks FN_DELETE_BOOKMARKS
 
 SfxVoidItem DeleteSections FN_DELETE_SECTIONS
 (SfxStringItem SectionNamePrefix FN_PARAM_1)
+[
+    AutoUpdate = FALSE,
+    FastCall = FALSE,
+    ReadOnlyDoc = FALSE,
+    Toggle = FALSE,
+    Container = FALSE,
+    RecordAbsolute = FALSE,
+    RecordPerSet;
+
+    GroupId = SfxGroupId::Controls;
+]
+
+SfxVoidItem DeleteContentControl FN_DELETE_CONTENT_CONTROL
+
 [
     AutoUpdate = FALSE,
     FastCall = FALSE,
@@ -3336,6 +3354,23 @@ SfxVoidItem ContentControlProperties FN_CONTENT_CONTROL_PROPERTIES
     MenuConfig = TRUE,
     ToolBoxConfig = TRUE,
     GroupId = SfxGroupId::Insert;
+]
+
+SfxVoidItem TransformDocumentStructure FN_TRANSFORM_DOCUMENT_STRUCTURE
+(SfxStringItem DataJson FN_PARAM_1)
+[
+    AutoUpdate = FALSE,
+    FastCall = FALSE,
+    ReadOnlyDoc = FALSE,
+    Toggle = FALSE,
+    Container = FALSE,
+    RecordAbsolute = FALSE,
+    RecordPerSet;
+
+    AccelConfig = TRUE,
+    MenuConfig = TRUE,
+    ToolBoxConfig = TRUE,
+    GroupId = SfxGroupId::Edit;
 ]
 
 SfxVoidItem InsertMultiIndex FN_INSERT_MULTI_TOX
@@ -4144,7 +4179,7 @@ SfxBoolItem HighlightCharDF FN_HIGHLIGHT_CHAR_DF
 [
     AutoUpdate = TRUE,
     FastCall = FALSE,
-    ReadOnlyDoc = TRUE,
+    ReadOnlyDoc = FALSE,
     Toggle = TRUE,
     Container = FALSE,
     RecordAbsolute = FALSE,
@@ -4656,6 +4691,7 @@ SfxVoidItem NewGlobalDoc FN_NEW_GLOBAL_DOC
     AutoUpdate = FALSE,
     FastCall = FALSE,
     ReadOnlyDoc = TRUE,
+    ViewerApp = FALSE,
     Toggle = FALSE,
     Container = FALSE,
     RecordAbsolute = FALSE,
@@ -4673,6 +4709,7 @@ SfxVoidItem NewHtmlDoc FN_NEW_HTML_DOC
     AutoUpdate = FALSE,
     FastCall = FALSE,
     ReadOnlyDoc = TRUE,
+    ViewerApp = FALSE,
     Toggle = FALSE,
     Container = FALSE,
     RecordAbsolute = FALSE,
@@ -5332,7 +5369,7 @@ SfxVoidItem Repaginate FN_REPAGINATE
 [
     AutoUpdate = FALSE,
     FastCall = TRUE,
-    ReadOnlyDoc = TRUE,
+    ReadOnlyDoc = FALSE,
     Toggle = FALSE,
     Container = FALSE,
     RecordAbsolute = FALSE,
@@ -6478,7 +6515,7 @@ SfxBoolItem TableNumberRecognition FN_SET_MODOPT_TBLNUMFMT
 [
     AutoUpdate = FALSE,
     FastCall = FALSE,
-    ReadOnlyDoc = TRUE,
+    ReadOnlyDoc = FALSE,
     Toggle = FALSE,
     Container = FALSE,
     RecordAbsolute = FALSE,
@@ -7685,7 +7722,9 @@ SfxBoolItem SelectionModeDefault FN_SELECTION_MODE_DEFAULT
 ]
 
 SfxVoidItem ReplyComment FN_REPLY
-(SvxPostItIdItem Id SID_ATTR_POSTIT_ID,SvxPostItTextItem Text SID_ATTR_POSTIT_TEXT)
+(SvxPostItIdItem Id SID_ATTR_POSTIT_ID,
+ SvxPostItTextItem Text SID_ATTR_POSTIT_TEXT,
+ SvxPostItTextItem Html SID_ATTR_POSTIT_HTML)
 [
     AutoUpdate = FALSE,
     FastCall = FALSE,
@@ -7849,6 +7888,23 @@ SfxStringItem HideAuthor FN_HIDE_NOTE_AUTHOR ( SfxStringItem Author FN_HIDE_NOTE
     AccelConfig = FALSE,
     MenuConfig = FALSE,
     ToolBoxConfig = FALSE,
+    GroupId = SfxGroupId::Edit;
+]
+
+SfxVoidItem PromoteComment FN_PROMOTE_COMMENT
+(SvxPostItIdItem Id SID_ATTR_POSTIT_ID)
+[
+    AutoUpdate = FALSE,
+    FastCall = FALSE,
+    ReadOnlyDoc = FALSE,
+    Toggle = FALSE,
+    Container = FALSE,
+    RecordAbsolute = FALSE,
+    RecordPerSet;
+
+    AccelConfig = TRUE,
+    MenuConfig = TRUE,
+    ToolBoxConfig = TRUE,
     GroupId = SfxGroupId::Edit;
 ]
 

@@ -37,7 +37,8 @@ StringMap jsonToStringMap(const char* pJSON)
 
 void SendFullUpdate(const OUString& nWindowId, const OUString& rWidget)
 {
-    weld::Widget* pWidget = JSInstanceBuilder::FindWeldWidgetsMap(nWindowId, rWidget);
+    auto aWidgetMap = JSInstanceBuilder::Widgets().Find(nWindowId);
+    weld::Widget* pWidget = aWidgetMap ? aWidgetMap->Find(rWidget) : nullptr;
     if (auto pJSWidget = dynamic_cast<BaseJSWidget*>(pWidget))
         pJSWidget->sendFullUpdate();
 }
@@ -45,14 +46,16 @@ void SendFullUpdate(const OUString& nWindowId, const OUString& rWidget)
 void SendAction(const OUString& nWindowId, const OUString& rWidget,
                 std::unique_ptr<ActionDataMap> pData)
 {
-    weld::Widget* pWidget = JSInstanceBuilder::FindWeldWidgetsMap(nWindowId, rWidget);
+    auto aWidgetMap = JSInstanceBuilder::Widgets().Find(nWindowId);
+    weld::Widget* pWidget = aWidgetMap ? aWidgetMap->Find(rWidget) : nullptr;
     if (auto pJSWidget = dynamic_cast<BaseJSWidget*>(pWidget))
         pJSWidget->sendAction(std::move(pData));
 }
 
 bool ExecuteAction(const OUString& nWindowId, const OUString& rWidget, StringMap& rData)
 {
-    weld::Widget* pWidget = JSInstanceBuilder::FindWeldWidgetsMap(nWindowId, rWidget);
+    auto aWidgetMap = JSInstanceBuilder::Widgets().Find(nWindowId);
+    weld::Widget* pWidget = aWidgetMap ? aWidgetMap->Find(rWidget) : nullptr;
 
     OUString sControlType = rData["type"];
     OUString sAction = rData["cmd"];
@@ -63,7 +66,8 @@ bool ExecuteAction(const OUString& nWindowId, const OUString& rWidget, StringMap
         if (pWidget == nullptr || (pButton && !pButton->is_custom_handler_set()))
         {
             // welded wrapper not found - use response code instead
-            pWidget = JSInstanceBuilder::FindWeldWidgetsMap(nWindowId, "__DIALOG__");
+            auto aWindowMap = JSInstanceBuilder::Widgets().Find(nWindowId);
+            pWidget = aWindowMap ? aWindowMap->Find("__DIALOG__") : nullptr;
             sControlType = "dialog";
             sAction = "response";
         }
@@ -74,13 +78,47 @@ bool ExecuteAction(const OUString& nWindowId, const OUString& rWidget, StringMap
         }
     }
 
-    if (pWidget != nullptr)
+    if (pWidget == nullptr)
     {
+        // weld::Menu doesn't have base of weld::Widget
+        if (rWidget == "__MENU__")
+        {
+            weld::Menu* pMenu = JSInstanceBuilder::Menus().Find(nWindowId);
+            if (pMenu && sAction == "select")
+            {
+                LOKTrigger::trigger_activated(*pMenu, rData["data"]);
+                return true;
+            }
+        }
+        return false;
+    }
+    else
+    {
+        // shared actions
+
         if (sAction == "grab_focus")
         {
             pWidget->grab_focus();
             return true;
         }
+        else if (sAction == "render_entry")
+        {
+            auto pRenderer = dynamic_cast<OnDemandRenderingHandler*>(pWidget);
+            if (pRenderer)
+            {
+                // pos;dpix;dpiy
+                const OUString& sParams = rData["data"];
+                const OUString aPos = sParams.getToken(0, ';');
+                const OUString aDpiScaleX = sParams.getToken(1, ';');
+                const OUString aDpiScaleY = sParams.getToken(2, ';');
+
+                pRenderer->render_entry(o3tl::toInt32(aPos), o3tl::toInt32(aDpiScaleX),
+                                        o3tl::toInt32(aDpiScaleY));
+            }
+            return true;
+        }
+
+        // depends on type
 
         if (sControlType == "tabcontrol")
         {
@@ -127,22 +165,6 @@ bool ExecuteAction(const OUString& nWindowId, const OUString& rWidget, StringMap
                     else
                         pCombobox->set_entry_text(rData["data"]);
                     LOKTrigger::trigger_changed(*pCombobox);
-                    return true;
-                }
-                else if (sAction == "render_entry")
-                {
-                    auto pJSCombobox = dynamic_cast<JSComboBox*>(pWidget);
-                    if (pJSCombobox)
-                    {
-                        // pos;dpix;dpiy
-                        const OUString& sParams = rData["data"];
-                        const OUString aPos = sParams.getToken(0, ';');
-                        const OUString aDpiScaleX = sParams.getToken(1, ';');
-                        const OUString aDpiScaleY = sParams.getToken(2, ';');
-
-                        pJSCombobox->render_entry(o3tl::toInt32(aPos), o3tl::toInt32(aDpiScaleX),
-                                                  o3tl::toInt32(aDpiScaleY));
-                    }
                     return true;
                 }
             }
@@ -552,6 +574,29 @@ bool ExecuteAction(const OUString& nWindowId, const OUString& rWidget, StringMap
                 else if (sAction == "dragend")
                 {
                     pTreeView->drag_end();
+                    return true;
+                }
+                else if (sAction == "contextmenu")
+                {
+                    sal_Int32 nEntryAbsPos = o3tl::toInt32(rData["data"]);
+
+                    std::unique_ptr<weld::TreeIter> itEntry(pTreeView->make_iterator());
+                    if (pTreeView->get_iter_abs_pos(*itEntry, nEntryAbsPos))
+                    {
+                        // avoid negative coordinates and crash
+                        pTreeView->scroll_to_row(*itEntry);
+
+                        tools::Rectangle aRect = pTreeView->get_row_area(*itEntry);
+                        Point aPoint = aRect.Center();
+                        assert(aPoint.getX() >= 0 && aPoint.getY() >= 0);
+
+                        CommandEvent aCommand(aPoint, CommandEventId::ContextMenu);
+
+                        LOKTrigger::trigger_popup_menu(*pTreeView, aCommand);
+                    }
+                    else
+                        SAL_WARN("vcl", "No absolute position found for " << nEntryAbsPos
+                                                                          << " in treeview");
                     return true;
                 }
             }

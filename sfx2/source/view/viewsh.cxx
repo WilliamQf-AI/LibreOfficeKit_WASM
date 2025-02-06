@@ -47,6 +47,7 @@
 #include <com/sun/star/lang/XMultiServiceFactory.hpp>
 #include <com/sun/star/datatransfer/clipboard/XClipboardListener.hpp>
 #include <com/sun/star/datatransfer/clipboard/XClipboardNotifier.hpp>
+#include <com/sun/star/drawing/XShapes.hpp>
 #include <com/sun/star/view/XRenderable.hpp>
 #include <com/sun/star/uno/Reference.hxx>
 #include <com/sun/star/lang/IndexOutOfBoundsException.hpp>
@@ -2442,7 +2443,10 @@ ErrCode SfxViewShell::DoVerb(sal_Int32 /*nVerb*/)
 void SfxViewShell::OutplaceActivated( bool bActive )
 {
     if ( !bActive )
-        GetFrame()->GetFrame().Appear();
+    {
+        if (SfxViewFrame* pFrame = GetFrame())
+            pFrame->GetFrame().Appear();
+    }
 }
 
 void SfxViewShell::UIActivating( SfxInPlaceClient* /*pClient*/ )
@@ -2807,6 +2811,93 @@ int SfxViewShell::getA11yCaretPosition() const
 {
     const LOKDocumentFocusListener& rDocFocusListener = GetLOKDocumentFocusListener();
     return rDocFocusListener.getCaretPosition();
+}
+
+void SfxViewShell::SetSigningCertificate(const svl::crypto::CertificateOrName& rCertificate)
+{
+    pImpl->m_aSigningCertificate = rCertificate;
+}
+
+svl::crypto::CertificateOrName SfxViewShell::GetSigningCertificate() const
+{
+    return pImpl->m_aSigningCertificate;
+}
+
+namespace
+{
+uno::Reference<beans::XPropertySet>
+GetSelectedShapeOfView(const uno::Reference<frame::XController>& xController)
+{
+    uno::Reference<view::XSelectionSupplier> xSelectionSupplier(xController, uno::UNO_QUERY);
+    uno::Reference<drawing::XShapes> xShapes(xSelectionSupplier->getSelection(), uno::UNO_QUERY);
+    if (!xShapes.is() || xShapes->getCount() != 1)
+    {
+        return {};
+    }
+
+    return uno::Reference<beans::XPropertySet>(xShapes->getByIndex(0), uno::UNO_QUERY);
+}
+}
+
+void SfxViewShell::SetSignPDFCertificate(const svl::crypto::CertificateOrName& rCertificateOrName)
+{
+    uno::Reference<beans::XPropertySet> xShape = GetSelectedShapeOfView(GetController());
+    if (!xShape.is() || !xShape->getPropertySetInfo()->hasPropertyByName("InteropGrabBag"))
+    {
+        return;
+    }
+
+    comphelper::SequenceAsHashMap aMap(xShape->getPropertyValue("InteropGrabBag"));
+
+    auto it = aMap.find("SignatureCertificate");
+    if (rCertificateOrName.Is())
+    {
+        if (rCertificateOrName.m_xCertificate.is())
+        {
+            aMap["SignatureCertificate"] <<= rCertificateOrName.m_xCertificate;
+        }
+        else
+        {
+            aMap["SignatureCertificate"] <<= rCertificateOrName.m_aName;
+        }
+    }
+    else if (it != aMap.end())
+    {
+        aMap.erase(it);
+    }
+    xShape->setPropertyValue("InteropGrabBag", uno::Any(aMap.getAsConstPropertyValueList()));
+    if (!rCertificateOrName.Is())
+    {
+        // The shape's property is now reset, so the doc model is no longer modified.
+        GetObjectShell()->SetModified(false);
+    }
+}
+
+svl::crypto::CertificateOrName SfxViewShell::GetSignPDFCertificate() const
+{
+    uno::Reference<beans::XPropertySet> xShape = GetSelectedShapeOfView(GetController());
+    if (!xShape.is() || !xShape->getPropertySetInfo()->hasPropertyByName("InteropGrabBag"))
+    {
+        return {};
+    }
+
+    comphelper::SequenceAsHashMap aMap(xShape->getPropertyValue("InteropGrabBag"));
+    auto it = aMap.find("SignatureCertificate");
+    if (it == aMap.end())
+    {
+        return {};
+    }
+
+    svl::crypto::CertificateOrName aCertificateOrName;
+    if (it->second.has<uno::Reference<security::XCertificate>>())
+    {
+        it->second >>= aCertificateOrName.m_xCertificate;
+    }
+    else
+    {
+        it->second >>= aCertificateOrName.m_aName;
+    }
+    return aCertificateOrName;
 }
 
 bool SfxViewShell::PrepareClose
@@ -3211,6 +3302,7 @@ static bool ignoreLibreOfficeKitViewCallback(int nType, const SfxViewShell_Impl*
         case LOK_CALLBACK_FORM_FIELD_BUTTON:
         case LOK_CALLBACK_TEXT_SELECTION:
         case LOK_CALLBACK_COMMENT:
+        case LOK_CALLBACK_DOCUMENT_SIZE_CHANGED:
             break;
         default:
             // Reject e.g. invalidate during paint.
@@ -3357,8 +3449,8 @@ void SfxViewShell::SetLOKLanguageTag(const OUString& rBcp47LanguageTag)
     LanguageTag aFallbackTag = LanguageTag(getInstalledLocaleForSystemUILanguage(inst, /* bRequestInstallIfMissing */ false, rBcp47LanguageTag), true).makeFallback();
 
     // If we want de-CH, and the de localisation is available, we don't want to use de-DE as then
-    // the magic in Translate::get() won't turn ess-zet into double s. Possibly other similar cases?
-    if (comphelper::LibreOfficeKit::isActive() && aTag.getLanguage() == aFallbackTag.getLanguage())
+    // the magic in Translate::get() won't turn ess-zet into double s.
+    if (rBcp47LanguageTag == "de-CH")
         maLOKLanguageTag = aTag;
     else
         maLOKLanguageTag = aFallbackTag;

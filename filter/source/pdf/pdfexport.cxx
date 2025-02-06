@@ -27,6 +27,7 @@
 #include <vcl/canvastools.hxx>
 #include <vcl/mapmod.hxx>
 #include <vcl/gdimtf.hxx>
+#include <vcl/pdf/PDFEncryptionInitialization.hxx>
 #include <rtl/ustring.hxx>
 #include <comphelper/propertyvalue.hxx>
 #include <comphelper/sequence.hxx>
@@ -39,6 +40,7 @@
 #include <unotools/configmgr.hxx>
 #include <comphelper/compbase.hxx>
 #include <officecfg/Office/Common.hxx>
+#include <sfx2/lokhelper.hxx>
 
 #include "pdfexport.hxx"
 #include <strings.hrc>
@@ -406,7 +408,7 @@ bool PDFExport::Export( const OUString& rFile, const Sequence< PropertyValue >& 
             bool bExportNotesPages = false;
             bool bExportOnlyNotesPages = false;
             bool bUseTransitionEffects = true;
-            bool bExportFormFields = true;
+            bool bExportFormFields = false;
             sal_Int32 nFormsFormat = 0;
             bool bAllowDuplicateFieldNames = false;
             bool bHideViewerToolbar = false;
@@ -515,6 +517,9 @@ bool PDFExport::Export( const OUString& rFile, const Sequence< PropertyValue >& 
             aContext.DocumentInfo.Creator = aCreator;
 
             OUString aSignCertificateSubjectName;
+            OUString aSignCertificateCertPem;
+            OUString aSignCertificateKeyPem;
+            OUString aSignCertificateCaPem;
             for ( const beans::PropertyValue& rProp : rFilterData )
             {
                 if ( rProp.Name == "PageRange" )
@@ -678,6 +683,12 @@ bool PDFExport::Export( const OUString& rFile, const Sequence< PropertyValue >& 
                     rProp.Value >>= aSignCertificate;
                 else if (rProp.Name == "SignCertificateSubjectName")
                     rProp.Value >>= aSignCertificateSubjectName;
+                else if (rProp.Name == "SignCertificateCertPem")
+                    rProp.Value >>= aSignCertificateCertPem;
+                else if (rProp.Name == "SignCertificateKeyPem")
+                    rProp.Value >>= aSignCertificateKeyPem;
+                else if (rProp.Name == "SignCertificateCaPem")
+                    rProp.Value >>= aSignCertificateCaPem;
                 else if ( rProp.Name == "SignatureTSA" )
                     rProp.Value >>= sSignTSA;
                 else if ( rProp.Name == "ExportPlaceholders" )
@@ -705,6 +716,24 @@ bool PDFExport::Export( const OUString& rFile, const Sequence< PropertyValue >& 
                 aSignCertificate = GetCertificateFromSubjectName(aSignCertificateSubjectName);
             }
 
+            if (!aSignCertificate.is())
+            {
+                // Still no signing certificate configured, see if we got a ca/cert/key in PEM
+                // format:
+                if (!aSignCertificateCaPem.isEmpty())
+                {
+                    std::string aSignatureCa(aSignCertificateCaPem.toUtf8());
+                    std::vector<std::string> aCerts = SfxLokHelper::extractCertificates(aSignatureCa);
+                    SfxLokHelper::addCertificates(aCerts);
+                }
+                if (!aSignCertificateCertPem.isEmpty() && !aSignCertificateKeyPem.isEmpty())
+                {
+                    std::string aSignatureCert(aSignCertificateCertPem.toUtf8());
+                    std::string aSignatureKey(aSignCertificateKeyPem.toUtf8());
+                    aSignCertificate = SfxLokHelper::getSigningCertificate(aSignatureCert, aSignatureKey);
+                }
+            }
+
             aContext.URL        = aURL.GetMainURL(INetURLObject::DecodeMechanism::ToIUri);
 
             // set the correct version, depending on user request
@@ -712,24 +741,32 @@ bool PDFExport::Export( const OUString& rFile, const Sequence< PropertyValue >& 
             {
             default:
             case 0:
-                aContext.Version = vcl::PDFWriter::PDFVersion::PDF_1_7;
+                aContext.Version = vcl::PDFWriter::PDFVersion::Default;
                 break;
             case 1:
-                aContext.Version    = vcl::PDFWriter::PDFVersion::PDF_A_1;
+                aContext.Version = vcl::PDFWriter::PDFVersion::PDF_A_1;
                 bUseTaggedPDF = true;           // force the tagged PDF as well
                 mbRemoveTransparencies = true;  // does not allow transparencies
                 bEncrypt = false;               // no encryption
                 xEnc.clear();
                 break;
             case 2:
-                aContext.Version    = vcl::PDFWriter::PDFVersion::PDF_A_2;
+                aContext.Version = vcl::PDFWriter::PDFVersion::PDF_A_2;
                 bUseTaggedPDF = true;           // force the tagged PDF as well
                 mbRemoveTransparencies = false; // does allow transparencies
                 bEncrypt = false;               // no encryption
                 xEnc.clear();
                 break;
             case 3:
-                aContext.Version    = vcl::PDFWriter::PDFVersion::PDF_A_3;
+                aContext.Version = vcl::PDFWriter::PDFVersion::PDF_A_3;
+                bUseTaggedPDF = true;           // force the tagged PDF as well
+                mbRemoveTransparencies = false; // does allow transparencies
+                bEncrypt = false;               // no encryption
+                xEnc.clear();
+                break;
+            case 4:
+                // TODO - determine what is allowed for PDFA/4
+                aContext.Version = vcl::PDFWriter::PDFVersion::PDF_A_4;
                 bUseTaggedPDF = true;           // force the tagged PDF as well
                 mbRemoveTransparencies = false; // does allow transparencies
                 bEncrypt = false;               // no encryption
@@ -743,6 +780,9 @@ bool PDFExport::Export( const OUString& rFile, const Sequence< PropertyValue >& 
                 break;
             case 17:
                 aContext.Version = vcl::PDFWriter::PDFVersion::PDF_1_7;
+                break;
+            case 20:
+                aContext.Version = vcl::PDFWriter::PDFVersion::PDF_2_0;
                 break;
             }
 
@@ -881,7 +921,7 @@ bool PDFExport::Export( const OUString& rFile, const Sequence< PropertyValue >& 
                 aContext.Encryption.CanCopyOrExtract                = bCanCopyOrExtract;
                 aContext.Encryption.CanExtractForAccessibility  = bCanExtractForAccessibility;
                 if( bEncrypt && ! xEnc.is() )
-                    xEnc = vcl::PDFWriter::InitEncryption( aPermissionPassword, aOpenPassword );
+                    xEnc = vcl::pdf::initEncryption(aPermissionPassword, aOpenPassword);
                 if( bEncrypt && !aPermissionPassword.isEmpty() && ! aPreparedPermissionPassword.hasElements() )
                     aPreparedPermissionPassword = comphelper::OStorageHelper::CreatePackageEncryptionData( aPermissionPassword );
             }
@@ -1314,7 +1354,7 @@ void PDFExport::ImplWriteWatermark( vcl::PDFWriter& rWriter, const Size& rPageSi
     rWriter.Push();
     // tdf#152235 tag around the reference to the XObject on the page
     sal_Int32 const id = rWriter.EnsureStructureElement();
-    rWriter.InitStructureElement(id, vcl::PDFWriter::NonStructElement, ::std::u16string_view());
+    rWriter.InitStructureElement(id, vcl::pdf::StructElement::NonStructElement, ::std::u16string_view());
     rWriter.BeginStructureElement(id);
     rWriter.SetStructureAttribute(vcl::PDFWriter::Type, vcl::PDFWriter::Pagination);
     rWriter.SetStructureAttribute(vcl::PDFWriter::Subtype, vcl::PDFWriter::Watermark);
@@ -1412,7 +1452,7 @@ void PDFExport::ImplWriteTiledWatermark( vcl::PDFWriter& rWriter, const Size& rP
     rWriter.Push();
     // tdf#152235 tag around the reference to the XObject on the page
     sal_Int32 const id = rWriter.EnsureStructureElement();
-    rWriter.InitStructureElement(id, vcl::PDFWriter::NonStructElement, ::std::u16string_view());
+    rWriter.InitStructureElement(id, vcl::pdf::StructElement::NonStructElement, ::std::u16string_view());
     rWriter.BeginStructureElement(id);
     rWriter.SetStructureAttribute(vcl::PDFWriter::Type, vcl::PDFWriter::Pagination);
     rWriter.SetStructureAttribute(vcl::PDFWriter::Subtype, vcl::PDFWriter::Watermark);

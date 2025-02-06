@@ -36,6 +36,7 @@
 #include "shapelist.hxx"
 #include "misc/scopelock.hxx"
 #include "sddllapi.h"
+#include <tools/json_writer.hxx>
 
 namespace com::sun::star::animations {
     class XAnimationNode;
@@ -171,7 +172,8 @@ public:
     OUString        GetPresObjText(PresObjKind eObjKind) const;
     SfxStyleSheet* GetStyleSheetForMasterPageBackground() const;
     SfxStyleSheet*  GetStyleSheetForPresObj(PresObjKind eObjKind) const;
-    sal_Int64       GetHashCode() const;
+    void            GetPageInfo(::tools::JsonWriter& jsonWriter);
+    void            NotifyPagePropertyChanges();
     bool            RestoreDefaultText( SdrObject* pObj );
 
     /** @return true if the given SdrObject is inside the presentation object list */
@@ -379,6 +381,9 @@ public:
      The pointers are temporary and should not be kept.
     */
     void getGraphicsForPrefetch(std::vector<Graphic*>& graphics) const;
+
+    static AutoLayout stringToAutoLayout(std::u16string_view rLayoutName);
+    static OUString autoLayoutToString(AutoLayout nLayoutId);
 
     static sal_uInt16 mnLastPageId;
 

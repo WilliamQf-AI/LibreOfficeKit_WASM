@@ -28,6 +28,9 @@
 #include <globstr.hrc>
 #include <scresid.hxx>
 #include <inputhdl.hxx>
+#include <LibreOfficeKit/LibreOfficeKitEnums.h>
+#include <tools/json_writer.hxx>
+#include <output.hxx>
 
 // ---  Referenz-Eingabe / Fill-Cursor
 
@@ -286,7 +289,30 @@ void ScTabView::UpdateRef( SCCOL nCurX, SCROW nCurY, SCTAB nCurZ )
         aHelpStr = aHelpStr.replaceFirst("%2", OUString::number(nCols) );
     }
     else if ( aViewData.GetDelMark( aDelRange ) )
+    {
         aHelpStr = ScResId( STR_QUICKHELP_DELETE );
+
+        if (ScTabViewShell* pLOKViewShell
+            = comphelper::LibreOfficeKit::isActive() ? aViewData.GetViewShell() : nullptr)
+        {
+            // set cell addresses for deletion by autofill
+            tools::Long nX1 = aDelRange.aStart.Col();
+            tools::Long nX2 = aDelRange.aEnd.Col();
+            tools::Long nY1 = aDelRange.aStart.Row();
+            tools::Long nY2 = aDelRange.aEnd.Row();
+            tools::Long nTab = aDelRange.aStart.Tab();
+
+            std::vector<ReferenceMark> aReferenceMarks(1);
+
+            const svtools::ColorConfig& rColorCfg = SC_MOD()->GetColorConfig();
+            Color aSelColor(rColorCfg.GetColorValue(svtools::CALCHIDDENROWCOL).nColor);
+
+            aReferenceMarks[0] = ScInputHandler::GetReferenceMark(
+                aViewData, aViewData.GetDocShell(), nX1, nX2, nY1, nY2, nTab, aSelColor);
+
+            ScInputHandler::SendReferenceMarks(pLOKViewShell, aReferenceMarks);
+        }
+    }
     else if ( nEndX != aMarkRange.aEnd.Col() || nEndY != aMarkRange.aEnd.Row() )
         aHelpStr = rDoc.GetAutoFillPreview( aMarkRange, nEndX, nEndY );
 
@@ -310,6 +336,24 @@ void ScTabView::UpdateRef( SCCOL nCurX, SCROW nCurY, SCTAB nCurZ )
         nTipAlign = nAlign;
         sTipString = aHelpStr;
         sTopParent = pWin;
+
+        if (ScTabViewShell* pLOKViewShell
+            = comphelper::LibreOfficeKit::isActive() ? aViewData.GetViewShell() : nullptr)
+        {
+            // we need to use nAddX and nAddX here because we need the next row&column address
+            OUString sCol = OUString::number(nEndX + nAddX);
+            OUString sRow = OUString::number(nEndY + nAddY);
+
+            // since start and end cells are the same, duplicate them
+            OUString sCellAddress = OUString::Concat(sCol + " " + sRow + " " + sCol + " " + sRow);
+
+            tools::JsonWriter writer;
+            writer.put("type", "autofillpreviewtooltip");
+            writer.put("text", sTipString);
+            writer.put("celladdress", sCellAddress);
+            OString sPayloadString = writer.finishAndGetAsOString();
+            pLOKViewShell->libreOfficeKitViewCallback(LOK_CALLBACK_TOOLTIP, sPayloadString);
+        }
     }
 }
 

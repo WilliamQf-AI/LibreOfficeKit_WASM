@@ -247,10 +247,10 @@ bool ScValidationData::DoScript( const ScAddress& rPos, const OUString& rInput,
     // Macro not found (only with input)
     {
         //TODO: different error message, if found, but not bAllowed ??
-        std::unique_ptr<weld::MessageDialog> xBox(Application::CreateMessageDialog(pParent,
+        std::shared_ptr<weld::MessageDialog> xBox(Application::CreateMessageDialog(pParent,
                                                   VclMessageType::Warning, VclButtonsType::Ok,
                                                   ScResId(STR_VALID_MACRONOTFOUND)));
-        xBox->run();
+        xBox->runAsync(xBox, [] (sal_uInt32){ });
     }
 
     return bScriptReturnedFalse;
@@ -353,10 +353,10 @@ bool ScValidationData::DoMacro( const ScAddress& rPos, const OUString& rInput,
     if ( !bDone && !pCell )         // Macro not found (only with input)
     {
         //TODO: different error message, if found, but not bAllowed ??
-        std::unique_ptr<weld::MessageDialog> xBox(Application::CreateMessageDialog(pParent,
+        std::shared_ptr<weld::MessageDialog> xBox(Application::CreateMessageDialog(pParent,
                                                   VclMessageType::Warning, VclButtonsType::Ok,
                                                   ScResId(STR_VALID_MACRONOTFOUND)));
-        xBox->run();
+        xBox->runAsync(xBox, [](sal_uInt32) {});
     }
 
     return bRet;
@@ -375,14 +375,16 @@ IMPL_STATIC_LINK_NOARG(ScValidationData, InstallLOKNotifierHdl, void*, vcl::ILib
 
     // true -> abort
 
-bool ScValidationData::DoError(weld::Window* pParent, const OUString& rInput,
-                               const ScAddress& rPos) const
+void ScValidationData::DoError(weld::Window* pParent, const OUString& rInput, const ScAddress& rPos,
+                               std::function<void(bool forget)> callback) const
 {
-    if ( eErrorStyle == SC_VALERR_MACRO )
-        return DoMacro(rPos, rInput, nullptr, pParent);
+    if ( eErrorStyle == SC_VALERR_MACRO ) {
+        DoMacro(rPos, rInput, nullptr, pParent);
+        return;
+    }
 
     if (!bShowError)
-        return true;
+        return;
 
     //  Output error message
 
@@ -409,7 +411,7 @@ bool ScValidationData::DoError(weld::Window* pParent, const OUString& rInput,
             break;
     }
 
-    std::unique_ptr<weld::MessageDialog> xBox(Application::CreateMessageDialog(pParent, eType,
+    std::shared_ptr<weld::MessageDialog> xBox(Application::CreateMessageDialog(pParent, eType,
                                               eStyle, aMessage, SfxViewShell::Current()));
     xBox->set_title(aTitle);
     xBox->SetInstallLOKNotifierHdl(LINK(nullptr, ScValidationData, InstallLOKNotifierHdl));
@@ -426,9 +428,8 @@ bool ScValidationData::DoError(weld::Window* pParent, const OUString& rInput,
             break;
     }
 
-    short nRet = xBox->run();
-
-    return ( eErrorStyle == SC_VALERR_STOP || nRet == RET_CANCEL );
+    xBox->runAsync(xBox, [&, callback](sal_uInt32 result)
+                   { callback(eErrorStyle == SC_VALERR_STOP || result == RET_CANCEL); });
 }
 
 bool ScValidationData::IsDataValidCustom(
@@ -806,7 +807,7 @@ bool ScValidationData::HasSelectionList() const
 }
 
 bool ScValidationData::GetSelectionFromFormula(
-    std::vector<ScTypedStrData>* pStrings, ScRefCellValue& rCell, const ScAddress& rPos,
+    ScTypedCaseStrSet* pStrings, ScRefCellValue& rCell, const ScAddress& rPos,
     const ScTokenArray& rTokArr, int& rMatch) const
 {
     bool bOk = true;
@@ -987,7 +988,7 @@ bool ScValidationData::GetSelectionFromFormula(
             if( pEntry )
             {
                 assert(pStrings);
-                pStrings->push_back(*pEntry);
+                pStrings->insert(*pEntry);
                 n++;
             }
         }
@@ -998,7 +999,7 @@ bool ScValidationData::GetSelectionFromFormula(
     return bOk || rCell.isEmpty();
 }
 
-bool ScValidationData::FillSelectionList(std::vector<ScTypedStrData>& rStrColl, const ScAddress& rPos) const
+bool ScValidationData::FillSelectionList(ScTypedCaseStrSet& rStrColl, const ScAddress& rPos) const
 {
     bool bOk = false;
 
@@ -1015,8 +1016,8 @@ bool ScValidationData::FillSelectionList(std::vector<ScTypedStrData>& rStrColl, 
             double fValue;
             OUString aStr(pString);
             bool bIsValue = GetDocument()->GetFormatTable()->IsNumberFormat(aStr, nFormat, fValue);
-            rStrColl.emplace_back(
-                    aStr, fValue, fValue, bIsValue ? ScTypedStrData::Value : ScTypedStrData::Standard);
+            rStrColl.insert( {
+                    aStr, fValue, fValue, bIsValue ? ScTypedStrData::Value : ScTypedStrData::Standard } );
         }
         bOk = aIt.Ok();
 

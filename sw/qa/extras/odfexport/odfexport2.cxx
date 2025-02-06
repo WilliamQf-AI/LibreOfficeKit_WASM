@@ -366,6 +366,12 @@ CPPUNIT_TEST_FIXTURE(Test, tdf99631)
     assertXPathContent(pXmlDoc2, "//config:config-item[@config:name='VisibleAreaHeight']"_ostr, "1355");
 }
 
+CPPUNIT_TEST_FIXTURE(Test, tdf163575)
+{
+    // crashes/assert at export time
+    loadAndReload("tdf163575.docx");
+}
+
 CPPUNIT_TEST_FIXTURE(Test, tdf145871)
 {
     loadAndReload("tdf145871.odt");
@@ -1371,6 +1377,20 @@ CPPUNIT_TEST_FIXTURE(Test, testTdf160700)
     // (in that order). The problem was, that text:bookmark-end was before text:bookmark-start.
     assertXPathChildren(pXmlDoc, "//office:text/text:list/text:list-item/text:p"_ostr, 1);
     assertXPath(pXmlDoc, "//office:text/text:list/text:list-item/text:p/text:bookmark"_ostr);
+}
+
+DECLARE_ODFEXPORT_TEST(testTdf160877, "tdf160877.odt")
+{
+    CPPUNIT_ASSERT_EQUAL(1, getPages());
+
+    uno::Reference<text::XText> xHeaderTextPage1 = getProperty<uno::Reference<text::XText>>(
+        getStyles("PageStyles")->getByName("Standard"), "HeaderTextFirst");
+    CPPUNIT_ASSERT_EQUAL(OUString("Classification: General Business"), xHeaderTextPage1->getString());
+
+    // Without the fix in place, this test would have failed with
+    // - Expected: (Sign GB)Test
+    // - Actual  : Test
+    CPPUNIT_ASSERT_EQUAL(OUString("(Sign GB)Test"), getParagraph(1)->getString());
 }
 
 CPPUNIT_PLUGIN_IMPLEMENT();

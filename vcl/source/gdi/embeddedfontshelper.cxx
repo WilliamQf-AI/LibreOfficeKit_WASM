@@ -19,6 +19,7 @@
 #include <vcl/svapp.hxx>
 #include <vcl/embeddedfontshelper.hxx>
 #include <com/sun/star/io/XInputStream.hpp>
+#include <comphelper/storagehelper.hxx>
 
 #include <font/PhysicalFontFaceCollection.hxx>
 #include <font/PhysicalFontCollection.hxx>
@@ -66,7 +67,8 @@ void EmbeddedFontsHelper::clearTemporaryFontFiles()
 }
 
 bool EmbeddedFontsHelper::addEmbeddedFont( const uno::Reference< io::XInputStream >& stream, const OUString& fontName,
-    std::u16string_view extra, std::vector< unsigned char > const & key, bool eot )
+    std::u16string_view extra, std::vector< unsigned char > const & key, bool eot,
+    bool bSubsetted )
 {
     OUString fileUrl = EmbeddedFontsHelper::fileUrlForTemporaryFont( fontName, extra );
     osl::File file( fileUrl );
@@ -159,6 +161,37 @@ bool EmbeddedFontsHelper::addEmbeddedFont( const uno::Reference< io::XInputStrea
         osl::File::remove( fileUrl );
         return false;
     }
+
+    if (bSubsetted)
+    {
+        TrueTypeFont* font;
+        sal_uInt32 nGlyphs = 0;
+        if (OpenTTFontBuffer(fontData.data(), fontData.size(), 0, &font) == SFErrCodes::Ok)
+        {
+            sal_uInt32 nGlyphCount = font->glyphCount();
+            for (sal_uInt32 i = 0; i < nGlyphCount; ++i)
+            {
+                sal_uInt32 nOffset = font->glyphOffset(i);
+                sal_uInt32 nNextOffset = font->glyphOffset(i + 1);
+                if (nOffset == nNextOffset)
+                {
+                    // GetTTGlyphComponents() says this is an empty glyph, ignore it.
+                    continue;
+                }
+                ++nGlyphs;
+            }
+            CloseTTFont(font);
+        }
+        // Check if it has reasonable amount of glyphs, set the limit to the number of glyphs in the
+        // English alphabet (not differentiating lowercase and uppercase).
+        if (nGlyphs < 26)
+        {
+            SAL_INFO("vcl.fonts", "Ignoring embedded font that only provides " << nGlyphs << " non-empty glyphs");
+            osl::File::remove(fileUrl);
+            return false;
+        }
+    }
+
     m_aAccumulatedFonts.emplace_back(std::make_pair(fontName, fileUrl));
     return true;
 }
@@ -191,10 +224,6 @@ void EmbeddedFontsHelper::activateFonts()
 
 OUString EmbeddedFontsHelper::fileUrlForTemporaryFont( const OUString& fontName, std::u16string_view extra )
 {
-    OUString path = "${$BRAND_BASE_DIR/" LIBO_ETC_FOLDER "/" SAL_CONFIGFILE( "bootstrap") "::UserInstallation}";
-    rtl::Bootstrap::expandMacros( path );
-    path += "/user/temp/embeddedfonts/fromdocs/";
-    osl::Directory::createPath( path );
     OUString filename = fontName;
     static int uniqueCounter = 0;
     if( extra == u"?" )
@@ -202,6 +231,17 @@ OUString EmbeddedFontsHelper::fileUrlForTemporaryFont( const OUString& fontName,
     else
         filename += extra;
     filename += ".ttf"; // TODO is it always ttf?
+
+    if (!::comphelper::OStorageHelper::IsValidZipEntryFileName(filename, false))
+    {
+        SAL_WARN( "vcl.fonts", "Cannot use filename: " << filename << " for temporary font");
+        filename = "font" + OUString::number(uniqueCounter++) + ".ttf";
+    }
+
+    OUString path = u"${$BRAND_BASE_DIR/" LIBO_ETC_FOLDER "/" SAL_CONFIGFILE( "bootstrap") "::UserInstallation}"_ustr;
+    rtl::Bootstrap::expandMacros( path );
+    path += "/user/temp/embeddedfonts/fromdocs/";
+    osl::Directory::createPath( path );
     return path + filename;
 }
 

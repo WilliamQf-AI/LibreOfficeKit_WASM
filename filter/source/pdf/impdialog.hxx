@@ -60,94 +60,94 @@ class ImpPDFTabDialog final : public SfxTabDialogController
 {
     css::uno::Reference<css::lang::XComponent> mrDoc;
 
-    FilterConfigItem            maConfigItem;
-    FilterConfigItem            maConfigI18N;
+    FilterConfigItem maConfigItem;
+    FilterConfigItem maConfigI18N;
 
-    Any                         maSelection;
+    Any maSelection;
 
     DECL_LINK(CancelHdl, weld::Button&, void);
     DECL_LINK(OkHdl, weld::Button&, void);
 
     // the following data are the configuration used throughout the dialog and pages
-    bool                        mbIsPresentation;
-    bool                        mbIsSpreadsheet;
-    bool                        mbIsWriter;
-    bool                        mbSelectionPresent;
-    bool                        mbUseCTLFont;
-    bool                        mbUseLosslessCompression;
-    sal_Int32                   mnQuality;
-    bool                        mbReduceImageResolution;
-    sal_Int32                   mnMaxImageResolution;
-    bool                        mbUseTaggedPDF;
-    bool                        mbUseTaggedPDFUserSelection;
-    sal_Int32                   mnPDFTypeSelection;
-    bool                        mbPDFUACompliance;
-    bool                        mbExportNotes;
-    bool                        mbExportNotesInMargin;
-    bool                        mbViewPDF;
-    bool                        mbUseReferenceXObject;
-    bool                        mbUseReferenceXObjectUserSelection = false;
-    bool                        mbExportNotesPages;
-    bool                        mbExportOnlyNotesPages;
-    bool                        mbUseTransitionEffects;
-    bool                        mbIsSkipEmptyPages;
-    bool                        mbIsExportPlaceholders;
-    bool                        mbAddStream;
-    sal_Int32                   mnFormsType;
-    bool                        mbExportFormFields;
-    bool                        mbAllowDuplicateFieldNames;
-    bool                        mbExportBookmarks;
-    bool                        mbExportBookmarksUserSelection = true;
-    bool                        mbExportHiddenSlides;
-    bool                        mbSinglePageSheets;
-    sal_Int32                   mnOpenBookmarkLevels;
+    bool mbIsPresentation = false;
+    bool mbIsSpreadsheet = false;
+    bool mbIsWriter = false;
+    bool mbSelectionPresent = false;
+    bool mbUseCTLFont = false;
+    bool mbUseLosslessCompression = true;
+    sal_Int32 mnQuality = 90;
+    bool mbReduceImageResolution = false;
+    sal_Int32 mnMaxImageResolution = 300;
+    bool mbUseTaggedPDF = false;
+    bool mbUseTaggedPDFUserSelection = false;
+    sal_Int32 mnPDFTypeSelection;
+    bool mbPDFUACompliance;
+    bool mbExportNotes = true;
+    bool mbExportNotesInMargin = false;
+    bool mbViewPDF = false;
+    bool mbUseReferenceXObject = false;
+    bool mbUseReferenceXObjectUserSelection = false;
+    bool mbExportNotesPages = false;
+    bool mbExportOnlyNotesPages = false;
+    bool mbUseTransitionEffects = false;
+    bool mbIsSkipEmptyPages = true;
+    bool mbIsExportPlaceholders = false;
+    bool mbAddStream = false;
+    sal_Int32 mnFormsType = 0;
+    bool mbExportFormFields = false;
+    bool mbAllowDuplicateFieldNames = false;
+    bool mbExportBookmarks = true;
+    bool mbExportBookmarksUserSelection = true;
+    bool mbExportHiddenSlides = false;
+    bool mbSinglePageSheets = false;
+    sal_Int32 mnOpenBookmarkLevels = -1;
 
-    bool                        mbHideViewerToolbar;
-    bool                        mbHideViewerMenubar;
-    bool                        mbHideViewerWindowControls;
-    bool                        mbResizeWinToInit;
-    bool                        mbCenterWindow;
-    bool                        mbOpenInFullScreenMode;
-    bool                        mbDisplayPDFDocumentTitle;
-    sal_Int32                   mnMagnification;
-    sal_Int32                   mnInitialView;
-    sal_Int32                   mnInitialViewUserSelection;
-    sal_Int32                   mnZoom;
-    sal_Int32                   mnInitialPage;
+    bool mbHideViewerToolbar = false;
+    bool mbHideViewerMenubar = false;
+    bool mbHideViewerWindowControls = false;
+    bool mbResizeWinToInit = false;
+    bool mbCenterWindow = false;
+    bool mbOpenInFullScreenMode = false;
+    bool mbDisplayPDFDocumentTitle = false;
+    sal_Int32 mnMagnification = 0;
+    sal_Int32 mnInitialView = 1;
+    sal_Int32 mnInitialViewUserSelection;
+    sal_Int32 mnZoom = 0;
+    sal_Int32 mnInitialPage = 1;
 
-    sal_Int32                   mnPageLayout;
-    bool                        mbFirstPageLeft;
+    sal_Int32 mnPageLayout = 0;
+    bool mbFirstPageLeft = false;
 
-    bool                        mbEncrypt;
+    bool mbEncrypt = false;
 
-    bool                        mbRestrictPermissions;
+    bool mbRestrictPermissions = false;
     css::uno::Sequence< css::beans::NamedValue > maPreparedOwnerPassword;
-    sal_Int32                   mnPrint;
-    sal_Int32                   mnChangesAllowed;
-    bool                        mbCanCopyOrExtract;
-    bool                        mbCanExtractForAccessibility;
+    sal_Int32 mnPrint = 0;
+    sal_Int32 mnChangesAllowed = 0;
+    bool mbCanCopyOrExtract = false;
+    bool mbCanExtractForAccessibility = true;
     css::uno::Reference< css::beans::XMaterialHolder > mxPreparedPasswords;
 
-    bool                        mbIsPageRangeChecked;
-    OUString                    msPageRange;
-    bool                        mbIsSheetRangeChecked;
-    OUString                    msSheetRange;
-    bool                        mbSelectionIsChecked;
+    bool mbIsPageRangeChecked = false;
+    OUString msPageRange = OUString(' ');
+    bool mbIsSheetRangeChecked = false;
+    OUString msSheetRange = OUString(' ');
+    bool mbSelectionIsChecked = false;
 
-    bool                        mbExportRelativeFsysLinks;
-    sal_Int32                   mnViewPDFMode;
-    bool                        mbConvertOOoTargets;
-    bool                        mbExportBmkToPDFDestination;
+    bool mbExportRelativeFsysLinks = false;
+    sal_Int32 mnViewPDFMode = 0;
+    bool mbConvertOOoTargets = false;
+    bool mbExportBmkToPDFDestination = false;
 
-    bool                        mbSignPDF;
-    OUString                    msSignPassword;
-    OUString                    msSignLocation;
-    OUString                    msSignContact;
-    OUString                    msSignReason;
-    css::uno::Reference< css::security::XCertificate > maSignCertificate;
-    OUString                    msSignTSA;
+    bool mbSignPDF = false;
+    OUString msSignPassword;
+    OUString msSignLocation;
+    OUString msSignContact;
+    OUString msSignReason;
+    css::uno::Reference<css::security::XCertificate> maSignCertificate;
+    OUString msSignTSA;
 
-    OUString                    maWatermarkText;
+    OUString maWatermarkText;
 
 public:
 
@@ -197,9 +197,8 @@ class ImpPDFTabGeneralPage : public SfxTabPage
     std::unique_ptr<weld::MetricSpinButton> mxNfQuality;
     std::unique_ptr<weld::CheckButton> mxCbReduceImageResolution;
     std::unique_ptr<weld::ComboBox> mxCoReduceImageResolution;
-    std::unique_ptr<weld::CheckButton> mxCbPDFA;
     std::unique_ptr<weld::CheckButton> mxCbPDFUA;
-    std::unique_ptr<weld::ComboBox> mxRbPDFAVersion;
+    std::unique_ptr<weld::ComboBox> mxRbPDFVersion;
     std::unique_ptr<weld::CheckButton> mxCbTaggedPDF;
     std::unique_ptr<weld::CheckButton> mxCbExportFormFields;
     std::unique_ptr<weld::Widget> mxFormsFrame;
@@ -238,7 +237,8 @@ class ImpPDFTabGeneralPage : public SfxTabPage
     void                        ToggleSheetsHdl();
     void                        EnableExportNotesPages();
 
-    DECL_LINK(TogglePDFVersionOrUniversalAccessibilityHandle, weld::Toggleable&, void);
+    DECL_LINK(TogglePDFUniversalAccessibilityHandle, weld::Toggleable&, void);
+    DECL_LINK(SelectPDFVersion, weld::ComboBox&, void);
 
     std::shared_ptr<weld::MessageDialog> mxPasswordUnusedWarnDialog;
 
@@ -246,6 +246,8 @@ class ImpPDFTabGeneralPage : public SfxTabPage
     {
         return mpParent && mpParent->maConfigItem.IsReadOnly(rPropertyName);
     }
+
+    void thePDFVersionChanged();
 
 public:
 
@@ -256,7 +258,8 @@ public:
 
     void                        GetFilterConfigItem(ImpPDFTabDialog* paParent);
     void                        SetFilterConfigItem(ImpPDFTabDialog* paParent);
-    bool                        IsPdfaSelected() const { return mxCbPDFA->get_active(); }
+    bool IsPdfaSelected() const;
+    bool IsPDFAVersionSelected(sal_Int32 nVersion) const;
     bool IsPdfUaSelected() const { return mxCbPDFUA->get_active(); }
 };
 

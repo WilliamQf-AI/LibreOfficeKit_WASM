@@ -35,6 +35,10 @@ namespace tools
 {
 class Rectangle;
 }
+namespace svl::crypto
+{
+class SigningContext;
+}
 
 namespace vcl::filter
 {
@@ -44,6 +48,7 @@ class PDFDocument;
 class PDFDictionaryElement;
 class PDFArrayElement;
 class PDFStreamElement;
+class PDFNameElement;
 class PDFNumberElement;
 
 /// A byte range in a PDF file.
@@ -73,6 +78,8 @@ class VCL_DLLPUBLIC PDFObjectElement final : public PDFElement
     double m_fGenerationValue;
     /// If set, the object contains this number element (outside any dictionary/array).
     PDFNumberElement* m_pNumberElement;
+    /// If set, the object contains this name element (outside any dictionary/array).
+    PDFNameElement* m_pNameElement;
     /// Position after the '<<' token.
     sal_uInt64 m_nDictionaryOffset;
     /// Length of the dictionary buffer till (before) the '>>' token.
@@ -114,6 +121,8 @@ public:
     void SetDictionary(PDFDictionaryElement* pDictionaryElement);
     void SetNumberElement(PDFNumberElement* pNumberElement);
     PDFNumberElement* GetNumberElement() const;
+    void SetNameElement(PDFNameElement* pNameElement);
+    PDFNameElement* GetNameElement() const;
     /// Get access to the parsed key-value items from the object dictionary.
     const std::map<OString, PDFElement*>& GetDictionaryItems();
     const std::vector<PDFReferenceElement*>& GetDictionaryReferences() const;
@@ -522,7 +531,8 @@ class VCL_DLLPUBLIC PDFDocument final : public PDFObjectContainer
     /// Suggest a minimal, yet free signature ID to use for the next signature.
     sal_uInt32 GetNextSignature();
     /// Write the signature object as part of signing.
-    sal_Int32 WriteSignatureObject(const OUString& rDescription, bool bAdES,
+    sal_Int32 WriteSignatureObject(svl::crypto::SigningContext& rSigningContext,
+                                   const OUString& rDescription, bool bAdES,
                                    sal_uInt64& rLastByteRangeOffset, sal_Int64& rContentOffset);
     /// Write the appearance object as part of signing.
     sal_Int32 WriteAppearanceObject(tools::Rectangle& rSignatureRectangle);
@@ -581,8 +591,8 @@ public:
     void SetSignatureLine(std::vector<sal_Int8>&& rSignatureLine);
     void SetSignaturePage(size_t nPage);
     /// Sign the read document with xCertificate in the edit buffer.
-    bool Sign(const css::uno::Reference<css::security::XCertificate>& xCertificate,
-              const OUString& rDescription, bool bAdES);
+    bool Sign(svl::crypto::SigningContext& rSigningContext, const OUString& rDescription,
+              bool bAdES);
     /// Serializes the contents of the edit buffer.
     bool Write(SvStream& rStream);
     /// Get a list of signatures embedded into this document.

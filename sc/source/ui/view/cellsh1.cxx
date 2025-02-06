@@ -27,6 +27,7 @@
 
 #include <basic/sberrors.hxx>
 #include <comphelper/lok.hxx>
+#include <comphelper/processfactory.hxx>
 #include <comphelper/propertysequence.hxx>
 #include <svl/stritem.hxx>
 #include <svl/numformat.hxx>
@@ -35,6 +36,7 @@
 #include <sfx2/dispatch.hxx>
 #include <sfx2/request.hxx>
 #include <vcl/commandinfoprovider.hxx>
+#include <vcl/unohelp2.hxx>
 #include <vcl/svapp.hxx>
 #include <vcl/weld.hxx>
 #include <svx/svxdlg.hxx>
@@ -45,6 +47,7 @@
 #include <svx/hlnkitem.hxx>
 #include <basic/sbxcore.hxx>
 #include <editeng/editview.hxx>
+#include <editeng/urlfieldhelper.hxx>
 #include <svtools/cliplistener.hxx>
 
 #include <cellsh.hxx>
@@ -93,7 +96,6 @@
 #include <com/sun/star/lang/XInitialization.hpp>
 #include <com/sun/star/beans/XPropertySet.hpp>
 #include <com/sun/star/uno/XComponentContext.hpp>
-#include <cppuhelper/bootstrap.hxx>
 #include <o3tl/string_view.hxx>
 
 #include <memory>
@@ -1438,7 +1440,10 @@ void ScCellShell::ExecuteEdit( SfxRequest& rReq )
                 weld::WaitObject aWait( GetViewData().GetDialogParent() );
                 pTabViewShell->CopyToClip( nullptr, false, false, true );
                 rReq.Done();
-                GetViewData().SetPasteMode( ScPasteFlags::Mode | ScPasteFlags::Border );
+
+                if (!comphelper::LibreOfficeKit::isActive() || !pTabViewShell->GetViewShell() || !pTabViewShell->GetViewShell()->IsLokReadOnlyView())
+                    GetViewData().SetPasteMode( ScPasteFlags::Mode | ScPasteFlags::Border );
+
                 pTabViewShell->ShowCursor();
                 pTabViewShell->UpdateCopySourceOverlay();
             }
@@ -1449,7 +1454,10 @@ void ScCellShell::ExecuteEdit( SfxRequest& rReq )
                 weld::WaitObject aWait( GetViewData().GetDialogParent() );
                 pTabViewShell->CutToClip();
                 rReq.Done();
-                GetViewData().SetPasteMode( ScPasteFlags::Mode | ScPasteFlags::Border );
+
+                if (!comphelper::LibreOfficeKit::isActive() || !pTabViewShell->GetViewShell() || !pTabViewShell->GetViewShell()->IsLokReadOnlyView())
+                    GetViewData().SetPasteMode( ScPasteFlags::Mode | ScPasteFlags::Border );
+
                 pTabViewShell->ShowCursor();
                 pTabViewShell->UpdateCopySourceOverlay();
             }
@@ -1988,8 +1996,7 @@ void ScCellShell::ExecuteEdit( SfxRequest& rReq )
         case SID_CHINESE_CONVERSION:
             {
                 //open ChineseTranslationDialog
-                Reference< XComponentContext > xContext(
-                    ::cppu::defaultBootstrap_InitialComponentContext() ); //@todo get context from calc if that has one
+                uno::Reference< uno::XComponentContext > xContext(::comphelper::getProcessComponentContext());
                 if(xContext.is())
                 {
                     Reference< lang::XMultiComponentFactory > xMCF( xContext->getServiceManager() );
@@ -3197,6 +3204,78 @@ void ScCellShell::ExecuteEdit( SfxRequest& rReq )
                     SC_MOD()->SetReference( aRef, rData.GetDocument(), &rData.GetMarkData() );
 
                     pInputHdl->UpdateLokReferenceMarks();
+                }
+            }
+            break;
+
+        case SID_COPY_HYPERLINK_LOCATION:
+            {
+                ScViewData& rData = GetViewData();
+                ScGridWindow* pWindow = rData.GetActiveWin();
+                const SfxInt32Item* pPosX = rReq.GetArg<SfxInt32Item>(FN_PARAM_1);
+                const SfxInt32Item* pPosY = rReq.GetArg<SfxInt32Item>(FN_PARAM_2);
+                if (pWindow && pPosX && pPosY)
+                {
+                    const Point aPoint(pPosX->GetValue() * rData.GetPPTX(),
+                                       pPosY->GetValue() * rData.GetPPTY());
+                    OUString aUrl;
+                    if (pWindow->GetEditUrl(aPoint, nullptr, &aUrl))
+                    {
+                        uno::Reference<datatransfer::clipboard::XClipboard> xClipboard
+                            = pWindow->GetClipboard();
+                        vcl::unohelper::TextDataObject::CopyStringTo(aUrl, xClipboard,
+                                                                     rData.GetViewShell());
+                        rReq.Done();
+                    }
+                }
+            }
+            break;
+
+        case SID_EDIT_HYPERLINK:
+        case SID_REMOVE_HYPERLINK:
+            {
+                ScViewData& rData = GetViewData();
+                ScGridWindow* pWindow = rData.GetActiveWin();
+                const SfxInt32Item* pPosX = rReq.GetArg<SfxInt32Item>(FN_PARAM_1);
+                const SfxInt32Item* pPosY = rReq.GetArg<SfxInt32Item>(FN_PARAM_2);
+                if (pWindow && pPosX && pPosY)
+                {
+                    const Point aPoint(pPosX->GetValue() * rData.GetPPTX(),
+                                       pPosY->GetValue() * rData.GetPPTY());
+                    SCCOL nPosX;
+                    SCROW nPosY;
+                    ScSplitPos eWhich = rData.GetActivePart();
+                    rData.GetPosFromPixel(aPoint.X(), aPoint.Y(), eWhich, nPosX, nPosY);
+                    if (pWindow->GetEditUrl(aPoint, nullptr, nullptr, nullptr, &nPosX))
+                    {
+                        pTabViewShell->SetCursor(nPosX, nPosY);
+                        pTabViewShell->UpdateInputHandler();
+                        pScMod->SetInputMode(SC_INPUT_TABLE);
+                        ScInputHandler* pHdl = pScMod->GetInputHdl(pTabViewShell);
+                        if (rData.HasEditView(eWhich) && pHdl)
+                        {
+                            // Set text cursor where clicked
+                            EditView* pEditView = rData.GetEditView(eWhich);
+                            MouseEvent aEditEvt(aPoint, 1, MouseEventModifiers::SYNTHETIC,
+                                                MOUSE_LEFT, 0);
+                            pEditView->MouseButtonDown(aEditEvt);
+                            pEditView->MouseButtonUp(aEditEvt);
+                            if (nSlot == SID_REMOVE_HYPERLINK)
+                            {
+                                pHdl->DataChanging();
+                                URLFieldHelper::RemoveURLField(*pEditView);
+                                pHdl->DataChanged();
+                                pHdl->EnterHandler();
+                            }
+                            else
+                            {
+                                pEditView->SelectFieldAtCursor();
+                                rData.GetViewShell()->GetViewFrame().GetDispatcher()->Execute(
+                                    SID_HYPERLINK_DIALOG);
+                            }
+                            rReq.Done();
+                        }
+                    }
                 }
             }
             break;

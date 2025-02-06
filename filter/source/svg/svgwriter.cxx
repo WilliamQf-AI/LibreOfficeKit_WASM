@@ -600,6 +600,11 @@ sal_Int32 SVGTextWriter::setTextPosition(const GDIMetaFile& rMtf, size_t& nCurAc
     bool bConfigured = false;
     bool bEmpty = true;
 
+    // similar to OutputDevice::Push, but we may conditionally not restore these
+    MapMode aOrigMapMode = mpVDev->GetMapMode();
+    bool bOrigMapMapModeEnabled = mpVDev->IsMapModeEnabled();
+    int nPopsNeeded = 0;
+
     size_t nActionIndex = nCurAction + 1;
     for( ; nActionIndex < nCount; ++nActionIndex )
     {
@@ -716,6 +721,23 @@ sal_Int32 SVGTextWriter::setTextPosition(const GDIMetaFile& rMtf, size_t& nCurAc
                 }
             }
             break;
+
+            case MetaActionType::PUSH:
+                const_cast<MetaAction*>(pAction)->Execute(mpVDev);
+                ++nPopsNeeded;
+                break;
+            case MetaActionType::POP:
+                const_cast<MetaAction*>(pAction)->Execute(mpVDev);
+                --nPopsNeeded;
+                break;
+            case MetaActionType::MAPMODE:
+            {
+                // keep MapMode up to date
+                const_cast<MetaAction*>(pAction)->Execute(mpVDev);
+                break;
+            }
+            break;
+
             default: break;
         }
         if( bConfigured || bEOL || bEOP || bETS ) break;
@@ -724,13 +746,23 @@ sal_Int32 SVGTextWriter::setTextPosition(const GDIMetaFile& rMtf, size_t& nCurAc
 
     if( bEmpty )
     {
+        // If we fast-forward to this nActionIndex, then leave
+        // the OutputDevice state as it is.
         nCurAction = nActionIndex;
         return ( bEOL ? -2 : ( bEOP ? -1 : 0 ) );
     }
-    else
+
+    // If we are leaving nCurAction untouched, then restore the OutputDevice
+    // to its original state
+    while (nPopsNeeded > 0)
     {
-        return 1;
+        mpVDev->Pop();
+        --nPopsNeeded;
     }
+
+    mpVDev->SetMapMode(aOrigMapMode);
+    mpVDev->EnableMapMode(bOrigMapMapModeEnabled);
+    return 1;
 }
 
 
@@ -1389,6 +1421,8 @@ void SVGTextWriter::endTextPosition()
 }
 
 bool SVGTextWriter::hasTextOpacity() const { return !maTextOpacity.isEmpty(); }
+
+OUString& SVGTextWriter::getTextOpacity() { return maTextOpacity; }
 
 void SVGTextWriter::implExportHyperlinkIds()
 {
@@ -2544,6 +2578,15 @@ void SVGActionWriter::ImplWriteMask(GDIMetaFile& rMtf, const Point& rDestPt, con
     if (nMoveX || nMoveY)
         rMtf.Move(nMoveX, nMoveY);
 
+    std::optional<OUString> oTextOpacity;
+    if (maTextWriter.isTextShapeStarted())
+    {
+        // We're inside <text>, then try to use the fill-opacity attribute instead of a <g> element
+        // to express transparency to ensure well-formed output.
+        oTextOpacity = maTextWriter.getTextOpacity();
+        StartMask(rDestPt, rDestSize, rGradient, nWriteFlags, pColorStops, &maTextWriter.getTextOpacity());
+    }
+
     {
         std::unique_ptr<SvXMLElementExport> pElemG;
         if (!maTextWriter.hasTextOpacity())
@@ -2556,6 +2599,11 @@ void SVGActionWriter::ImplWriteMask(GDIMetaFile& rMtf, const Point& rDestPt, con
         mpVDev->Push();
         ImplWriteActions( rMtf, nWriteFlags, "" );
         mpVDev->Pop();
+    }
+
+    if (oTextOpacity)
+    {
+        maTextWriter.getTextOpacity() = *oTextOpacity;
     }
 }
 

@@ -51,14 +51,17 @@
 #include <DrawViewShell.hxx>
 #include <ToolBarManager.hxx>
 #include <Client.hxx>
+#include <annotationmanager.hxx>
 
 #include <svx/svdundo.hxx>
 
 #include <svx/sdrhittesthelper.hxx>
 #include <svx/diagram/IDiagramHelper.hxx>
+#include <svx/annotation/ObjectAnnotationData.hxx>
 
 #include <LibreOfficeKit/LibreOfficeKitEnums.h>
 #include <comphelper/lok.hxx>
+#include <svl/cryptosign.hxx>
 
 using namespace ::com::sun::star;
 
@@ -202,7 +205,8 @@ bool FuSelection::MouseButtonDown(const MouseEvent& rMEvt)
             bTextEdit = true;
 
         bool bPreventModify = mpDocSh->IsReadOnly();
-        if (bPreventModify && mpDocSh->GetSignPDFCertificate().is())
+        SfxViewShell* pViewShell = mpViewShell->GetViewShell();
+        if (bPreventModify && pViewShell && pViewShell->GetSignPDFCertificate().Is())
         {
             // If the just added signature line shape is selected, allow moving / resizing it.
             bPreventModify = false;
@@ -659,6 +663,7 @@ bool FuSelection::MouseButtonUp(const MouseEvent& rMEvt)
     sal_uInt16 nHitLog = sal_uInt16 ( mpWindow->PixelToLogic(Size(HITPIX,0)).Width() );
     sal_uInt16 nDrgLog = sal_uInt16 ( mpWindow->PixelToLogic(Size(mpView->GetDragThresholdPixels(),0)).Width() );
 
+    bool bWasDragged = false;
     if (mpView->IsFrameDragSingles() || !mpView->HasMarkablePoints())
     {
         /**********************************************************************
@@ -678,7 +683,7 @@ bool FuSelection::MouseButtonUp(const MouseEvent& rMEvt)
             }
 
             mpView->SetDragWithCopy(bDragWithCopy);
-            bool bWasDragged(mpView->EndDragObj( mpView->IsDragWithCopy() ));
+            bWasDragged = mpView->EndDragObj(mpView->IsDragWithCopy());
 
             mpView->ForceMarkedToAnotherPage();
 
@@ -853,6 +858,21 @@ bool FuSelection::MouseButtonUp(const MouseEvent& rMEvt)
         if (nMarkCount==1)
         {
             pSingleObj = mpView->GetMarkedObjectList().GetMark(0)->GetMarkedSdrObj();
+        }
+
+        if (!bWasDragged && pSingleObj && pSingleObj->isAnnotationObject() && rMEvt.IsLeft())
+        {
+            auto& pAnnotationData = pSingleObj->getAnnotationData();
+            if (pAnnotationData)
+            {
+                auto* pDrawViewShell = dynamic_cast<DrawViewShell*>(mpViewShell);
+                if (pDrawViewShell && pDrawViewShell->getAnnotationManagerPtr())
+                {
+                    pDrawViewShell->getAnnotationManagerPtr()->SelectAnnotation(pAnnotationData->mxAnnotation);
+                }
+                pAnnotationData->openPopup();
+            }
+            return true;
         }
 
         if ( (nSlotId != SID_OBJECT_SELECT && nMarkCount==0)                    ||

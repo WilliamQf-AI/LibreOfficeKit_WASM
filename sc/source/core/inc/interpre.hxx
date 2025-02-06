@@ -56,7 +56,7 @@ struct ScInterpreterContext;
 class ScJumpMatrix;
 struct ScRefCellValue;
 
-enum MatchMode{ exactorNA=0, exactorS=-1, exactorG=1, wildcard=2 };
+enum MatchMode{ exactorNA=0, exactorS=-1, exactorG=1, wildcard=2, regex=3 };
 enum SearchMode{ searchfwd=1, searchrev=-1, searchbasc=2, searchbdesc=-2 };
 
 struct VectorSearchArguments
@@ -500,6 +500,7 @@ private:
     /** if GetDouble() not within uint32 limits sets nGlobalError and returns SAL_MAX_UINT32 */
     sal_uInt32 GetUInt32();
     bool GetBool() { return GetDouble() != 0.0; }
+    bool GetBoolWithDefault(bool bDefault);
     /// returns TRUE if double (or error, check nGlobalError), else FALSE
     bool GetDoubleOrString( double& rValue, svl::SharedString& rString );
     svl::SharedString GetString();
@@ -605,6 +606,7 @@ private:
     void ScPi();
     void ScRandom();
     void ScRandbetween();
+    void ScRandArray();
     void ScRandomImpl( const std::function<double( double fFirst, double fLast )>& RandomFunc,
             double fFirst, double fLast );
     void ScTrue();
@@ -717,6 +719,7 @@ private:
     void ScFilter();
     void ScSort();
     void ScSortBy();
+    void ScUnique();
     void ScSubTotal();
 
     // If upon call rMissingField==true then the database field parameter may be
@@ -909,6 +912,7 @@ private:
     void ScMatDet();
     void ScMatInv();
     void ScMatMult();
+    void ScMatSequence();
     void ScMatTrans();
     void ScEMat();
     void ScMatRef();

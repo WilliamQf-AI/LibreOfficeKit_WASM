@@ -18,6 +18,8 @@
 
 #include <com/sun/star/frame/Desktop.hpp>
 #include <com/sun/star/ui/ContextChangeEventObject.hpp>
+#include <com/sun/star/xml/crypto/SEInitializer.hpp>
+#include <com/sun/star/xml/crypto/XCertificateCreator.hpp>
 
 #include <comphelper/processfactory.hxx>
 #include <o3tl/string_view.hxx>
@@ -37,7 +39,10 @@
 #include <comphelper/lok.hxx>
 #include <sfx2/msgpool.hxx>
 #include <comphelper/scopeguard.hxx>
+#include <comphelper/base64.hxx>
 #include <tools/json_writer.hxx>
+#include <svl/cryptosign.hxx>
+#include <tools/urlobj.hxx>
 
 #include <boost/property_tree/json_parser.hpp>
 
@@ -336,6 +341,10 @@ void SfxLokHelper::setViewLanguage(int nId, const OUString& rBcp47LanguageTag)
         if (pViewShell->GetViewShellId() == ViewShellId(nId))
         {
             pViewShell->SetLOKLanguageTag(rBcp47LanguageTag);
+            // sync also global getter if we are the current view
+            bool bIsCurrShell = (pViewShell == SfxViewShell::Current());
+            if (bIsCurrShell)
+                comphelper::LibreOfficeKit::setLanguageTag(LanguageTag(rBcp47LanguageTag));
             return;
         }
     }
@@ -819,9 +828,245 @@ void SfxLokHelper::notifyLog(const std::ostringstream& stream)
     }
 }
 
+namespace
+{
+std::string extractCertificateWithOffset(const std::string& certificate, size_t& rOffset)
+{
+    static constexpr std::string_view header("-----BEGIN CERTIFICATE-----");
+    static constexpr std::string_view footer("-----END CERTIFICATE-----");
+
+    std::string result;
+
+    size_t pos1 = certificate.find(header, rOffset);
+    if (pos1 == std::string::npos)
+        return result;
+
+    size_t pos2 = certificate.find(footer, pos1 + 1);
+    if (pos2 == std::string::npos)
+        return result;
+
+    pos1 = pos1 + header.length();
+    size_t len = pos2 - pos1;
+
+    rOffset = pos2;
+    return certificate.substr(pos1, len);
+}
+}
+
+std::string SfxLokHelper::extractCertificate(const std::string & certificate)
+{
+    size_t nOffset = 0;
+    return extractCertificateWithOffset(certificate, nOffset);
+}
+
+std::vector<std::string> SfxLokHelper::extractCertificates(const std::string& rCerts)
+{
+    std::vector<std::string> aRet;
+    size_t nOffset = 0;
+    while (true)
+    {
+        std::string aNext = extractCertificateWithOffset(rCerts, nOffset);
+        if (aNext.empty())
+        {
+            break;
+        }
+
+        aRet.push_back(aNext);
+    }
+    return aRet;
+}
+
+namespace
+{
+std::string extractKey(const std::string & privateKey)
+{
+    static constexpr std::string_view header("-----BEGIN PRIVATE KEY-----");
+    static constexpr std::string_view footer("-----END PRIVATE KEY-----");
+
+    std::string result;
+
+    size_t pos1 = privateKey.find(header);
+    if (pos1 == std::string::npos)
+        return result;
+
+    size_t pos2 = privateKey.find(footer, pos1 + 1);
+    if (pos2 == std::string::npos)
+        return result;
+
+    pos1 = pos1 + header.length();
+    pos2 = pos2 - pos1;
+
+    return privateKey.substr(pos1, pos2);
+}
+}
+
+css::uno::Reference<css::security::XCertificate> SfxLokHelper::getSigningCertificate(const std::string& rCert, const std::string& rKey)
+{
+    uno::Reference<uno::XComponentContext> xContext = comphelper::getProcessComponentContext();
+    uno::Reference<xml::crypto::XSEInitializer> xSEInitializer = xml::crypto::SEInitializer::create(xContext);
+    uno::Reference<xml::crypto::XXMLSecurityContext> xSecurityContext = xSEInitializer->createSecurityContext(OUString());
+    if (!xSecurityContext.is())
+    {
+        return {};
+    }
+
+    uno::Reference<xml::crypto::XSecurityEnvironment> xSecurityEnvironment = xSecurityContext->getSecurityEnvironment();
+    uno::Reference<xml::crypto::XCertificateCreator> xCertificateCreator(xSecurityEnvironment, uno::UNO_QUERY);
+
+    if (!xCertificateCreator.is())
+    {
+        return {};
+    }
+
+    uno::Sequence<sal_Int8> aCertificateSequence;
+
+    std::string aCertificateBase64String = extractCertificate(rCert);
+    if (!aCertificateBase64String.empty())
+    {
+        OUString aBase64OUString = OUString::createFromAscii(aCertificateBase64String);
+        comphelper::Base64::decode(aCertificateSequence, aBase64OUString);
+    }
+    else
+    {
+        aCertificateSequence.realloc(rCert.size());
+        std::copy(rCert.c_str(), rCert.c_str() + rCert.size(), aCertificateSequence.getArray());
+    }
+
+    uno::Sequence<sal_Int8> aPrivateKeySequence;
+    std::string aPrivateKeyBase64String = extractKey(rKey);
+    if (!aPrivateKeyBase64String.empty())
+    {
+        OUString aBase64OUString = OUString::createFromAscii(aPrivateKeyBase64String);
+        comphelper::Base64::decode(aPrivateKeySequence, aBase64OUString);
+    }
+    else
+    {
+        aPrivateKeySequence.realloc(rKey.size());
+        std::copy(rKey.c_str(), rKey.c_str() + rKey.size(), aPrivateKeySequence.getArray());
+    }
+
+    uno::Reference<security::XCertificate> xCertificate = xCertificateCreator->createDERCertificateWithPrivateKey(aCertificateSequence, aPrivateKeySequence);
+    return xCertificate;
+}
+
+uno::Reference<security::XCertificate> SfxLokHelper::addCertificate(
+    const css::uno::Reference<css::xml::crypto::XCertificateCreator>& xCertificateCreator,
+    const css::uno::Sequence<sal_Int8>& rCert)
+{
+    // Trust arg is handled by CERT_DecodeTrustString(), see 'man certutil'.
+    return xCertificateCreator->addDERCertificateToTheDatabase(rCert, u"TCu,Cu,Tu"_ustr);
+}
+
+void SfxLokHelper::addCertificates(const std::vector<std::string>& rCerts)
+{
+    uno::Reference<uno::XComponentContext> xContext = comphelper::getProcessComponentContext();
+    uno::Reference<xml::crypto::XSEInitializer> xSEInitializer = xml::crypto::SEInitializer::create(xContext);
+    uno::Reference<xml::crypto::XXMLSecurityContext> xSecurityContext = xSEInitializer->createSecurityContext(OUString());
+    if (!xSecurityContext.is())
+    {
+        return;
+    }
+
+    uno::Reference<xml::crypto::XSecurityEnvironment> xSecurityEnvironment = xSecurityContext->getSecurityEnvironment();
+    uno::Reference<xml::crypto::XCertificateCreator> xCertificateCreator(xSecurityEnvironment, uno::UNO_QUERY);
+    if (!xCertificateCreator.is())
+    {
+        return;
+    }
+
+    for (const auto& rCert : rCerts)
+    {
+        uno::Sequence<sal_Int8> aCertificateSequence;
+        OUString aBase64OUString = OUString::fromUtf8(rCert);
+        comphelper::Base64::decode(aCertificateSequence, aBase64OUString);
+        addCertificate(xCertificateCreator, aCertificateSequence);
+    }
+
+    // Update the signature state, perhaps the signing certificate is now trusted.
+    SfxObjectShell* pObjectShell = SfxObjectShell::Current();
+    if (!pObjectShell)
+    {
+        return;
+    }
+
+    pObjectShell->RecheckSignature(false);
+}
+
+bool SfxLokHelper::supportsCommand(std::u16string_view rCommand)
+{
+    static const std::initializer_list<std::u16string_view> vSupport = { u"Signature" };
+
+    return std::find(vSupport.begin(), vSupport.end(), rCommand) != vSupport.end();
+}
+
+std::map<OUString, OUString> SfxLokHelper::parseCommandParameters(std::u16string_view rCommand)
+{
+    std::map<OUString, OUString> aMap;
+
+    INetURLObject aParser(rCommand);
+    OUString aArguments = aParser.GetParam();
+    sal_Int32 nParamIndex = 0;
+    do
+    {
+        std::u16string_view aParam = o3tl::getToken(aArguments, 0, '&', nParamIndex);
+        sal_Int32 nIndex = 0;
+        OUString aKey;
+        OUString aValue;
+        do
+        {
+            std::u16string_view aToken = o3tl::getToken(aParam, 0, '=', nIndex);
+            if (aKey.isEmpty())
+                aKey = aToken;
+            else
+                aValue = aToken;
+        } while (nIndex >= 0);
+        OUString aDecodedValue
+            = INetURLObject::decode(aValue, INetURLObject::DecodeMechanism::WithCharset);
+        aMap[aKey] = aDecodedValue;
+    } while (nParamIndex >= 0);
+
+    return aMap;
+}
+
+void SfxLokHelper::getCommandValues(tools::JsonWriter& rJsonWriter, std::string_view rCommand)
+{
+    static constexpr OString aSignature(".uno:Signature"_ostr);
+    if (!o3tl::starts_with(rCommand, aSignature))
+    {
+        return;
+    }
+
+    SfxObjectShell* pObjectShell = SfxObjectShell::Current();
+    if (!pObjectShell)
+    {
+        return;
+    }
+
+    svl::crypto::SigningContext aSigningContext;
+    std::map<OUString, OUString> aMap
+        = SfxLokHelper::parseCommandParameters(OUString::fromUtf8(rCommand));
+    auto it = aMap.find("signatureTime");
+    if (it != aMap.end())
+    {
+        // Signature time is provided: prefer it over the system time.
+        aSigningContext.m_nSignatureTime = it->second.toInt64();
+    }
+    pObjectShell->SignDocumentContentUsingCertificate(aSigningContext);
+    // Set commandName, this is a reply to a request.
+    rJsonWriter.put("commandName", aSignature);
+    auto aCommandValues = rJsonWriter.startNode("commandValues");
+    rJsonWriter.put("signatureTime", aSigningContext.m_nSignatureTime);
+
+    uno::Sequence<sal_Int8> aDigest(reinterpret_cast<sal_Int8*>(aSigningContext.m_aDigest.data()),
+                                    aSigningContext.m_aDigest.size());
+    OUStringBuffer aBuffer;
+    comphelper::Base64::encode(aBuffer, aDigest);
+    rJsonWriter.put("digest", aBuffer.makeStringAndClear());
+}
+
 void SfxLokHelper::notifyUpdate(SfxViewShell const* pThisView, int nType)
 {
-    if (DisableCallbacks::disabled())
+    if (DisableCallbacks::disabled() || !pThisView)
         return;
 
     pThisView->libreOfficeKitViewUpdatedCallback(nType);
@@ -845,8 +1090,7 @@ void SfxLokHelper::notifyUpdatePerViewId(SfxViewShell const* pTargetShell, SfxVi
 
 void SfxLokHelper::notifyOtherViewsUpdatePerViewId(SfxViewShell const* pThisView, int nType)
 {
-    assert(pThisView != nullptr && "pThisView must be valid");
-    if (DisableCallbacks::disabled())
+    if (DisableCallbacks::disabled() || !pThisView)
         return;
 
     int viewId = SfxLokHelper::getView(pThisView);
@@ -859,6 +1103,16 @@ void SfxLokHelper::notifyOtherViewsUpdatePerViewId(SfxViewShell const* pThisView
 
         pViewShell = SfxViewShell::GetNext(*pViewShell);
     }
+}
+
+void SfxLokHelper::registerViewCallbacks()
+{
+    comphelper::LibreOfficeKit::setViewSetter([](int nView) {
+        SfxLokHelper::setView(nView);
+    });
+    comphelper::LibreOfficeKit::setViewGetter([]() -> int {
+        return SfxLokHelper::getView();
+    });
 }
 
 namespace
@@ -909,6 +1163,14 @@ namespace
             for (sal_uInt16 i = 0; i <= nRepeat; ++i)
                 if (!pFocusWindow->isDisposed())
                     pFocusWindow->KeyInput(singlePress);
+
+            if (pLOKEv->maKeyEvent.GetKeyCode().GetCode() == KEY_CONTEXTMENU)
+            {
+                // later do use getCaretPosition probably, or get focused obj position, smt like that
+                Point aPos = pFocusWindow->GetPointerPosPixel();
+                CommandEvent aCEvt( aPos, CommandEventId::ContextMenu);
+                pFocusWindow->Command(aCEvt);
+            }
             break;
         }
         case VclEventId::WindowKeyUp:

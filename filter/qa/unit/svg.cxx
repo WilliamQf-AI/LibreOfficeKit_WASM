@@ -319,6 +319,63 @@ CPPUNIT_TEST_FIXTURE(SvgFilterTest, textInImage)
     // - Actual  : 0
 }
 
+CPPUNIT_TEST_FIXTURE(SvgFilterTest, testSemiTransparentTextBullet)
+{
+    // Given a document with 3 paragraphs, paragraph 2 is a bullet with 80% opacity.
+    loadFromFile(u"semi-transparent-text-bullet.odg");
+
+    // When exporting to SVG:
+    save(u"draw_svg_Export"_ustr);
+
+    // Then make sure the result is correct:
+    xmlDocUniquePtr pXmlDoc = parseExportedFile();
+    // We have 3 paragraphs.
+    assertXPath(pXmlDoc, "//svg:g[@class='TextShape']//svg:text/svg:tspan"_ostr, 3);
+    // Paragraph 1 has no spans with text opacity set.
+    assertXPath(
+        pXmlDoc,
+        "(//svg:g[@class='TextShape']//svg:text/svg:tspan)[1]/svg:tspan/svg:tspan[@fill-opacity='0.8']"_ostr,
+        0);
+    // Paragraph 2 has a span with text opacity set to 80%.
+    assertXPath(
+        pXmlDoc,
+        "(//svg:g[@class='TextShape']//svg:text/svg:tspan)[2]/svg:tspan/svg:tspan[@fill-opacity='0.8']"_ostr,
+        1);
+    // Paragraph 3 has no spans with text opacity set.
+    assertXPath(
+        pXmlDoc,
+        "(//svg:g[@class='TextShape']//svg:text/svg:tspan)[3]/svg:tspan/svg:tspan[@fill-opacity='0.8']"_ostr,
+        0);
+}
+
+CPPUNIT_TEST_FIXTURE(SvgFilterTest, testMapModeText)
+{
+    loadFromFile(u"YAxis.odg");
+
+    // Export to SVG.
+    save(u"draw_svg_Export"_ustr);
+
+    xmlDocUniquePtr pXmlDoc = parseExportedFile();
+
+    OUString sTransform
+        = getXPath(pXmlDoc, "(//svg:text[@class='SVGTextShape'])[last()]"_ostr, "transform"_ostr);
+
+    OUString aTextPositionX
+        = getXPath(pXmlDoc, "(//svg:tspan[@class='TextPosition'])[last()]"_ostr, "x"_ostr);
+    OUString aTextPositionY
+        = getXPath(pXmlDoc, "(//svg:tspan[@class='TextPosition'])[last()]"_ostr, "y"_ostr);
+
+    OUString sExpectedTransform("rotate(-90 " + aTextPositionX + " " + aTextPositionY + ")");
+
+    // We expect the rotate point of the rotated text to match the start position of the text
+    CPPUNIT_ASSERT_EQUAL(sExpectedTransform, sTransform);
+    // Without the accompanying fix, this test would have failed with:
+    // - Expected: rotate(-90 3386 14754)
+    // - Actual  : rotate(-90 -1651 14488)
+    // Because the (local) MapMode wasn't taken into account for the text position when peeking
+    // ahead to get the rotation.
+}
+
 CPPUNIT_PLUGIN_IMPLEMENT();
 
 /* vim:set shiftwidth=4 softtabstop=4 expandtab: */

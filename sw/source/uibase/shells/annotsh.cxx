@@ -94,8 +94,8 @@
 #include <swabstdlg.hxx>
 
 #include <comphelper/string.hxx>
+#include <comphelper/processfactory.hxx>
 #include <comphelper/propertysequence.hxx>
-#include <cppuhelper/bootstrap.hxx>
 
 #include <langhelper.hxx>
 
@@ -1114,6 +1114,7 @@ void SwAnnotationShell::NoteExec(SfxRequest const &rReq)
         case FN_DELETE_COMMENT_THREAD:
         case FN_RESOLVE_NOTE:
         case FN_RESOLVE_NOTE_THREAD:
+        case FN_PROMOTE_COMMENT:
             if ( pPostItMgr->HasActiveSidebarWin() )
                 pPostItMgr->GetActiveSidebarWin()->ExecuteCommand(nSlot);
             break;
@@ -1240,6 +1241,15 @@ void SwAnnotationShell::GetNoteState(SfxItemSet &rSet)
                 }
                 break;
             }
+        case FN_PROMOTE_COMMENT:
+            {
+                if (!pPostItMgr || !pPostItMgr->HasActiveAnnotationWin()
+                    || pPostItMgr->GetActiveSidebarWin()->IsRootNote())
+                {
+                    rSet.DisableItem(nWhich);
+                }
+                break;
+            }
             default:
                 rSet.InvalidateItem( nWhich );
                 break;
@@ -1303,8 +1313,7 @@ void SwAnnotationShell::ExecLingu(SfxRequest &rReq)
         case SID_CHINESE_CONVERSION:
         {
                 //open ChineseTranslationDialog
-                Reference< XComponentContext > xContext(
-                    ::cppu::defaultBootstrap_InitialComponentContext() ); //@todo get context from calc if that has one
+                uno::Reference< uno::XComponentContext > xContext(::comphelper::getProcessComponentContext());
                 if(xContext.is())
                 {
                     Reference< lang::XMultiComponentFactory > xMCF( xContext->getServiceManager() );

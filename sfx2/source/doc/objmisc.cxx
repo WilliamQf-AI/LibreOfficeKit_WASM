@@ -259,7 +259,13 @@ bool SfxObjectShell::IsEnableSetModified() const
     // which the user didn't load or activate to modified.
     return pImpl->m_bEnableSetModified && !IsPreview()
         && eCreateMode != SfxObjectCreateMode::ORGANIZER
-        && eCreateMode != SfxObjectCreateMode::INTERNAL;
+        && eCreateMode != SfxObjectCreateMode::INTERNAL
+        // tdf#157931 form documents only in design mode
+        && ((pImpl->pBaseModel
+                && !pImpl->pBaseModel->impl_isDisposed()
+                && pImpl->pBaseModel->IsInitialized()
+                && pImpl->pBaseModel->getIdentifier() != "com.sun.star.sdb.FormDesign")
+            || !IsReadOnly());
 }
 
 
@@ -957,6 +963,12 @@ void SfxObjectShell::BreakMacroSign_Impl( bool bBreakMacroSign )
 
 void SfxObjectShell::CheckSecurityOnLoading_Impl()
 {
+    if (GetErrorCode() == ERRCODE_IO_BROKENPACKAGE)
+    {   // safety first: don't run any macros from broken package.
+        pImpl->aMacroMode.disallowMacroExecution();
+        return; // do not get signature status - needs to be done after RepairPackage
+    }
+
     // make sure LO evaluates the macro signatures, so it can be preserved
     GetScriptingSignatureState();
 
@@ -2007,9 +2019,18 @@ bool SfxObjectShell::isEditDocLocked() const
     Reference<XModel3> xModel = GetModel();
     if (!xModel.is())
         return false;
-    if (!officecfg::Office::Common::Misc::AllowEditReadonlyDocs::get())
+    if (officecfg::Office::Common::Misc::ViewerAppMode::get()
+        || !officecfg::Office::Common::Misc::AllowEditReadonlyDocs::get())
         return true;
-    return comphelper::NamedValueCollection::getOrDefault(xModel->getArgs2( { "LockEditDoc" } ), u"LockEditDoc", false);
+    try
+    {
+        return comphelper::NamedValueCollection::getOrDefault(xModel->getArgs2( { "LockEditDoc" } ), u"LockEditDoc", false);
+    }
+    catch (const uno::RuntimeException&)
+    {
+        TOOLS_WARN_EXCEPTION("sfx.appl", "unexpected RuntimeException");
+    }
+    return false;
 }
 
 bool SfxObjectShell::isContentExtractionLocked() const
@@ -2017,7 +2038,15 @@ bool SfxObjectShell::isContentExtractionLocked() const
     Reference<XModel3> xModel = GetModel();
     if (!xModel.is())
         return false;
-    return comphelper::NamedValueCollection::getOrDefault(xModel->getArgs2( { "LockContentExtraction" } ), u"LockContentExtraction", false);
+    try
+    {
+        return comphelper::NamedValueCollection::getOrDefault(xModel->getArgs2( { "LockContentExtraction" } ), u"LockContentExtraction", false);
+    }
+    catch (const uno::RuntimeException&)
+    {
+        TOOLS_WARN_EXCEPTION("sfx.appl", "unexpected RuntimeException");
+    }
+    return false;
 }
 
 bool SfxObjectShell::isExportLocked() const
@@ -2025,7 +2054,15 @@ bool SfxObjectShell::isExportLocked() const
     Reference<XModel3> xModel = GetModel();
     if (!xModel.is())
         return false;
-    return comphelper::NamedValueCollection::getOrDefault(xModel->getArgs2( { "LockExport" } ), u"LockExport", false);
+    try
+    {
+        return comphelper::NamedValueCollection::getOrDefault(xModel->getArgs2( { "LockExport" } ), u"LockExport", false);
+    }
+    catch (const uno::RuntimeException&)
+    {
+        TOOLS_WARN_EXCEPTION("sfx.appl", "unexpected RuntimeException");
+    }
+    return false;
 }
 
 bool SfxObjectShell::isPrintLocked() const

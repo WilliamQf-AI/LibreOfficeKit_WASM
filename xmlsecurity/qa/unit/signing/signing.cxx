@@ -20,6 +20,7 @@
 #include <test/unoapixml_test.hxx>
 
 #include <com/sun/star/beans/XPropertySet.hpp>
+#include <com/sun/star/document/BrokenPackageRequest.hpp>
 #include <com/sun/star/embed/XStorage.hpp>
 #include <com/sun/star/embed/XTransactedObject.hpp>
 #include <com/sun/star/frame/XStorable.hpp>
@@ -47,6 +48,7 @@
 #include <biginteger.hxx>
 #include <certificate.hxx>
 #include <xsecctl.hxx>
+#include <ucbhelper/interceptedinteraction.hxx>
 #include <sfx2/docfile.hxx>
 #include <sfx2/docfilt.hxx>
 #include <officecfg/Office/Common.hxx>
@@ -56,6 +58,7 @@
 #include <comphelper/propertyvalue.hxx>
 #include <vcl/filter/PDFiumLibrary.hxx>
 #include <vcl/scheduler.hxx>
+#include <svl/cryptosign.hxx>
 
 using namespace com::sun::star;
 
@@ -157,7 +160,9 @@ CPPUNIT_TEST_FIXTURE(SigningTest, testDescription)
         return;
     OUString aDescription("SigningTest::testDescription");
     sal_Int32 nSecurityId;
-    aManager.add(xCertificate, mxSecurityContext, aDescription, nSecurityId, false);
+    svl::crypto::SigningContext aSigningContext;
+    aSigningContext.m_xCertificate = xCertificate;
+    aManager.add(aSigningContext, mxSecurityContext, aDescription, nSecurityId, false);
 
     // Read back the signature and make sure that the description survives the roundtrip.
     aManager.read(/*bUseTempStream=*/true);
@@ -188,7 +193,9 @@ CPPUNIT_TEST_FIXTURE(SigningTest, testECDSA)
     if (!xCertificate.is())
         return;
     sal_Int32 nSecurityId;
-    aManager.add(xCertificate, mxSecurityContext, "", nSecurityId, false);
+    svl::crypto::SigningContext aSigningContext;
+    aSigningContext.m_xCertificate = xCertificate;
+    aManager.add(aSigningContext, mxSecurityContext, "", nSecurityId, false);
 
     // Read back the signature and make sure that it's valid.
     aManager.read(/*bUseTempStream=*/true);
@@ -222,7 +229,9 @@ CPPUNIT_TEST_FIXTURE(SigningTest, testECDSAOOXML)
     if (!xCertificate.is())
         return;
     sal_Int32 nSecurityId;
-    aManager.add(xCertificate, mxSecurityContext, "", nSecurityId,
+    svl::crypto::SigningContext aSigningContext;
+    aSigningContext.m_xCertificate = xCertificate;
+    aManager.add(aSigningContext, mxSecurityContext, "", nSecurityId,
                  /*bAdESCompliant=*/false);
 
     // Read back the signature and make sure that it's valid.
@@ -257,7 +266,9 @@ CPPUNIT_TEST_FIXTURE(SigningTest, testECDSAPDF)
     if (!xCertificate.is())
         return;
     sal_Int32 nSecurityId;
-    aManager.add(xCertificate, mxSecurityContext, "", nSecurityId,
+    svl::crypto::SigningContext aSigningContext;
+    aSigningContext.m_xCertificate = xCertificate;
+    aManager.add(aSigningContext, mxSecurityContext, "", nSecurityId,
                  /*bAdESCompliant=*/true);
 
     // Read back the signature and make sure that it's valid.
@@ -299,7 +310,9 @@ CPPUNIT_TEST_FIXTURE(SigningTest, testOOXMLDescription)
         return;
     OUString aDescription("SigningTest::testDescription");
     sal_Int32 nSecurityId;
-    aManager.add(xCertificate, mxSecurityContext, aDescription, nSecurityId, false);
+    svl::crypto::SigningContext aSigningContext;
+    aSigningContext.m_xCertificate = xCertificate;
+    aManager.add(aSigningContext, mxSecurityContext, aDescription, nSecurityId, false);
 
     // Read back the signature and make sure that the description survives the roundtrip.
     aManager.read(/*bUseTempStream=*/true);
@@ -332,7 +345,9 @@ CPPUNIT_TEST_FIXTURE(SigningTest, testOOXMLAppend)
     if (!xCertificate.is())
         return;
     sal_Int32 nSecurityId;
-    aManager.add(xCertificate, mxSecurityContext, OUString(), nSecurityId, false);
+    svl::crypto::SigningContext aSigningContext;
+    aSigningContext.m_xCertificate = xCertificate;
+    aManager.add(aSigningContext, mxSecurityContext, OUString(), nSecurityId, false);
 
     // Read back the signatures and make sure that we have the expected amount.
     aManager.read(/*bUseTempStream=*/true);
@@ -754,15 +769,19 @@ CPPUNIT_TEST_FIXTURE(SigningTest, testPDFAddVisibleSignature)
     {
         return;
     }
-    SdrView* pView = SfxViewShell::Current()->GetDrawView();
-    svx::SignatureLineHelper::setShapeCertificate(pView, aCertificates[0]);
+    SfxViewShell* pViewShell = SfxViewShell::Current();
+    svl::crypto::CertificateOrName aCertificateOrName;
+    aCertificateOrName.m_xCertificate = aCertificates[0];
+    svx::SignatureLineHelper::setShapeCertificate(pViewShell, aCertificateOrName);
 
     // the document is modified now, but Sign function can't show SaveAs dialog
     // in unit test, so just clear the modified
     pObjectShell->SetModified(false);
 
     // When: do the actual signing.
-    pObjectShell->SignDocumentContentUsingCertificate(aCertificates[0]);
+    svl::crypto::SigningContext aSigningContext;
+    aSigningContext.m_xCertificate = aCertificates[0];
+    pObjectShell->SignDocumentContentUsingCertificate(aSigningContext);
 
     // Then: count the # of shapes on the signature widget/annotation.
     std::unique_ptr<vcl::pdf::PDFiumDocument> pPdfDocument = parsePDFExport();
@@ -854,7 +873,9 @@ CPPUNIT_TEST_FIXTURE(SigningTest, testXAdESNotype)
     if (!xCertificate.is())
         return;
     sal_Int32 nSecurityId;
-    aManager.add(xCertificate, mxSecurityContext, /*rDescription=*/OUString(), nSecurityId,
+    svl::crypto::SigningContext aSigningContext;
+    aSigningContext.m_xCertificate = xCertificate;
+    aManager.add(aSigningContext, mxSecurityContext, /*rDescription=*/OUString(), nSecurityId,
                  /*bAdESCompliant=*/true);
 
     // Write to storage.
@@ -909,7 +930,9 @@ CPPUNIT_TEST_FIXTURE(SigningTest, testXAdES)
     if (!xCertificate.is())
         return;
     sal_Int32 nSecurityId;
-    aManager.add(xCertificate, mxSecurityContext, /*rDescription=*/OUString(), nSecurityId,
+    svl::crypto::SigningContext aSigningContext;
+    aSigningContext.m_xCertificate = xCertificate;
+    aManager.add(aSigningContext, mxSecurityContext, /*rDescription=*/OUString(), nSecurityId,
                  /*bAdESCompliant=*/true);
 
     // Write to storage.
@@ -963,7 +986,9 @@ CPPUNIT_TEST_FIXTURE(SigningTest, testSigningMultipleTimes_ODT)
         if (!xCertificate.is())
             return;
         sal_Int32 nSecurityId;
-        aManager.add(xCertificate, mxSecurityContext, /*rDescription=*/OUString(), nSecurityId,
+        svl::crypto::SigningContext aSigningContext;
+        aSigningContext.m_xCertificate = xCertificate;
+        aManager.add(aSigningContext, mxSecurityContext, /*rDescription=*/OUString(), nSecurityId,
                      /*bAdESCompliant=*/true);
 
         // Read back the signature and make sure that it's valid.
@@ -976,7 +1001,7 @@ CPPUNIT_TEST_FIXTURE(SigningTest, testSigningMultipleTimes_ODT)
                                  rInformations[0].nStatus);
         }
 
-        aManager.add(xCertificate, mxSecurityContext, /*rDescription=*/OUString(), nSecurityId,
+        aManager.add(aSigningContext, mxSecurityContext, /*rDescription=*/OUString(), nSecurityId,
                      /*bAdESCompliant=*/true);
         aManager.read(/*bUseTempStream=*/true);
         {
@@ -987,7 +1012,7 @@ CPPUNIT_TEST_FIXTURE(SigningTest, testSigningMultipleTimes_ODT)
                                  rInformations[1].nStatus);
         }
 
-        aManager.add(xCertificate, mxSecurityContext, /*rDescription=*/OUString(), nSecurityId,
+        aManager.add(aSigningContext, mxSecurityContext, /*rDescription=*/OUString(), nSecurityId,
                      /*bAdESCompliant=*/true);
         aManager.read(/*bUseTempStream=*/true);
         {
@@ -1036,7 +1061,9 @@ CPPUNIT_TEST_FIXTURE(SigningTest, testSigningMultipleTimes_OOXML)
             return;
 
         sal_Int32 nSecurityId;
-        aManager.add(xCertificate, mxSecurityContext, "", nSecurityId, /*bAdESCompliant=*/false);
+        svl::crypto::SigningContext aSigningContext;
+        aSigningContext.m_xCertificate = xCertificate;
+        aManager.add(aSigningContext, mxSecurityContext, "", nSecurityId, /*bAdESCompliant=*/false);
         aManager.read(/*bUseTempStream=*/true);
         {
             std::vector<SignatureInformation>& rInformations
@@ -1046,7 +1073,7 @@ CPPUNIT_TEST_FIXTURE(SigningTest, testSigningMultipleTimes_OOXML)
                                  rInformations[0].nStatus);
         }
 
-        aManager.add(xCertificate, mxSecurityContext, "", nSecurityId, /*bAdESCompliant=*/false);
+        aManager.add(aSigningContext, mxSecurityContext, "", nSecurityId, /*bAdESCompliant=*/false);
         aManager.read(/*bUseTempStream=*/true);
         {
             std::vector<SignatureInformation>& rInformations
@@ -1056,7 +1083,7 @@ CPPUNIT_TEST_FIXTURE(SigningTest, testSigningMultipleTimes_OOXML)
                                  rInformations[1].nStatus);
         }
 
-        aManager.add(xCertificate, mxSecurityContext, "", nSecurityId, /*bAdESCompliant=*/false);
+        aManager.add(aSigningContext, mxSecurityContext, "", nSecurityId, /*bAdESCompliant=*/false);
         aManager.read(/*bUseTempStream=*/true);
         {
             std::vector<SignatureInformation>& rInformations
@@ -1145,6 +1172,71 @@ CPPUNIT_TEST_FIXTURE(SigningTest, testSignatureLineODF)
     CPPUNIT_ASSERT(xSignatureInfo[0].InvalidSignatureLineImage.is());
 }
 
+CPPUNIT_TEST_FIXTURE(SigningTest, testImplicitScriptSign)
+{
+    // Given an ODT file with macros, and two signature managers to create macro + doc signatures:
+    OUString aFileURL = createFileURL(u"macro.odt");
+    uno::Reference<embed::XStorage> xWriteableZipStor
+        = comphelper::OStorageHelper::GetStorageOfFormatFromURL(ZIP_STORAGE_FORMAT_STRING, aFileURL,
+                                                                embed::ElementModes::READWRITE);
+    uno::Reference<embed::XStorage> xMetaInf
+        = xWriteableZipStor->openStorageElement(u"META-INF"_ustr, embed::ElementModes::READWRITE);
+    uno::Reference<io::XStream> xStream = xMetaInf->openStreamElement(
+        u"documentsignatures.xml"_ustr, embed::ElementModes::READWRITE);
+    uno::Reference<io::XStream> xScriptingStream
+        = xMetaInf->openStreamElement(u"macrosignatures.xml"_ustr, embed::ElementModes::READWRITE);
+    uno::Reference<embed::XStorage> xZipStor
+        = comphelper::OStorageHelper::GetStorageOfFormatFromURL(ZIP_STORAGE_FORMAT_STRING, aFileURL,
+                                                                embed::ElementModes::READ);
+    DocumentSignatureManager aManager(m_xContext, DocumentSignatureMode::Content);
+    CPPUNIT_ASSERT(aManager.init());
+    aManager.setStore(xZipStor);
+    aManager.setSignatureStream(xStream);
+    aManager.getSignatureHelper().SetStorage(xZipStor, u"1.2", xScriptingStream);
+    DocumentSignatureManager aScriptManager(m_xContext, DocumentSignatureMode::Macros);
+    CPPUNIT_ASSERT(aScriptManager.init());
+    aScriptManager.setStore(xZipStor);
+    aScriptManager.getSignatureHelper().SetStorage(xZipStor, u"1.2");
+    aScriptManager.setSignatureStream(xScriptingStream);
+    uno::Reference<security::XCertificate> xCertificate
+        = getCertificate(aManager, svl::crypto::SignatureMethodAlgorithm::RSA);
+    if (!xCertificate.is())
+        return;
+
+    // When adding those signatures and writing them to the streams from the read-write storage:
+    OUString aDescription;
+    sal_Int32 nSecurityId;
+    bool bAdESCompliant = true;
+    svl::crypto::SigningContext aSigningContext;
+    aSigningContext.m_xCertificate = xCertificate;
+    aScriptManager.add(aSigningContext, mxSecurityContext, aDescription, nSecurityId,
+                       bAdESCompliant);
+    aScriptManager.read(/*bUseTempStream=*/true, /*bCacheLastSignature=*/false);
+    aScriptManager.write(bAdESCompliant);
+    aManager.setScriptingSignatureStream(xScriptingStream);
+    aManager.add(aSigningContext, mxSecurityContext, aDescription, nSecurityId, bAdESCompliant);
+    aManager.read(/*bUseTempStream=*/true, /*bCacheLastSignature=*/false);
+    aManager.write(bAdESCompliant);
+
+    // Then make sure both signatures are created correctly:
+    std::unique_ptr<SvStream> pStream(utl::UcbStreamHelper::CreateStream(xScriptingStream, true));
+    xmlDocUniquePtr pXmlDoc = parseXmlStream(pStream.get());
+    OUString aScriptDigest = getXPathContent(
+        pXmlDoc, "/odfds:document-signatures/dsig:Signature[1]/dsig:SignedInfo/"
+                 "dsig:Reference[@URI='Basic/script-lc.xml']/dsig:DigestValue"_ostr);
+    // Without the accompanying fix in place, this test would have failed, the digest value was just a
+    // " " placeholder.
+    CPPUNIT_ASSERT_GREATER(static_cast<sal_Int32>(1), aScriptDigest.getLength());
+    pStream = utl::UcbStreamHelper::CreateStream(xStream, true);
+    pXmlDoc = parseXmlStream(pStream.get());
+    // Without the accompanying fix in place, this test would have failed, the macro signature was
+    // not part of the signed data of the document signature.
+    assertXPath(pXmlDoc,
+                "/odfds:document-signatures/dsig:Signature[1]/dsig:SignedInfo/"
+                "dsig:Reference[@URI='META-INF/macrosignatures.xml']"_ostr,
+                1);
+}
+
 #if HAVE_FEATURE_GPGVERIFY
 /// Test a typical ODF where all streams are GPG-signed.
 CPPUNIT_TEST_FIXTURE(SigningTest, testODFGoodGPG)
@@ -1175,6 +1267,31 @@ CPPUNIT_TEST_FIXTURE(SigningTest, testODFUntrustedGoodGPG)
     SignatureState nActual = pObjectShell->GetDocumentSignatureState();
     CPPUNIT_ASSERT_EQUAL_MESSAGE((OString::number(o3tl::to_underlying(nActual)).getStr()),
                                  SignatureState::NOTVALIDATED, nActual);
+}
+
+CPPUNIT_TEST_FIXTURE(SigningTest, testInvalidZIP)
+{
+    // set RepairPackage via interaction handler, same as soffice does
+    // - if it's passed to load the behavior is different, oddly enough.
+    std::vector<::ucbhelper::InterceptedInteraction::InterceptedRequest> interceptions{
+        { css::uno::Any(css::document::BrokenPackageRequest()),
+          cppu::UnoType<css::task::XInteractionApprove>::get(), 0 },
+    };
+    ::rtl::Reference<ucbhelper::InterceptedInteraction> pIH(new ucbhelper::InterceptedInteraction);
+    pIH->setInterceptions(std::move(interceptions));
+
+    uno::Sequence<beans::PropertyValue> args = { comphelper::makePropertyValue(
+        u"InteractionHandler"_ustr, uno::Reference<task::XInteractionHandler>(pIH)) };
+    loadWithParams(createFileURL(u"signature-forgery-cdh-lfh.docx"), args);
+    SfxBaseModel* pBaseModel = dynamic_cast<SfxBaseModel*>(mxComponent.get());
+    CPPUNIT_ASSERT(pBaseModel);
+    SfxObjectShell* pObjectShell = pBaseModel->GetObjectShell();
+    CPPUNIT_ASSERT(pObjectShell);
+    // the problem was that the document Zip structure is interpreted
+    // misleadingly in RepairPackage case, but signature was still returned
+    // as partially valid.
+    CPPUNIT_ASSERT_EQUAL(static_cast<int>(SignatureState::BROKEN),
+                         static_cast<int>(pObjectShell->GetDocumentSignatureState()));
 }
 
 /// Test a typical broken ODF signature where one stream is corrupted.

@@ -909,6 +909,40 @@ public:
         return mpDoc->pClass->getA11yCaretPosition(mpDoc);
     }
 
+    /// Get the information about the current presentation (Impress only).
+    char* getPresentationInfo()
+    {
+        return mpDoc->pClass->getPresentationInfo(mpDoc);
+    }
+
+    /// Create a slide renderer in core for the input slide.
+    bool createSlideRenderer(
+        const char* pSlideHash,
+        int nSlideNumber, unsigned* nViewWidth, unsigned* nViewHeight,
+        bool bRenderBackground, bool bRenderMasterPage)
+    {
+        return mpDoc->pClass->createSlideRenderer(
+            mpDoc, pSlideHash, nSlideNumber, nViewWidth, nViewHeight, bRenderBackground, bRenderMasterPage);
+    }
+
+    /// Clean-up the slideshow (slide renderer)
+    void postSlideshowCleanup()
+    {
+        mpDoc->pClass->postSlideshowCleanup(mpDoc);
+    }
+
+    /// Render the slide layer
+    bool renderNextSlideLayer(unsigned char* pBuffer, bool* bIsBitmapLayer, double* pScale, char** pJsonMessage)
+    {
+        return mpDoc->pClass->renderNextSlideLayer(mpDoc, pBuffer, bIsBitmapLayer, pScale, pJsonMessage);
+    }
+
+    /// Set named view options
+    void setViewOption(const char* pOption, const char* pValue)
+    {
+        mpDoc->pClass->setViewOption(mpDoc, pOption, pValue);
+    }
+
 #endif // defined LOK_USE_UNSTABLE_API || defined LIBO_INTERNAL_ONLY
 };
 
@@ -1239,6 +1273,19 @@ public:
     void setForkedChild(bool bIsChild)
     {
         return mpThis->pClass->setForkedChild(mpThis, bIsChild);
+    }
+
+    char* extractDocumentStructureRequest(const char* pFilePath, const char* pFilter)
+    {
+        return mpThis->pClass->extractDocumentStructureRequest(mpThis, pFilePath, pFilter);
+    }
+
+    /**
+     * Registers a callback that can determine if there are any pending input events.
+     */
+    void registerAnyInputCallback(LibreOfficeKitAnyInputCallback pCallback, void* pData)
+    {
+        return mpThis->pClass->registerAnyInputCallback(mpThis, pCallback, pData);
     }
 };
 

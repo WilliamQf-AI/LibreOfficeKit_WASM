@@ -36,12 +36,15 @@
 #include <tools/bigint.hxx>
 #include <svtools/insdlg.hxx>
 #include <sfx2/ipclient.hxx>
+#include <editeng/editeng.hxx>
+#include <editeng/editobj.hxx>
 #include <editeng/formatbreakitem.hxx>
 #include <editeng/svxacorr.hxx>
 #include <editeng/ulspitem.hxx>
 #include <vcl/graph.hxx>
 #include <unotools/charclass.hxx>
 #include <comphelper/storagehelper.hxx>
+#include <comphelper/random.hxx>
 #include <svx/svxdlg.hxx>
 #include <svx/extrusionbar.hxx>
 #include <svx/fontworkbar.hxx>
@@ -61,6 +64,7 @@
 #include <swundo.hxx>
 #include <swcli.hxx>
 #include <poolfmt.hxx>
+#include <postithelper.hxx>
 #include <edtwin.hxx>
 #include <fmtcol.hxx>
 #include <swtable.hxx>
@@ -1064,6 +1068,30 @@ void SwWrtShell::InsertContentControl(SwContentControlType eType)
     }
 
     auto pContentControl = std::make_shared<SwContentControl>(nullptr);
+
+    // Make Random ID.. cehcek if it is unique
+    // warning: possible infinite loop if there would be billions of content controls.
+    SwContentControlManager& pManager = GetDoc()->GetContentControlManager();
+    size_t nCCCount = pManager.GetCount();
+    sal_Int32 nIdToCheck;
+    nIdToCheck
+        = comphelper::rng::uniform_uint_distribution(1, std::numeric_limits<sal_Int32>::max());
+    size_t nIdx = 0;
+    while (nIdx < nCCCount)
+    {
+        sal_Int32 nID
+            = pManager.UnsortedGet(nIdx)->GetContentControl().GetContentControl()->GetId();
+        if (nID == nIdToCheck)
+        {
+            nIdToCheck = comphelper::rng::uniform_uint_distribution(
+                1, std::numeric_limits<sal_Int32>::max());
+            nIdx = 0;
+        }
+        else
+            nIdx++;
+    }
+    pContentControl->SetId(nIdToCheck);
+
     OUString aPlaceholder;
     switch (eType)
     {
@@ -2217,7 +2245,7 @@ void SwWrtShell::InsertPostIt(SwFieldMgr& rFieldMgr, const SfxRequest& rReq)
 {
     SwPostItField* pPostIt = dynamic_cast<SwPostItField*>(rFieldMgr.GetCurField());
     bool bNew = !(pPostIt && pPostIt->GetTyp()->Which() == SwFieldIds::Postit);
-    if (bNew || GetView().GetPostItMgr()->IsAnswer())
+    if (bNew || GetView().GetPostItMgr()->IsAnswer() || comphelper::LibreOfficeKit::isActive())
     {
         const SvxPostItAuthorItem* pAuthorItem = rReq.GetArg<SvxPostItAuthorItem>(SID_ATTR_POSTIT_AUTHOR);
         OUString sAuthor;
@@ -2234,11 +2262,31 @@ void SwWrtShell::InsertPostIt(SwFieldMgr& rFieldMgr, const SfxRequest& rReq)
         if ( pTextItem )
             sText = pTextItem->GetValue();
 
-        // If we have a text already registered for answer, use that
-        if (GetView().GetPostItMgr()->IsAnswer() && !GetView().GetPostItMgr()->GetAnswerText().isEmpty())
+        std::optional<OutlinerParaObject> oTextPara;
+        if (const SvxPostItTextItem* pHtmlItem = rReq.GetArg<SvxPostItTextItem>(SID_ATTR_POSTIT_HTML))
         {
-            sText = GetView().GetPostItMgr()->GetAnswerText();
-            GetView().GetPostItMgr()->RegisterAnswerText(OUString());
+            SwDocShell* pDocSh = GetView().GetDocShell();
+            Outliner aOutliner(&pDocSh->GetPool(), OutlinerMode::TextObject);
+            SwPostItHelper::ImportHTML(aOutliner, pHtmlItem->GetValue());
+            oTextPara = aOutliner.CreateParaObject();
+            sText = aOutliner.GetEditEngine().GetText();
+        }
+
+        // If we have a text already registered for answer, use that
+        SwPostItMgr* pPostItMgr = GetView().GetPostItMgr();
+        if (OutlinerParaObject* pAnswer = pPostItMgr->IsAnswer())
+        {
+            if (!pPostItMgr->GetAnswerText().isEmpty())
+            {
+                sText = GetView().GetPostItMgr()->GetAnswerText();
+                pPostItMgr->RegisterAnswerText(OUString());
+            }
+            const EditTextObject& rTextObject = pAnswer->GetTextObject();
+            if (rTextObject.GetParagraphCount() != 1 || !rTextObject.GetText(0).isEmpty())
+            {
+                oTextPara = *pAnswer;
+                sText = rTextObject.GetText();
+            }
         }
 
         if ( HasSelection() && !IsTableMode() )
@@ -2294,12 +2342,24 @@ void SwWrtShell::InsertPostIt(SwFieldMgr& rFieldMgr, const SfxRequest& rReq)
             }
         }
 
+        // Defer broadcast of postit field update from layout until oTextPara has been
+        // applied to the field's associated postit window
+        if (oTextPara)
+            StartAction();
+
         rFieldMgr.InsertField( aData );
 
         Push();
         SwCursorShell::Left(1, SwCursorSkipMode::Chars);
         pPostIt = static_cast<SwPostItField*>(rFieldMgr.GetCurField());
+
+        if (pPostIt && oTextPara)
+            pPostIt->SetTextObject(*oTextPara);
+
         Pop(SwCursorShell::PopMode::DeleteCurrent); // Restore cursor position
+
+        if (oTextPara)
+            EndAction();
     }
 
     // Client has disabled annotations rendering, no need to

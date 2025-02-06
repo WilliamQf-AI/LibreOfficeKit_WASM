@@ -266,7 +266,7 @@ OString lcl_getParagraphBodyText(const uno::Reference<text::XTextContent>& xText
 }
 
 template <typename T>
-std::map<OUString, OUString> lcl_getRDFStatements(const uno::Reference<frame::XModel>& xModel,
+std::map<OUString, OUString> lcl_getRDFStatements(const rtl::Reference<SwXTextDocument>& xModel,
                                                   const T& xRef)
 {
     try
@@ -282,7 +282,7 @@ std::map<OUString, OUString> lcl_getRDFStatements(const uno::Reference<frame::XM
 }
 
 /// Returns RDF (key, value) pair associated with the field, if any.
-std::pair<OUString, OUString> lcl_getFieldRDFByPrefix(const uno::Reference<frame::XModel>& xModel,
+std::pair<OUString, OUString> lcl_getFieldRDFByPrefix(const rtl::Reference<SwXTextDocument>& xModel,
                                                       const uno::Reference<css::text::XTextField>& xField,
                                                       std::u16string_view sPrefix)
 {
@@ -297,7 +297,7 @@ std::pair<OUString, OUString> lcl_getFieldRDFByPrefix(const uno::Reference<frame
 
 /// Returns RDF (key, value) pair associated with the field, if any.
 template <typename T>
-std::pair<OUString, OUString> lcl_getRDF(const uno::Reference<frame::XModel>& xModel,
+std::pair<OUString, OUString> lcl_getRDF(const rtl::Reference<SwXTextDocument>& xModel,
                                          const T& xRef,
                                          const OUString& sRDFName)
 {
@@ -308,13 +308,13 @@ std::pair<OUString, OUString> lcl_getRDF(const uno::Reference<frame::XModel>& xM
 
 /// Returns true iff the field in question is paragraph signature.
 /// Note: must have associated RDF, since signatures are otherwise just metadata fields.
-bool lcl_IsParagraphSignatureField(const uno::Reference<frame::XModel>& xModel,
+bool lcl_IsParagraphSignatureField(const rtl::Reference<SwXTextDocument>& xModel,
                                    const uno::Reference<css::text::XTextField>& xField)
 {
     return (lcl_getRDF(xModel, xField, ParagraphSignatureIdRDFName).first == ParagraphSignatureIdRDFName);
 }
 
-uno::Reference<text::XTextField> lcl_findFieldByRDF(const uno::Reference<frame::XModel>& xModel,
+uno::Reference<text::XTextField> lcl_findFieldByRDF(const rtl::Reference<SwXTextDocument>& xModel,
                                                     const uno::Reference<text::XTextContent>& xParagraph,
                                                     const OUString& sRDFName,
                                                     std::u16string_view sRDFValue)
@@ -358,7 +358,7 @@ struct SignatureDescr
     bool isValid() const { return !msSignature.isEmpty(); }
 };
 
-SignatureDescr lcl_getSignatureDescr(const uno::Reference<frame::XModel>& xModel,
+SignatureDescr lcl_getSignatureDescr(const rtl::Reference<SwXTextDocument>& xModel,
                                      const uno::Reference<css::text::XTextContent>& xParagraph,
                                      std::u16string_view sFieldId)
 {
@@ -379,7 +379,7 @@ SignatureDescr lcl_getSignatureDescr(const uno::Reference<frame::XModel>& xModel
     return aDescr;
 }
 
-SignatureDescr lcl_getSignatureDescr(const uno::Reference<frame::XModel>& xModel,
+SignatureDescr lcl_getSignatureDescr(const rtl::Reference<SwXTextDocument>& xModel,
                                      const uno::Reference<css::text::XTextContent>& xParagraph,
                                      const uno::Reference<css::text::XTextField>& xField)
 {
@@ -424,7 +424,7 @@ std::pair<bool, OUString> lcl_MakeParagraphSignatureFieldText(const SignatureDes
 
 /// Validate and return validation result and signature field display text.
 std::pair<bool, OUString>
-lcl_MakeParagraphSignatureFieldText(const uno::Reference<frame::XModel>& xModel,
+lcl_MakeParagraphSignatureFieldText(const rtl::Reference<SwXTextDocument>& xModel,
                                     const uno::Reference<css::text::XTextContent>& xParagraph,
                                     const uno::Reference<css::text::XTextField>& xField,
                                     const OString& utf8Text)
@@ -434,7 +434,7 @@ lcl_MakeParagraphSignatureFieldText(const uno::Reference<frame::XModel>& xModel,
 }
 
 /// Generate the next valid ID for the new signature on this paragraph.
-OUString lcl_getNextSignatureId(const uno::Reference<frame::XModel>& xModel,
+OUString lcl_getNextSignatureId(const rtl::Reference<SwXTextDocument>& xModel,
                                 const uno::Reference<text::XTextContent>& xParagraph)
 {
     const OUString sFieldId = lcl_getRDF(xModel, xParagraph, ParagraphSignatureLastIdRDFName).second;
@@ -442,12 +442,12 @@ OUString lcl_getNextSignatureId(const uno::Reference<frame::XModel>& xModel,
 }
 
 /// Creates and inserts Paragraph Signature Metadata field and creates the RDF entry
-uno::Reference<text::XTextField> lcl_InsertParagraphSignature(const uno::Reference<frame::XModel>& xModel,
+uno::Reference<text::XTextField> lcl_InsertParagraphSignature(const rtl::Reference<SwXTextDocument>& xModel,
                                                               const uno::Reference<text::XTextContent>& xParagraph,
                                                               const OUString& signature,
                                                               const OUString& usage)
 {
-    uno::Reference<lang::XMultiServiceFactory> xMultiServiceFactory(xModel, uno::UNO_QUERY);
+    uno::Reference<lang::XMultiServiceFactory> xMultiServiceFactory(xModel);
     auto xField = uno::Reference<text::XTextField>(xMultiServiceFactory->createInstance(MetadataFieldServiceName), uno::UNO_QUERY);
 
     // Add the signature at the end.
@@ -516,7 +516,7 @@ bool lcl_DoUpdateParagraphSignatureField(SwDoc& rDoc,
 
 /// Updates the signature field text if changed and returns true only iff updated.
 bool lcl_UpdateParagraphSignatureField(SwDoc& rDoc,
-                                       const uno::Reference<frame::XModel>& xModel,
+                                       const rtl::Reference<SwXTextDocument>& xModel,
                                        const uno::Reference<css::text::XTextContent>& xParagraph,
                                        const uno::Reference<css::text::XTextField>& xField,
                                        const OString& utf8Text)
@@ -534,7 +534,7 @@ void lcl_RemoveParagraphMetadataField(const uno::Reference<css::text::XTextField
 
 /// Returns true iff the field in question is paragraph classification.
 /// Note: must have associated RDF, since classifications are otherwise just metadata fields.
-bool lcl_IsParagraphClassificationField(const uno::Reference<frame::XModel>& xModel,
+bool lcl_IsParagraphClassificationField(const rtl::Reference<SwXTextDocument>& xModel,
                                         const uno::Reference<css::text::XTextField>& xField,
                                         std::u16string_view sKey)
 {
@@ -542,7 +542,7 @@ bool lcl_IsParagraphClassificationField(const uno::Reference<frame::XModel>& xMo
     return rdfPair.first == ParagraphClassificationNameRDFName && (sKey.empty() || rdfPair.second == sKey);
 }
 
-uno::Reference<text::XTextField> lcl_FindParagraphClassificationField(const uno::Reference<frame::XModel>& xModel,
+uno::Reference<text::XTextField> lcl_FindParagraphClassificationField(const rtl::Reference<SwXTextDocument>& xModel,
                                                                       const rtl::Reference<SwXParagraph>& xParagraph,
                                                                       std::u16string_view sKey = u"")
 {
@@ -578,10 +578,10 @@ uno::Reference<text::XTextField> lcl_FindParagraphClassificationField(const uno:
 }
 
 /// Creates and inserts Paragraph Classification Metadata field and creates the RDF entry
-uno::Reference<text::XTextField> lcl_InsertParagraphClassification(const uno::Reference<frame::XModel>& xModel,
+uno::Reference<text::XTextField> lcl_InsertParagraphClassification(const rtl::Reference<SwXTextDocument>& xModel,
                                                                    const uno::Reference<text::XTextContent>& xParent)
 {
-    uno::Reference<lang::XMultiServiceFactory> xMultiServiceFactory(xModel, uno::UNO_QUERY);
+    uno::Reference<lang::XMultiServiceFactory> xMultiServiceFactory(xModel);
     auto xField = uno::Reference<text::XTextField>(xMultiServiceFactory->createInstance(MetadataFieldServiceName), uno::UNO_QUERY);
 
     // Add the classification at the start.
@@ -591,7 +591,7 @@ uno::Reference<text::XTextField> lcl_InsertParagraphClassification(const uno::Re
 
 /// Updates the paragraph classification field text if changed and returns true only iff updated.
 bool lcl_UpdateParagraphClassificationField(SwDoc* pDoc,
-                                            const uno::Reference<frame::XModel>& xModel,
+                                            const rtl::Reference<SwXTextDocument>& xModel,
                                             const uno::Reference<css::text::XTextContent>& xTextNode,
                                             const OUString& sKey,
                                             const OUString& sValue,
@@ -617,19 +617,21 @@ bool lcl_UpdateParagraphClassificationField(SwDoc* pDoc,
     return lcl_DoUpdateParagraphSignatureField(*pDoc, xField, sDisplayText);
 }
 
-void lcl_ValidateParagraphSignatures(SwDoc& rDoc, const uno::Reference<text::XTextContent>& xParagraph, const bool updateDontRemove)
+void lcl_ValidateParagraphSignatures(SwDoc& rDoc, const uno::Reference<text::XTextContent>& xParagraph, const bool updateDontRemove, const uno::Sequence<uno::Reference<css::rdf::XURI>>& rGraphNames)
 {
     SwDocShell* pDocShell = rDoc.GetDocShell();
     if (!pDocShell)
         return;
 
-    uno::Reference<frame::XModel> xModel = pDocShell->GetBaseModel();
+    rtl::Reference<SwXTextDocument> xModel = pDocShell->GetXTextDocument();
 
     // Check if the paragraph is signed.
     try
     {
-        const std::pair<OUString, OUString> pair = lcl_getRDF(xModel, xParagraph, ParagraphSignatureLastIdRDFName);
-        if (pair.second.isEmpty())
+        const css::uno::Reference<css::rdf::XResource> xSubject(xParagraph, uno::UNO_QUERY);
+        std::map<OUString, OUString> aStatements = SwRDFHelper::getStatements(xModel, rGraphNames, xSubject);
+        const auto it = aStatements.find(ParagraphSignatureLastIdRDFName);
+        if (it == aStatements.end() || it->second.isEmpty())
             return;
     }
     catch (const ::css::uno::Exception&)
@@ -1166,7 +1168,7 @@ void SwEditShell::SetClassification(const OUString& rName, SfxClassificationPoli
 // We pass xParent and xNodeSubject even though they point to the same thing because the UNO_QUERY is
 // on a performance-sensitive path.
 static void lcl_ApplyParagraphClassification(SwDoc* pDoc,
-                                      const uno::Reference<frame::XModel>& xModel,
+                                      const rtl::Reference<SwXTextDocument>& xModel,
                                       const rtl::Reference<SwXParagraph>& xParent,
                                       const css::uno::Reference<css::rdf::XResource>& xNodeSubject,
                                       std::vector<svx::ClassificationResult> aResults)
@@ -1283,12 +1285,12 @@ void SwEditShell::ApplyParagraphClassification(std::vector<svx::ClassificationRe
         SetParagraphSignatureValidation(bOldValidationFlag);
     });
 
-    uno::Reference<frame::XModel> xModel = pDocShell->GetBaseModel();
+    rtl::Reference<SwXTextDocument> xModel = pDocShell->GetXTextDocument();
     rtl::Reference<SwXParagraph> xParent = SwXParagraph::CreateXParagraph(pNode->GetDoc(), pNode, nullptr);
     lcl_ApplyParagraphClassification(GetDoc(), xModel, xParent, css::uno::Reference<css::rdf::XResource>(xParent), std::move(aResults));
 }
 
-static std::vector<svx::ClassificationResult> lcl_CollectParagraphClassification(const uno::Reference<frame::XModel>& xModel, const uno::Reference<text::XTextContent>& xParagraph)
+static std::vector<svx::ClassificationResult> lcl_CollectParagraphClassification(const rtl::Reference<SwXTextDocument>& xModel, const uno::Reference<text::XTextContent>& xParagraph)
 {
     std::vector<svx::ClassificationResult> aResult;
 
@@ -1359,7 +1361,7 @@ std::vector<svx::ClassificationResult> SwEditShell::CollectParagraphClassificati
         return aResult;
 
     rtl::Reference<SwXParagraph> xParent = SwXParagraph::CreateXParagraph(pNode->GetDoc(), pNode, nullptr);
-    uno::Reference<frame::XModel> xModel = pDocShell->GetBaseModel();
+    rtl::Reference<SwXTextDocument> xModel = pDocShell->GetXTextDocument();
     return lcl_CollectParagraphClassification(xModel, xParent);
 }
 
@@ -1686,18 +1688,21 @@ SwUndoParagraphSigning::SwUndoParagraphSigning(SwDoc& rDoc,
     m_bRemove(bRemove)
 {
     // Save the metadata and field content to undo/redo.
-    uno::Reference<frame::XModel> xModel = m_rDoc.GetDocShell()->GetBaseModel();
-    const std::map<OUString, OUString> aStatements = lcl_getRDFStatements(xModel, m_xField);
-    const auto it = aStatements.find(ParagraphSignatureIdRDFName);
-    if (it != aStatements.end())
-        m_signature = it->second;
+    if (SwDocShell* pShell = m_rDoc.GetDocShell())
+    {
+        rtl::Reference<SwXTextDocument> xModel = pShell->GetXTextDocument();
+        const std::map<OUString, OUString> aStatements = lcl_getRDFStatements(xModel, m_xField);
+        const auto it = aStatements.find(ParagraphSignatureIdRDFName);
+        if (it != aStatements.end())
+            m_signature = it->second;
 
-    const auto it2 = aStatements.find(ParagraphSignatureUsageRDFName);
-    if (it2 != aStatements.end())
-        m_usage = it2->second;
+        const auto it2 = aStatements.find(ParagraphSignatureUsageRDFName);
+        if (it2 != aStatements.end())
+            m_usage = it2->second;
 
-    uno::Reference<css::text::XTextRange> xText(m_xField, uno::UNO_QUERY);
-    m_display = xText->getString();
+        uno::Reference<css::text::XTextRange> xText(m_xField, uno::UNO_QUERY);
+        m_display = xText->getString();
+    }
 }
 
 void SwUndoParagraphSigning::UndoImpl(::sw::UndoRedoContext&)
@@ -1736,7 +1741,7 @@ void SwUndoParagraphSigning::Insert()
             m_rDoc.GetIDocumentUndoRedo().DoUndo(isUndoEnabled);
         });
 
-    m_xField = lcl_InsertParagraphSignature(m_rDoc.GetDocShell()->GetBaseModel(), m_xParent, m_signature, m_usage);
+    m_xField = lcl_InsertParagraphSignature(m_rDoc.GetDocShell()->GetXTextDocument(), m_xParent, m_signature, m_usage);
     lcl_DoUpdateParagraphSignatureField(m_rDoc, m_xField, m_display);
 }
 
@@ -1794,7 +1799,9 @@ void SwEditShell::SignParagraph()
         return;
 
     // 3. Sign it.
-    svl::crypto::Signing signing(xCertificate);
+    svl::crypto::SigningContext aSigningContext;
+    aSigningContext.m_xCertificate = xCertificate;
+    svl::crypto::Signing signing(aSigningContext);
     signing.AddDataRange(utf8Text.getStr(), utf8Text.getLength());
     OStringBuffer sigBuf;
     if (!signing.Sign(sigBuf))
@@ -1821,7 +1828,7 @@ void SwEditShell::SignParagraph()
 
     rDoc.GetIDocumentUndoRedo().StartUndo(SwUndoId::PARA_SIGN_ADD, nullptr);
 
-    const uno::Reference<frame::XModel> xModel = pDocShell->GetBaseModel();
+    const rtl::Reference<SwXTextDocument> xModel = pDocShell->GetXTextDocument();
     uno::Reference<css::text::XTextField> xField = lcl_InsertParagraphSignature(xModel, xParagraph, signature, aUsage);
 
     lcl_UpdateParagraphSignatureField(*GetDoc(), xModel, xParagraph, xField, utf8Text);
@@ -1847,8 +1854,13 @@ void SwEditShell::ValidateParagraphSignatures(SwTextNode* pNode, bool updateDont
             SetParagraphSignatureValidation(bOldValidationFlag);
         });
 
+    SwDocShell* pDocShell = GetDoc()->GetDocShell();
+    if (!pDocShell)
+        return;
+
+    uno::Sequence<uno::Reference<css::rdf::XURI>> aGraphNames = SwRDFHelper::getGraphNames(pDocShell->GetXTextDocument(), MetaNS);
     rtl::Reference<SwXParagraph> xParentText = SwXParagraph::CreateXParagraph(*GetDoc(), pNode, nullptr);
-    lcl_ValidateParagraphSignatures(*GetDoc(), xParentText, updateDontRemove);
+    lcl_ValidateParagraphSignatures(*GetDoc(), xParentText, updateDontRemove, aGraphNames);
 }
 
 void SwEditShell::ValidateCurrentParagraphSignatures(bool updateDontRemove)
@@ -1884,10 +1896,11 @@ void SwEditShell::ValidateAllParagraphSignatures(bool updateDontRemove)
     uno::Reference<container::XEnumeration> xParagraphs = xParagraphEnumerationAccess->createEnumeration();
     if (!xParagraphs.is())
         return;
+    uno::Sequence<uno::Reference<css::rdf::XURI>> aGraphNames = SwRDFHelper::getGraphNames(pDocShell->GetXTextDocument(), MetaNS);
     while (xParagraphs->hasMoreElements())
     {
         uno::Reference<text::XTextContent> xParagraph(xParagraphs->nextElement(), uno::UNO_QUERY);
-        lcl_ValidateParagraphSignatures(*GetDoc(), xParagraph, updateDontRemove);
+        lcl_ValidateParagraphSignatures(*GetDoc(), xParagraph, updateDontRemove, aGraphNames);
     }
 }
 
@@ -1904,7 +1917,7 @@ static uno::Reference<text::XTextField> lcl_GetParagraphMetadataFieldAtIndex(con
             if (::sw::Meta* pMeta = rFormatMeta.GetMeta())
             {
                 const css::uno::Reference<css::rdf::XResource> xSubject = pMeta->MakeUnoObject();
-                uno::Reference<frame::XModel> xModel = pDocSh->GetBaseModel();
+                rtl::Reference<SwXTextDocument> xModel = pDocSh->GetXTextDocument();
                 const std::map<OUString, OUString> aStatements = lcl_getRDFStatements(xModel, xSubject);
                 if (aStatements.find(ParagraphSignatureIdRDFName) != aStatements.end() ||
                     aStatements.find(ParagraphClassificationNameRDFName) != aStatements.end())
@@ -1930,17 +1943,15 @@ void SwEditShell::RestoreMetadataFieldsAndValidateParagraphSignatures()
             SetParagraphSignatureValidation(bOldValidationFlag);
         });
 
-    uno::Reference<frame::XModel> xModel = pDocShell->GetBaseModel();
-    const rtl::Reference<SwXTextDocument> xDoc(dynamic_cast<SwXTextDocument*>(xModel.get()));
-    rtl::Reference<SwXBodyText> xBodyText = xDoc->getBodyText();
+    rtl::Reference<SwXTextDocument> xModel = pDocShell->GetXTextDocument();
+    rtl::Reference<SwXBodyText> xBodyText = xModel->getBodyText();
     if (!xBodyText.is())
         return;
     rtl::Reference<SwXParagraphEnumeration> xParagraphs = xBodyText->createParagraphEnumeration();
 
     static constexpr OUString sBlank(u""_ustr);
     const sfx::ClassificationKeyCreator aKeyCreator(SfxClassificationHelper::getPolicyType());
-    const css::uno::Sequence<css::uno::Reference<rdf::XURI>> aGraphNames = SwRDFHelper::getGraphNames(xModel, MetaNS);
-
+    uno::Sequence<uno::Reference<css::rdf::XURI>> aGraphNames = SwRDFHelper::getGraphNames(xModel, MetaNS);
     while (xParagraphs->hasMoreElements())
     {
         uno::Reference<text::XTextContent> xParaOrTable(xParagraphs->nextElement(), uno::UNO_QUERY);
@@ -1949,14 +1960,13 @@ void SwEditShell::RestoreMetadataFieldsAndValidateParagraphSignatures()
         try
         {
             const css::uno::Reference<css::rdf::XResource> xSubject(xParagraph);
-            const std::map<OUString, OUString> aStatements = SwRDFHelper::getStatements(xModel, aGraphNames, xSubject);
+            std::map<OUString, OUString> aParagraphStatements = SwRDFHelper::getStatements(xModel, aGraphNames, xSubject);
+            auto it = aParagraphStatements.find(ParagraphClassificationFieldNamesRDFName);
+            const OUString sFieldNames = (it != aParagraphStatements.end()) ? it->second : OUString();
 
-            const auto it = aStatements.find(ParagraphClassificationFieldNamesRDFName);
-            const OUString sFieldNames = (it != aStatements.end() ? it->second : sBlank);
             std::vector<svx::ClassificationResult> aResults;
             if (!sFieldNames.isEmpty())
             {
-                assert(it != aStatements.end() && "can only be non-empty if it was valid");
                 // Order the fields
                 sal_Int32 nIndex = 0;
                 do
@@ -1965,10 +1975,14 @@ void SwEditShell::RestoreMetadataFieldsAndValidateParagraphSignatures()
                     if (sCurFieldName.isEmpty())
                         break;
 
-                    const auto it2 = aStatements.find(sCurFieldName);
-                    bool bStatementFound = it2 != aStatements.end();
-                    const OUString sName = bStatementFound ? it->first : sBlank;
-                    const OUString sValue = bStatementFound ? it->second : sBlank;
+                    OUString sName;
+                    OUString sValue;
+                    it = aParagraphStatements.find(sCurFieldName);
+                    if (it != aParagraphStatements.end())
+                    {
+                        sName = it->first;
+                        sValue = it->second;
+                    }
 
                     if (aKeyCreator.isMarkingTextKey(sName))
                     {
@@ -1976,14 +1990,14 @@ void SwEditShell::RestoreMetadataFieldsAndValidateParagraphSignatures()
                     }
                     else if (aKeyCreator.isCategoryNameKey(sName))
                     {
-                        const auto it3 = aStatements.find(ParagraphClassificationAbbrRDFName);
-                        const OUString sAbbreviatedName = (it3 != aStatements.end() && !it3->second.isEmpty() ? it3->second : sValue);
+                        const std::pair<OUString, OUString> pairAbbr = lcl_getRDF(xModel, xSubject, ParagraphClassificationAbbrRDFName);
+                        const OUString sAbbreviatedName = (!pairAbbr.second.isEmpty() ? pairAbbr.second : sValue);
                         aResults.push_back({ svx::ClassificationType::CATEGORY, sValue, sAbbreviatedName, sBlank });
                     }
                     else if (aKeyCreator.isCategoryIdentifierKey(sName))
                     {
-                        const auto it3 = aStatements.find(ParagraphClassificationAbbrRDFName);
-                        const OUString sAbbreviatedName = (it3 != aStatements.end() && !it3->second.isEmpty() ? it3->second : sValue);
+                        const std::pair<OUString, OUString> pairAbbr = lcl_getRDF(xModel, xSubject, ParagraphClassificationAbbrRDFName);
+                        const OUString sAbbreviatedName = (!pairAbbr.second.isEmpty() ? pairAbbr.second : sValue);
                         aResults.push_back({ svx::ClassificationType::CATEGORY, sBlank, sAbbreviatedName, sValue });
                     }
                     else if (aKeyCreator.isMarkingKey(sName))
@@ -2003,7 +2017,7 @@ void SwEditShell::RestoreMetadataFieldsAndValidateParagraphSignatures()
 
             // Get Signatures
             std::map<OUString, SignatureDescr> aSignatures;
-            for (const auto& pair : lcl_getRDFStatements(xModel, uno::Reference<css::text::XTextContent>(xParagraph)))
+            for (const auto& pair : aParagraphStatements)
             {
                 const OUString& sName = pair.first;
                 if (sName.startsWith(ParagraphSignatureRDFNamespace))
@@ -2030,7 +2044,7 @@ void SwEditShell::RestoreMetadataFieldsAndValidateParagraphSignatures()
                 uno::Reference<text::XTextField> xField = lcl_findFieldByRDF(xModel, xParagraph, ParagraphSignatureIdRDFName, pair.first);
                 if (!xField.is())
                 {
-                    uno::Reference<lang::XMultiServiceFactory> xMultiServiceFactory(xModel, uno::UNO_QUERY);
+                    uno::Reference<lang::XMultiServiceFactory> xMultiServiceFactory(xModel);
                     xField = uno::Reference<text::XTextField>(xMultiServiceFactory->createInstance(MetadataFieldServiceName), uno::UNO_QUERY);
 
                     // Add the signature at the end.
@@ -2044,7 +2058,7 @@ void SwEditShell::RestoreMetadataFieldsAndValidateParagraphSignatures()
                 }
             }
 
-            lcl_ValidateParagraphSignatures(*GetDoc(), xParagraph, true); // Validate and Update signatures.
+            lcl_ValidateParagraphSignatures(*GetDoc(), xParagraph, true, aGraphNames); // Validate and Update signatures.
         }
         catch (const std::exception&)
         {
@@ -2092,7 +2106,7 @@ bool SwEditShell::RemoveParagraphMetadataFieldAtCursor()
 }
 
 static OUString lcl_GetParagraphClassification(SfxClassificationHelper & rHelper, sfx::ClassificationKeyCreator const & rKeyCreator,
-                                        const uno::Reference<frame::XModel>& xModel, const rtl::Reference<SwXParagraph>& xParagraph)
+                                        const rtl::Reference<SwXTextDocument>& xModel, const rtl::Reference<SwXParagraph>& xParagraph)
 {
     uno::Reference<text::XTextField> xTextField;
     xTextField = lcl_FindParagraphClassificationField(xModel, xParagraph, rKeyCreator.makeCategoryIdentifierKey());
@@ -2126,9 +2140,8 @@ static OUString lcl_GetHighestClassificationParagraphClass(SwPaM* pCursor)
     SfxClassificationHelper aHelper(pDocShell->getDocProperties());
     sfx::ClassificationKeyCreator aKeyCreator(SfxClassificationHelper::getPolicyType());
 
-    uno::Reference<frame::XModel> xModel = pDocShell->GetBaseModel();
-    const rtl::Reference<SwXTextDocument> xDoc(dynamic_cast<SwXTextDocument*>(xModel.get()));
-    rtl::Reference<SwXBodyText> xBodyText = xDoc->getBodyText();
+    rtl::Reference<SwXTextDocument> xModel = pDocShell->GetXTextDocument();
+    rtl::Reference<SwXBodyText> xBodyText = xModel->getBodyText();
 
     rtl::Reference<SwXParagraphEnumeration> xParagraphs = xBodyText->createParagraphEnumeration();
     while (xParagraphs->hasMoreElements())
@@ -2149,7 +2162,7 @@ void SwEditShell::ClassifyDocPerHighestParagraphClass()
         return;
 
     // Bail out as early as possible if we don't have paragraph classification.
-    if (!SwRDFHelper::hasMetadataGraph(pDocShell->GetBaseModel(), MetaNS))
+    if (!SwRDFHelper::hasMetadataGraph(pDocShell->GetXTextDocument(), MetaNS))
         return;
 
     uno::Reference<document::XDocumentProperties> xDocumentProperties = pDocShell->getDocProperties();

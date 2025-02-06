@@ -1389,6 +1389,7 @@
           </info>
           <value>
             <it>$(insturl)/@LIBO_SHARE_FOLDER@/autotext/$(vlang)</it>
+            <it>$(insturl)/@LIBO_SHARE_FOLDER@/autotext/common</it>
             <it>$(userurl)/autotext</it>
           </value>
         </prop>
@@ -2369,6 +2370,13 @@
             personal/hidden data.</desc>
           </info>
           <value>true</value>
+        </prop>
+        <prop oor:name="ImplicitScriptSign" oor:type="xs:boolean" oor:nillable="false">
+          <info>
+            <desc>Specifies whether to implicitly sign macros when adding the first signature
+            to an ODF document with macros.</desc>
+          </info>
+          <value>false</value>
         </prop>
         <prop oor:name="CertDir" oor:type="xs:string">
           <info>
@@ -4670,7 +4678,7 @@
               <desc>Specifies whether form fields are exported as widgets or
               only their fixed print representation is exported.</desc>
             </info>
-            <value>true</value>
+            <value>false</value>
           </prop>
           <prop oor:name="FormsType" oor:type="xs:int" oor:nillable="false">
             <info>
@@ -4992,6 +5000,11 @@
                   <desc>PDF 1.7</desc>
                 </info>
               </enumeration>
+              <enumeration oor:value="20">
+                <info>
+                  <desc>PDF 2.0</desc>
+                </info>
+              </enumeration>
               <enumeration oor:value="1">
                 <info>
                   <desc>PDF/A-1 (ISO 19005-1:2005)</desc>
@@ -5000,6 +5013,16 @@
               <enumeration oor:value="2">
                 <info>
                   <desc>PDF/A-2 (ISO 19005-2:2011)</desc>
+                </info>
+              </enumeration>
+              <enumeration oor:value="3">
+                <info>
+                  <desc>PDF/A-3 (ISO 19005-3:2012)</desc>
+                </info>
+              </enumeration>
+              <enumeration oor:value="4">
+                <info>
+                  <desc>PDF/A-4 (ISO 19005-4)</desc>
                 </info>
               </enumeration>
             </constraints>
@@ -5306,6 +5329,12 @@
         </info>
         <value>false</value>
       </prop>
+      <prop oor:name="ShowDonation" oor:type="xs:boolean" oor:nillable="false">
+        <info>
+          <desc>Determines whether to show a donation button in the start center or extension.</desc>
+        </info>
+        <value>false</value>
+      </prop>
       <prop oor:name="UseOpenCL" oor:type="xs:boolean" oor:nillable="false">
         <info>
           <desc>Determines whether OpenCL can be used, when available, to speed up
@@ -5521,6 +5550,12 @@
           <desc>Allow the user to edit read-only docs (via menu or Infobar)</desc>
         </info>
         <value>true</value>
+      </prop>
+      <prop oor:name="ViewerAppMode" oor:type="xs:boolean" oor:nillable="false">
+        <info>
+          <desc>Open all files in read-only mode</desc>
+        </info>
+        <value>false</value>
       </prop>
     </group>
     <group oor:name="Forms">

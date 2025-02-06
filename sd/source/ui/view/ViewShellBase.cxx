@@ -113,6 +113,8 @@ namespace sd {
 class ViewShellBase::Implementation
 {
 public:
+    SdViewOptions maViewOptions;
+
     /** Main controller of the view shell.  During the switching from one
         stacked shell to another this pointer may be NULL.
     */
@@ -913,6 +915,16 @@ OUString ViewShellBase::GetInitialViewShellType() const
     return sRequestedView;
 }
 
+const SdViewOptions& ViewShellBase::GetViewOptions() const
+{
+    return mpImpl->maViewOptions;
+}
+
+void ViewShellBase::SetViewOptions(const SdViewOptions& rOptions) const
+{
+    mpImpl->maViewOptions = rOptions;
+}
+
 std::shared_ptr<tools::EventMultiplexer> const & ViewShellBase::GetEventMultiplexer() const
 {
     OSL_ASSERT(mpImpl != nullptr);
@@ -965,7 +977,9 @@ vcl::Window* ViewShellBase::GetViewWindow()
 
 OUString ViewShellBase::RetrieveLabelFromCommand( const OUString& aCmdURL ) const
 {
-    OUString aModuleName(vcl::CommandInfoProvider::GetModuleIdentifier(GetMainViewShell()->GetViewFrame()->GetFrame().GetFrameInterface()));
+    OUString aModuleName;
+    if (SfxViewFrame* pViewFrame = GetMainViewShell()->GetViewFrame())
+        aModuleName = vcl::CommandInfoProvider::GetModuleIdentifier(pViewFrame->GetFrame().GetFrameInterface());
     auto aProperties = vcl::CommandInfoProvider::GetCommandProperties(aCmdURL, aModuleName);
     return vcl::CommandInfoProvider::GetLabelForCommand(aProperties);
 }
@@ -1022,14 +1036,37 @@ void ViewShellBase::setEditMode(int nMode)
 
     if (DrawViewShell* pDrawViewShell = dynamic_cast<DrawViewShell*>(pViewShell))
     {
+        EditMode eOrigEditMode = pDrawViewShell->GetEditMode();
+        PageKind eOrigPageKind = pDrawViewShell->GetPageKind();
+        sal_uInt16 nSelectedPage = pDrawViewShell->GetCurPagePos();
+
         switch ( nMode )
         {
         case 0:
+            pDrawViewShell->SetPageKind(PageKind::Standard);
             pDrawViewShell->ChangeEditMode(EditMode::Page, false);
             break;
         case 1:
+            pDrawViewShell->SetPageKind(PageKind::Standard);
             pDrawViewShell->ChangeEditMode(EditMode::MasterPage, false);
             break;
+        case 2:
+            pDrawViewShell->SetPageKind(PageKind::Notes);
+            pDrawViewShell->ChangeEditMode(EditMode::Page, false);
+            break;
+        }
+
+        /*
+           If the EditMode is unchanged, then ChangeEditMode was typically a
+           no-op, and an additional explicit SwitchPage is required to reselect
+           the equivalent page from the other mode, otherwise a switch from
+           e.g. Notes to Standard will still render the still selected Note
+           page.
+        */
+        if (eOrigEditMode == pDrawViewShell->GetEditMode() &&
+            eOrigPageKind != pDrawViewShell->GetPageKind())
+        {
+            pDrawViewShell->SwitchPage(nSelectedPage);
         }
     }
 }
@@ -1104,28 +1141,24 @@ void ViewShellBase::NotifyCursor(SfxViewShell* pOtherShell) const
 
 ::Color ViewShellBase::GetColorConfigColor(svtools::ColorConfigEntry nColorType) const
 {
-    if (DrawViewShell* pCurrentDrawShell = dynamic_cast<DrawViewShell*>(GetMainViewShell().get()))
+    Color aColor;
+
+    const SdViewOptions& rViewOptions = GetViewOptions();
+    switch (nColorType)
     {
-        const SdViewOptions& rViewOptions = pCurrentDrawShell->GetViewOptions();
-        switch (nColorType)
+        case svtools::ColorConfigEntry::DOCCOLOR:
         {
-            case svtools::ColorConfigEntry::DOCCOLOR:
-            {
-                return rViewOptions.mnDocBackgroundColor;
-            }
-            // Should never be called for an unimplemented color type
-            default:
-            {
-                O3TL_UNREACHABLE;
-            }
+            aColor = rViewOptions.mnDocBackgroundColor;
+            break;
+        }
+        // Should never be called for an unimplemented color type
+        default:
+        {
+            O3TL_UNREACHABLE;
         }
     }
-    else
-    {
-        SAL_WARN("sd", "dynamic_cast to DrawViewShell failed");
-    }
 
-    return {};
+    return aColor;
 }
 
 //===== ViewShellBase::Implementation =========================================
@@ -1501,6 +1534,14 @@ void CurrentPageSetter::operator() (bool)
 }
 
 } // end of anonymous namespace
+
+SdViewOptions::SdViewOptions()
+    : msColorSchemeName("Default")
+{
+    const svtools::ColorConfig& rColorConfig = SD_MOD()->GetColorConfig();
+    mnAppBackgroundColor = rColorConfig.GetColorValue(svtools::APPBACKGROUND).nColor;
+    mnDocBackgroundColor = rColorConfig.GetColorValue(svtools::DOCCOLOR).nColor;
+}
 
 //===== FocusForwardingWindow =================================================
 

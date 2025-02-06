@@ -25,6 +25,8 @@
 #include <oox/ole/vbaproject.hxx>
 #include "epptooxml.hxx"
 #include <oox/export/shapes.hxx>
+#include <svx/svdlayer.hxx>
+#include <unokywds.hxx>
 
 #include <comphelper/sequenceashashmap.hxx>
 #include <comphelper/storagehelper.hxx>
@@ -40,6 +42,8 @@
 #include <com/sun/star/drawing/FillStyle.hpp>
 #include <com/sun/star/drawing/XDrawPages.hpp>
 #include <com/sun/star/drawing/XDrawPagesSupplier.hpp>
+#include <com/sun/star/drawing/XMasterPageTarget.hpp>
+#include <com/sun/star/drawing/XMasterPagesSupplier.hpp>
 #include <com/sun/star/embed/ElementModes.hpp>
 #include <com/sun/star/geometry/RealPoint2D.hpp>
 #include <com/sun/star/office/XAnnotationEnumeration.hpp>
@@ -346,6 +350,7 @@ PowerPointExport::PowerPointExport(const Reference< XComponentContext >& rContex
     , mnSlideIdMax(1 << 8)
     , mnSlideMasterIdMax(1U << 31)
     , mnAnimationNodeIdMax(1)
+    , mnThemeIdMax(0)
     , mnDiagramId(1)
     , mbCreateNotes(false)
     , mnPlaceholderIndexMax(1)
@@ -1449,9 +1454,141 @@ void PowerPointExport::AddLayoutIdAndRelation(const FSHelperPtr& pFS, sal_Int32 
                          FSNS(XML_r, XML_id), sRelId);
 }
 
+static bool lcl_ContainsEquivalentObject(SdrPage* pPage, SdrObject* pObj)
+{
+    bool bFound = false;
+
+    if (!pPage || !pObj)
+        return bFound;
+
+    for (size_t nObj = 0; nObj < pPage->GetObjCount(); ++nObj)
+    {
+        SdrObject* pObjNext = pPage->GetObj(nObj);
+        if (pObjNext && pObjNext->GetMergedItemSet().Equals(pObj->GetMergedItemSet(), false))
+        {
+            bFound = true;
+            break;
+        }
+    }
+
+    return bFound;
+}
+
+static bool lcl_ComparePageObjects(SdrPage* pMasterPage, SdrPage* pMasterNext)
+{
+    if (!pMasterPage || !pMasterNext)
+        return false;
+
+    SdrObject* pObjNext;
+    SdrLayerID aLayer = pMasterNext->GetLayerAdmin().GetLayerID(sUNO_LayerName_background_objects);
+
+    for (size_t nObj = 0; nObj < pMasterPage->GetObjCount(); ++nObj)
+    {
+        pObjNext = pMasterPage->GetObj(nObj);
+        if (!pObjNext || pObjNext->GetLayer() == aLayer)
+            continue;
+
+        if (!lcl_ContainsEquivalentObject(pMasterNext, pObjNext))
+            return false;
+    }
+
+    // No differences found
+    return true;
+}
+
+static bool lcl_ComparePageProperties(SdrPage* pMasterPage, SdrPage* pMasterNext)
+{
+    if (!pMasterPage || !pMasterNext)
+        return false;
+
+    SdrPageProperties& rProperties = pMasterPage->getSdrPageProperties();
+    SdrPageProperties& rNextProperties = pMasterNext->getSdrPageProperties();
+
+    return rProperties.GetItemSet().Equals(rNextProperties.GetItemSet(), false)
+           && rProperties.getTheme().get() == rNextProperties.getTheme().get();
+}
+
+void PowerPointExport::FindEquivalentMasterPages()
+{
+    css::uno::Reference<css::drawing::XDrawPages> xDrawPages(
+        mXMasterPagesSupplier->getMasterPages());
+    maMastersLayouts.resize(mnMasterPages);
+    maEquivalentMasters.resize(mnMasterPages, SAL_MAX_UINT32);
+    for (sal_uInt32 i = 0; i < mnMasterPages; i++)
+    {
+        css::uno::Reference<css::drawing::XDrawPage> xDrawPage;
+        uno::Any aAny(xDrawPages->getByIndex(i));
+        aAny >>= xDrawPage;
+        if (!xDrawPage.is())
+            continue;
+
+        maMastersLayouts[i] = std::make_pair(SdPage::getImplementation(xDrawPage), -1);
+        uno::Reference<beans::XPropertySet> xPagePropSet(xDrawPage, uno::UNO_QUERY_THROW);
+        if (xPagePropSet.is())
+        {
+            uno::Any aLayout = xPagePropSet->getPropertyValue("SlideLayout");
+            if (aLayout.hasValue())
+            {
+                aLayout >>= maMastersLayouts[i].second;
+            }
+        }
+    }
+
+    for (sal_uInt32 i = 0; i < mnMasterPages; i++)
+    {
+        if (!maMastersLayouts[i].first || maEquivalentMasters[i] != SAL_MAX_UINT32)
+            continue;
+        for (sal_uInt32 j = i + 1; j < mnMasterPages; j++)
+        {
+            if (!maMastersLayouts[j].first || maEquivalentMasters[j] != SAL_MAX_UINT32)
+                continue;
+
+            if (lcl_ComparePageProperties(maMastersLayouts[i].first, maMastersLayouts[j].first)
+                && lcl_ComparePageObjects(maMastersLayouts[i].first, maMastersLayouts[j].first))
+            {
+                // If both masters have the same properties and objects,
+                // we assume they are the same and only export the first one
+                maEquivalentMasters[j] = i;
+                maEquivalentMasters[i] = i;
+            }
+        }
+    }
+}
+
+sal_uInt32 PowerPointExport::GetEquivalentMasterPage(sal_uInt32 nMasterPage)
+{
+    if (maEquivalentMasters.size() == 0)
+        FindEquivalentMasterPages();
+    return maEquivalentMasters[nMasterPage];
+}
+
 void PowerPointExport::ImplWriteSlideMaster(sal_uInt32 nPageNum, Reference< XPropertySet > const& aXBackgroundPropSet)
 {
     SAL_INFO("sd.eppt", "write master slide: " << nPageNum << "\n--------------");
+
+    if (nPageNum != GetEquivalentMasterPage(nPageNum)
+        && GetEquivalentMasterPage(nPageNum) != SAL_MAX_UINT32)
+    {
+        // It's equivalent to an already written master, write only the layouts files
+        OUString aSlideName;
+        Reference<XNamed> xNamed(mXDrawPage, UNO_QUERY);
+        if (xNamed.is())
+            aSlideName = xNamed->getName();
+        for (int i = 0; i < OOXML_LAYOUT_SIZE; ++i)
+        {
+            if (mLayoutInfo[i].mnFileIdArray.size() > nPageNum
+                && mLayoutInfo[i].mnFileIdArray[nPageNum] > 0)
+            {
+                ImplWritePPTXLayoutWithContent(i, nPageNum, aSlideName, aXBackgroundPropSet);
+            }
+        }
+
+        // Close the list tag if it was the last one
+        if (nPageNum == mnMasterPages - 1)
+            mPresentationFS->endElementNS(XML_p, XML_sldMasterIdLst);
+
+        return;
+    }
 
     // slides list
     if (nPageNum == 0)
@@ -1481,37 +1618,102 @@ void PowerPointExport::ImplWriteSlideMaster(sal_uInt32 nPageNum, Reference< XPro
     }
 
     // write theme per master
-    WriteTheme(nPageNum, pTheme);
+    WriteTheme(mnThemeIdMax, pTheme);
 
     // add implicit relation to the presentation theme
-    addRelation(pFS->getOutputStream(),
-                oox::getRelationship(Relationship::THEME),
-                Concat2View("../theme/theme" + OUString::number(nPageNum + 1) + ".xml"));
+    addRelation(pFS->getOutputStream(), oox::getRelationship(Relationship::THEME),
+                Concat2View("../theme/theme" + OUString::number(++mnThemeIdMax) + ".xml"));
 
     pFS->startElementNS(XML_p, XML_sldMaster, PNMSS);
 
     pFS->startElementNS(XML_p, XML_cSld);
 
-    if (aXBackgroundPropSet)
-        ImplWriteBackground(pFS, aXBackgroundPropSet);
-    WriteShapeTree(pFS, MASTER, true);
+    if (GetEquivalentMasterPage(nPageNum) != nPageNum)
+    {
+        if (aXBackgroundPropSet)
+            ImplWriteBackground(pFS, aXBackgroundPropSet);
+        WriteShapeTree(pFS, MASTER, true);
+    }
+    else
+    {
+        // Minimal shape tree, the actual one will be written in the layout file.
+        pFS->startElementNS(XML_p, XML_spTree);
+        pFS->write(MAIN_GROUP);
+        pFS->endElementNS(XML_p, XML_spTree);
+    }
 
     pFS->endElementNS(XML_p, XML_cSld);
 
-    // color map - now it uses colors from hardcoded theme, once we eventually generate theme, this might need update
-    pFS->singleElementNS(XML_p, XML_clrMap,
-                         XML_bg1, "lt1",
-                         XML_bg2, "lt2",
-                         XML_tx1, "dk1",
-                         XML_tx2, "dk2",
-                         XML_accent1, "accent1",
-                         XML_accent2, "accent2",
-                         XML_accent3, "accent3",
-                         XML_accent4, "accent4",
-                         XML_accent5, "accent5",
-                         XML_accent6, "accent6",
-                         XML_hlink, "hlink",
-                         XML_folHlink, "folHlink");
+    css::uno::Reference< css::beans::XPropertySet > xDocPropSet(getModel(), uno::UNO_QUERY);
+    if (xDocPropSet.is())
+    {
+        uno::Sequence<beans::PropertyValue> aGrabBag;
+        if (xDocPropSet->getPropertySetInfo()->hasPropertyByName(u"InteropGrabBag"_ustr))
+            xDocPropSet->getPropertyValue(u"InteropGrabBag"_ustr) >>= aGrabBag;
+
+        std::vector<OUString> aClrMap;
+        aClrMap.reserve(12);
+        uno::Sequence<beans::PropertyValue> aClrMapPropValue;
+        if(aGrabBag.hasElements())
+        {
+            for (const auto& rProp : aGrabBag)
+            {
+                if (rProp.Name == "OOXColorMap")
+                {
+                    rProp.Value >>= aClrMapPropValue;
+                    break;
+                }
+            }
+        }
+
+        if (aClrMapPropValue.getLength())
+        {
+            OUString sName;
+            sal_Int32 nToken = XML_TOKEN_INVALID;
+            for(const auto& item : aClrMapPropValue)
+            {
+                item.Value >>= nToken;
+                switch (nToken)
+                {
+                    case XML_dk1:      sName = u"dk1"_ustr;      break;
+                    case XML_lt1:      sName = u"lt1"_ustr;      break;
+                    case XML_dk2:      sName = u"dk2"_ustr;      break;
+                    case XML_lt2:      sName = u"lt2"_ustr;      break;
+                    case XML_accent1:  sName = u"accent1"_ustr;  break;
+                    case XML_accent2:  sName = u"accent2"_ustr;  break;
+                    case XML_accent3:  sName = u"accent3"_ustr;  break;
+                    case XML_accent4:  sName = u"accent4"_ustr;  break;
+                    case XML_accent5:  sName = u"accent5"_ustr;  break;
+                    case XML_accent6:  sName = u"accent6"_ustr;  break;
+                    case XML_hlink:    sName = u"hlink"_ustr;    break;
+                    case XML_folHlink: sName = u"folHlink"_ustr; break;
+                }
+                aClrMap.push_back(sName);
+            }
+            assert(aClrMap.size() == 12 && "missing entries for ClrMap");
+        }
+        else
+        {
+            // default clrMap to export ".odp" files to ".pptx"
+            aClrMap = { u"lt1"_ustr,     u"dk1"_ustr,     u"lt2"_ustr,     u"dk2"_ustr,
+                        u"accent1"_ustr, u"accent2"_ustr, u"accent3"_ustr, u"accent4"_ustr,
+                        u"accent5"_ustr, u"accent6"_ustr, u"hlink"_ustr,   u"folHlink"_ustr };
+        }
+
+        pFS->singleElementNS(XML_p, XML_clrMap,
+                             XML_bg1, aClrMap[0],
+                             XML_tx1, aClrMap[1],
+                             XML_bg2, aClrMap[2],
+                             XML_tx2, aClrMap[3],
+                             XML_accent1, aClrMap[4],
+                             XML_accent2, aClrMap[5],
+                             XML_accent3, aClrMap[6],
+                             XML_accent4, aClrMap[7],
+                             XML_accent5, aClrMap[8],
+                             XML_accent6, aClrMap[9],
+                             XML_hlink, aClrMap[10],
+                             XML_folHlink, aClrMap[11]);
+    }
 
     // use master's id type as they have same range, mso does that as well
     pFS->startElementNS(XML_p, XML_sldLayoutIdLst);
@@ -1555,8 +1757,33 @@ void PowerPointExport::ImplWriteSlideMaster(sal_uInt32 nPageNum, Reference< XPro
 
     for (auto nLayout : aLayouts)
     {
-        ImplWritePPTXLayout(nLayout, nPageNum, aSlideName);
+        if (GetEquivalentMasterPage(nPageNum) == nPageNum)
+            ImplWritePPTXLayoutWithContent(nLayout, nPageNum, aSlideName, aXBackgroundPropSet);
+        else
+            ImplWritePPTXLayout(nLayout, nPageNum, aSlideName);
         AddLayoutIdAndRelation(pFS, GetLayoutFileId(nLayout, nPageNum));
+    }
+
+    // Add layouts of other Impress masters that came from a sinlge pptx master with multiple layouts
+    for (sal_uInt32 i = 0; i < mnMasterPages; i++)
+    {
+        if (i != nPageNum && maEquivalentMasters[i] == nPageNum)
+        {
+            aLayouts = getLayoutsUsedForMaster(maMastersLayouts[i].first);
+            if (maMastersLayouts[i].second != -1)
+                aLayouts.insert(maMastersLayouts[i].second);
+
+            for (auto nLayout : aLayouts)
+            {
+                // Reserve layout file Id to be writen later
+                if (mLayoutInfo[nLayout].mnFileIdArray.size() < mnMasterPages)
+                    mLayoutInfo[nLayout].mnFileIdArray.resize(mnMasterPages);
+                mLayoutInfo[nLayout].mnFileIdArray[i] = mnLayoutFileIdMax;
+                mnLayoutFileIdMax++;
+
+                AddLayoutIdAndRelation(pFS, GetLayoutFileId(nLayout, i));
+            }
+        }
     }
 
     pFS->endElementNS(XML_p, XML_sldLayoutIdLst);
@@ -1612,9 +1839,9 @@ void PowerPointExport::ImplWritePPTXLayout(sal_Int32 nOffset, sal_uInt32 nMaster
                                            "application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml");
 
     // add implicit relation of slide layout to slide master
-    addRelation(pFS->getOutputStream(),
-                oox::getRelationship(Relationship::SLIDEMASTER),
-                Concat2View("../slideMasters/slideMaster" + OUString::number(nMasterNum + 1) + ".xml"));
+    addRelation(
+        pFS->getOutputStream(), oox::getRelationship(Relationship::SLIDEMASTER),
+        Concat2View("../slideMasters/slideMaster" + OUString::number(nMasterNum + 1) + ".xml"));
 
     pFS->startElementNS(XML_p, XML_sldLayout,
                         PNMSS,
@@ -1643,6 +1870,57 @@ void PowerPointExport::ImplWritePPTXLayout(sal_Int32 nOffset, sal_uInt32 nMaster
     mnLayoutFileIdMax ++;
 
     xDrawPages->remove(xSlide);
+
+    pFS->endDocument();
+}
+
+void PowerPointExport::ImplWritePPTXLayoutWithContent(
+    sal_Int32 nOffset, sal_uInt32 nMasterNum, const OUString& aSlideName,
+    Reference<XPropertySet> const& aXBackgroundPropSet)
+{
+    SAL_INFO("sd.eppt", "write layout: " << nOffset);
+
+    if (mLayoutInfo[nOffset].mnFileIdArray.size() < mnMasterPages)
+    {
+        mLayoutInfo[nOffset].mnFileIdArray.resize(mnMasterPages);
+    }
+
+    if (mLayoutInfo[nOffset].mnFileIdArray[nMasterNum] == 0)
+    {
+        mLayoutInfo[nOffset].mnFileIdArray[nMasterNum] = mnLayoutFileIdMax;
+        mnLayoutFileIdMax++;
+    }
+    sal_Int32 nLayoutFileId = mLayoutInfo[nOffset].mnFileIdArray[nMasterNum];
+
+    FSHelperPtr pFS = openFragmentStreamWithSerializer(
+        "ppt/slideLayouts/slideLayout" + OUString::number(nLayoutFileId) + ".xml",
+        "application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml");
+
+    // add implicit relation of slide layout to slide master
+    addRelation(pFS->getOutputStream(), oox::getRelationship(Relationship::SLIDEMASTER),
+                Concat2View("../slideMasters/slideMaster"
+                            + OUString::number(GetEquivalentMasterPage(nMasterNum) + 1) + ".xml"));
+
+    pFS->startElementNS(XML_p, XML_sldLayout, PNMSS, XML_type, aLayoutInfo[nOffset].sType,
+                        XML_preserve, "1");
+
+    if (!aSlideName.isEmpty())
+    {
+        pFS->startElementNS(XML_p, XML_cSld, XML_name, aSlideName);
+    }
+    else
+    {
+        pFS->startElementNS(XML_p, XML_cSld, XML_name, aLayoutInfo[nOffset].sName);
+    }
+
+    if (aXBackgroundPropSet)
+        ImplWriteBackground(pFS, aXBackgroundPropSet);
+
+    WriteShapeTree(pFS, MASTER, true);
+
+    pFS->endElementNS(XML_p, XML_cSld);
+
+    pFS->endElementNS(XML_p, XML_sldLayout);
 
     pFS->endDocument();
 }
@@ -2269,17 +2547,28 @@ Reference<XShape> PowerPointExport::GetReferencedPlaceholderXShape(const Placeho
     }
     if (ePresObjKind != PresObjKind::NONE)
     {
-        SdPage* pMasterPage;
+        SdrPage* pPage;
         if (ePageType == LAYOUT)
         {
             // since Layout pages do not have drawpages themselves - mXDrawPage is still the master they reference to..
-            pMasterPage = SdPage::getImplementation(mXDrawPage);
+            pPage = SdPage::getImplementation(mXDrawPage);
         }
         else
         {
-            pMasterPage = &static_cast<SdPage&>(SdPage::getImplementation(mXDrawPage)->TRG_GetMasterPage());
+            pPage = &SdPage::getImplementation(mXDrawPage)->TRG_GetMasterPage();
         }
-        if (SdrObject* pMasterFooter = pMasterPage->GetPresObj(ePresObjKind))
+        for (sal_uInt32 i = 0; i < mnMasterPages; i++)
+        {
+            if (maMastersLayouts[i].first == pPage)
+            {
+                if (maEquivalentMasters[i] < mnMasterPages)
+                    pPage = maMastersLayouts[maEquivalentMasters[i]].first;
+                break;
+            }
+        }
+        SdPage* pMasterPage = dynamic_cast<SdPage*>(pPage);
+        if (SdrObject* pMasterFooter
+            = (pMasterPage ? pMasterPage->GetPresObj(ePresObjKind) : nullptr))
             return GetXShapeForSdrObject(pMasterFooter);
     }
     return nullptr;

@@ -42,6 +42,7 @@
 #include <sal/log.hxx>
 #include <tools/datetime.hxx>
 #include <o3tl/string_view.hxx>
+#include <svl/cryptosign.hxx>
 
 #include <certificate.hxx>
 #include <biginteger.hxx>
@@ -56,6 +57,33 @@ using namespace css;
 using namespace css::graphic;
 using namespace css::uno;
 
+/// RAII class to init / shut down libxmlsec.
+class Xmlsec
+{
+public:
+    Xmlsec();
+    ~Xmlsec();
+};
+
+Xmlsec::Xmlsec() { initXmlSec(); }
+
+Xmlsec::~Xmlsec() { deInitXmlSec(); }
+
+namespace
+{
+/// Shared access to libxmlsec, to avoid double init.
+struct XmlsecLibrary
+{
+    static std::shared_ptr<Xmlsec>& get();
+};
+
+std::shared_ptr<Xmlsec>& XmlsecLibrary::get()
+{
+    static std::shared_ptr<Xmlsec> pInstance = std::make_shared<Xmlsec>();
+    return pInstance;
+}
+}
+
 DocumentSignatureManager::DocumentSignatureManager(
     const uno::Reference<uno::XComponentContext>& xContext, DocumentSignatureMode eMode)
     : mxContext(xContext)
@@ -64,7 +92,7 @@ DocumentSignatureManager::DocumentSignatureManager(
 {
 }
 
-DocumentSignatureManager::~DocumentSignatureManager() { deInitXmlSec(); }
+DocumentSignatureManager::~DocumentSignatureManager() { mpXmlsecLibrary.reset(); }
 
 bool DocumentSignatureManager::init()
 {
@@ -76,7 +104,7 @@ bool DocumentSignatureManager::init()
                 "DocumentSignatureManager::Init - mxGpgSEInitializer already set!");
 
     // xmlsec is needed by both services, so init before those
-    initXmlSec();
+    mpXmlsecLibrary = XmlsecLibrary::get();
 
     mxSEInitializer = xml::crypto::SEInitializer::create(mxContext);
 #if HAVE_FEATURE_GPGME
@@ -299,20 +327,23 @@ SignatureStreamHelper DocumentSignatureManager::ImplOpenSignatureStream(sal_Int3
 }
 
 bool DocumentSignatureManager::add(
-    const uno::Reference<security::XCertificate>& xCert,
+    svl::crypto::SigningContext& rSigningContext,
     const uno::Reference<xml::crypto::XXMLSecurityContext>& xSecurityContext,
     const OUString& rDescription, sal_Int32& nSecurityId, bool bAdESCompliant,
     const OUString& rSignatureLineId, const Reference<XGraphic>& xValidGraphic,
     const Reference<XGraphic>& xInvalidGraphic)
 {
-    if (!xCert.is())
+    uno::Reference<security::XCertificate> xCert = rSigningContext.m_xCertificate;
+    uno::Reference<lang::XServiceInfo> xServiceInfo(xSecurityContext, uno::UNO_QUERY);
+    if (!xCert.is()
+        && xServiceInfo->getImplementationName()
+               == "com.sun.star.xml.security.gpg.XMLSecurityContext_GpgImpl")
     {
         SAL_WARN("xmlsecurity.helper", "no certificate selected");
         return false;
     }
 
     // GPG or X509 key?
-    uno::Reference<lang::XServiceInfo> xServiceInfo(xSecurityContext, uno::UNO_QUERY);
     if (xServiceInfo->getImplementationName()
         == "com.sun.star.xml.security.gpg.XMLSecurityContext_GpgImpl")
     {
@@ -346,26 +377,29 @@ bool DocumentSignatureManager::add(
     }
     else
     {
+        if (!mxStore.is())
+        {
+            // Something not ZIP based, try PDF.
+            nSecurityId = getPDFSignatureHelper().GetNewSecurityId();
+            getPDFSignatureHelper().SetX509Certificate(rSigningContext);
+            getPDFSignatureHelper().SetDescription(rDescription);
+            uno::Reference<io::XInputStream> xInputStream(mxSignatureStream, uno::UNO_QUERY);
+            if (!getPDFSignatureHelper().Sign(mxModel, xInputStream, bAdESCompliant))
+            {
+                if (rSigningContext.m_xCertificate.is())
+                {
+                    SAL_WARN("xmlsecurity.helper", "PDFSignatureHelper::Sign() failed");
+                }
+                return false;
+            }
+            return true;
+        }
+
         OUString aCertSerial = xmlsecurity::bigIntegerToNumericString(xCert->getSerialNumber());
         if (aCertSerial.isEmpty())
         {
             SAL_WARN("xmlsecurity.helper", "Error in Certificate, problem with serial number!");
             return false;
-        }
-
-        if (!mxStore.is())
-        {
-            // Something not ZIP based, try PDF.
-            nSecurityId = getPDFSignatureHelper().GetNewSecurityId();
-            getPDFSignatureHelper().SetX509Certificate(xCert);
-            getPDFSignatureHelper().SetDescription(rDescription);
-            uno::Reference<io::XInputStream> xInputStream(mxSignatureStream, uno::UNO_QUERY);
-            if (!getPDFSignatureHelper().Sign(mxModel, xInputStream, bAdESCompliant))
-            {
-                SAL_WARN("xmlsecurity.helper", "PDFSignatureHelper::Sign() failed");
-                return false;
-            }
-            return true;
         }
 
         maSignatureHelper.StartMission(xSecurityContext);
@@ -408,6 +442,15 @@ bool DocumentSignatureManager::add(
 
     std::vector<OUString> aElements = DocumentSignatureHelper::CreateElementList(
         mxStore, meSignatureMode, DocumentSignatureAlgorithm::OOo3_2);
+
+    if (mxScriptingSignatureStream.is())
+    {
+        aElements.emplace_back(
+            u"META-INF/"_ustr
+            + DocumentSignatureHelper::GetScriptingContentSignatureDefaultStreamName());
+        std::sort(aElements.begin(), aElements.end());
+    }
+
     DocumentSignatureHelper::AppendContentTypes(mxStore, aElements);
 
     for (OUString const& rUri : aElements)

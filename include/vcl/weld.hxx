@@ -977,6 +977,8 @@ protected:
         return m_aEditingDoneHdl.Call(rIterText);
     }
 
+    void signal_popup_menu(const CommandEvent& rCommand) { m_aPopupMenuHdl.Call(rCommand); }
+
     Link<const TreeIter&, OUString> m_aQueryTooltipHdl;
     OUString signal_query_tooltip(const TreeIter& rIter) { return m_aQueryTooltipHdl.Call(rIter); }
 
@@ -1386,7 +1388,7 @@ public:
     using Widget::get_sensitive;
 };
 
-typedef std::tuple<tools::JsonWriter&, const TreeIter&, std::string_view> json_prop_query;
+typedef std::tuple<OUString&, const TreeIter&> encoded_image_query;
 
 class VCL_DLLPUBLIC IconView : virtual public Widget
 {
@@ -1400,7 +1402,7 @@ protected:
     Link<IconView&, bool> m_aItemActivatedHdl;
     Link<const CommandEvent&, bool> m_aCommandHdl;
     Link<const TreeIter&, OUString> m_aQueryTooltipHdl;
-    Link<const json_prop_query&, bool> m_aGetPropertyTreeElemHdl;
+    Link<const encoded_image_query&, bool> m_aGetPropertyTreeElemHdl;
 
     void signal_selection_changed() { m_aSelectionChangeHdl.Call(*this); }
     bool signal_item_activated() { return m_aItemActivatedHdl.Call(*this); }
@@ -1455,8 +1457,8 @@ public:
         m_aQueryTooltipHdl = rLink;
     }
 
-    // 0: json writer, 1: TreeIter, 2: property. returns true if supported
-    virtual void connect_get_property_tree_elem(const Link<const json_prop_query&, bool>& rLink)
+    // 0: OUString, 1: TreeIter, returns true if supported
+    virtual void connect_get_image(const Link<const encoded_image_query&, bool>& rLink)
     {
         m_aGetPropertyTreeElemHdl = rLink;
     }
@@ -1470,8 +1472,14 @@ public:
     virtual OUString get_selected_text() const = 0;
 
     //by index. Don't select when frozen, select after thaw. Note selection doesn't survive a freeze.
+    virtual OUString get_id(int pos) const = 0;
     virtual void select(int pos) = 0;
     virtual void unselect(int pos) = 0;
+    virtual void set_image(int pos, VirtualDevice* pDevice) = 0;
+    virtual void set_text(int pos, const OUString& rText) = 0;
+    virtual void set_id(int pos, const OUString& rId) = 0;
+    virtual void remove(int pos) = 0;
+    virtual tools::Rectangle get_rect(int pos) const = 0;
 
     //via iter
     virtual std::unique_ptr<TreeIter> make_iterator(const TreeIter* pOrig = nullptr) const = 0;
@@ -1481,6 +1489,7 @@ public:
     virtual bool get_iter_first(TreeIter& rIter) const = 0;
     virtual OUString get_id(const TreeIter& rIter) const = 0;
     virtual OUString get_text(const TreeIter& rIter) const = 0;
+    virtual bool iter_next_sibling(TreeIter& rIter) const = 0;
     virtual void scroll_to_item(const TreeIter& rIter) = 0;
 
     // call func on each selected element until func returns true or we run out of elements
@@ -2408,6 +2417,8 @@ enum class Placement
 
 class VCL_DLLPUBLIC Menu
 {
+    friend class ::LOKTrigger;
+
     Link<const OUString&, void> m_aActivateHdl;
 
 protected:

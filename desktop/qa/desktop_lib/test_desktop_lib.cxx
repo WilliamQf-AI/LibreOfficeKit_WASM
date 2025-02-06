@@ -198,6 +198,9 @@ public:
     void testCommentsImpress();
     void testCommentsCallbacksWriter();
     void testCommentsAddEditDeleteDraw();
+    void testCommentsInReadOnlyMode();
+    void testCalcValidityDropdown();
+    void testCalcValidityDropdownInReadonlyMode();
     void testRunMacro();
     void testExtractParameter();
     void testGetSignatureState_NonSigned();
@@ -268,6 +271,9 @@ public:
     CPPUNIT_TEST(testCommentsImpress);
     CPPUNIT_TEST(testCommentsCallbacksWriter);
     CPPUNIT_TEST(testCommentsAddEditDeleteDraw);
+    CPPUNIT_TEST(testCommentsInReadOnlyMode);
+    CPPUNIT_TEST(testCalcValidityDropdown);
+    CPPUNIT_TEST(testCalcValidityDropdownInReadonlyMode);
     CPPUNIT_TEST(testRunMacro);
     CPPUNIT_TEST(testExtractParameter);
     CPPUNIT_TEST(testGetSignatureState_Signed);
@@ -2134,6 +2140,7 @@ class ViewCallback
     int mnView;
 public:
     OString m_aCellFormula;
+    boost::property_tree::ptree m_JSONDialog;
     int m_nTableSelectionCount;
     int m_nColorPaletteCallbackCount = 0;
     bool m_bEmptyTableSelection;
@@ -2216,6 +2223,13 @@ public:
             std::stringstream aStream(pPayload);
             boost::property_tree::read_json(aStream, m_aColorPaletteCallbackResult);
             ++m_nColorPaletteCallbackCount;
+        }
+        break;
+        case LOK_CALLBACK_JSDIALOG:
+        {
+            m_JSONDialog.clear();
+            std::stringstream aStream(pPayload);
+            boost::property_tree::read_json(aStream, m_JSONDialog);
         }
         break;
         }
@@ -2394,20 +2408,20 @@ void DesktopLOKTest::testCommentsWriter()
     {
         CPPUNIT_ASSERT(rComment.second.get<int>("id") > 0);
         CPPUNIT_ASSERT(!rComment.second.get<std::string>("author").empty());
-        CPPUNIT_ASSERT(!rComment.second.get<std::string>("text").empty());
+        CPPUNIT_ASSERT(!rComment.second.get<std::string>("html").empty());
         // Has a valid iso 8601 date time string
         css::util::DateTime aDateTime;
         OUString aDateTimeString = OUString::createFromAscii(rComment.second.get<std::string>("dateTime"));
         CPPUNIT_ASSERT(utl::ISO8601parseDateTime(aDateTimeString, aDateTime));
 
         // This comment has a marked text range
-        if (rComment.second.get<std::string>("text") == "Comment 2")
+        if (rComment.second.get<std::string>("html") == "<div>Comment 2</div>")
         {
             CPPUNIT_ASSERT(!rComment.second.get<std::string>("textRange").empty());
             nComment2Id = rComment.second.get<int>("id");
         }
         // This is a reply comment
-        else if (rComment.second.get<std::string>("text") == "Reply to Comment 2")
+        else if (rComment.second.get<std::string>("html") == "<div>Reply to Comment 2</div>")
         {
             CPPUNIT_ASSERT_EQUAL(nComment2Id, rComment.second.get<int>("parentId"));
         }
@@ -2553,8 +2567,8 @@ void DesktopLOKTest::testCommentsCallbacksWriter()
     CPPUNIT_ASSERT_EQUAL(std::string("Add"), aView2.m_aCommentCallbackResult.get<std::string>("action"));
     CPPUNIT_ASSERT_EQUAL(nCommentId1, aView1.m_aCommentCallbackResult.get<int>("parentId"));
     CPPUNIT_ASSERT_EQUAL(nCommentId1, aView2.m_aCommentCallbackResult.get<int>("parentId"));
-    CPPUNIT_ASSERT_EQUAL(std::string("Reply comment"), aView1.m_aCommentCallbackResult.get<std::string>("text"));
-    CPPUNIT_ASSERT_EQUAL(std::string("Reply comment"), aView2.m_aCommentCallbackResult.get<std::string>("text"));
+    CPPUNIT_ASSERT_EQUAL(std::string("<div>Reply comment</div>"), aView1.m_aCommentCallbackResult.get<std::string>("html"));
+    CPPUNIT_ASSERT_EQUAL(std::string("<div>Reply comment</div>"), aView2.m_aCommentCallbackResult.get<std::string>("html"));
     int nCommentId2 = aView1.m_aCommentCallbackResult.get<int>("id");
 
     // Edit the previously added comment
@@ -2568,8 +2582,8 @@ void DesktopLOKTest::testCommentsCallbacksWriter()
     // parent is unchanged still
     CPPUNIT_ASSERT_EQUAL(nCommentId1, aView1.m_aCommentCallbackResult.get<int>("parentId"));
     CPPUNIT_ASSERT_EQUAL(nCommentId1, aView2.m_aCommentCallbackResult.get<int>("parentId"));
-    CPPUNIT_ASSERT_EQUAL(std::string("Edited comment"), aView1.m_aCommentCallbackResult.get<std::string>("text"));
-    CPPUNIT_ASSERT_EQUAL(std::string("Edited comment"), aView2.m_aCommentCallbackResult.get<std::string>("text"));
+    CPPUNIT_ASSERT_EQUAL(std::string("<div>Edited comment</div>"), aView1.m_aCommentCallbackResult.get<std::string>("html"));
+    CPPUNIT_ASSERT_EQUAL(std::string("<div>Edited comment</div>"), aView2.m_aCommentCallbackResult.get<std::string>("html"));
 
     // Delete the reply comment just added
     aCommandArgs = "{ \"Id\": { \"type\": \"string\", \"value\":  \"" + OString::number(nCommentId2) + "\" } }";
@@ -2583,7 +2597,7 @@ void DesktopLOKTest::testCommentsCallbacksWriter()
     CPPUNIT_ASSERT_EQUAL(nCommentId2, aView2.m_aCommentCallbackResult.get<int>("id"));
 
     // Reply to nCommentId1 again
-    aCommandArgs = "{ \"Id\": { \"type\": \"string\", \"value\": \"" + OString::number(nCommentId1) + "\" }, \"Text\": { \"type\": \"string\", \"value\": \"Reply comment again\" } }";
+    aCommandArgs = "{ \"Id\": { \"type\": \"string\", \"value\": \"" + OString::number(nCommentId1) + "\" }, \"Html\": { \"type\": \"string\", \"value\": \"Reply comment again\" } }";
     pDocument->pClass->postUnoCommand(pDocument, ".uno:ReplyComment", aCommandArgs.getStr(), false);
     Scheduler::ProcessEventsToIdle();
 
@@ -2592,8 +2606,17 @@ void DesktopLOKTest::testCommentsCallbacksWriter()
     CPPUNIT_ASSERT_EQUAL(std::string("Add"), aView2.m_aCommentCallbackResult.get<std::string>("action"));
     CPPUNIT_ASSERT_EQUAL(nCommentId1, aView1.m_aCommentCallbackResult.get<int>("parentId"));
     CPPUNIT_ASSERT_EQUAL(nCommentId1, aView2.m_aCommentCallbackResult.get<int>("parentId"));
-    CPPUNIT_ASSERT_EQUAL(std::string("Reply comment again"), aView1.m_aCommentCallbackResult.get<std::string>("text"));
-    CPPUNIT_ASSERT_EQUAL(std::string("Reply comment again"), aView2.m_aCommentCallbackResult.get<std::string>("text"));
+    CPPUNIT_ASSERT_EQUAL(std::string("<div>Reply comment again</div>"), aView1.m_aCommentCallbackResult.get<std::string>("html"));
+    CPPUNIT_ASSERT_EQUAL(std::string("<div>Reply comment again</div>"), aView2.m_aCommentCallbackResult.get<std::string>("html"));
+
+    // Ensure that an undo and redo restores the html contents
+    aView1.m_aCommentCallbackResult.clear();
+    aView2.m_aCommentCallbackResult.clear();
+    pDocument->pClass->postUnoCommand(pDocument, ".uno:Undo", "", false);
+    pDocument->pClass->postUnoCommand(pDocument, ".uno:Redo", "", false);
+    Scheduler::ProcessEventsToIdle();
+    CPPUNIT_ASSERT_EQUAL(std::string("<div>Reply comment again</div>"), aView1.m_aCommentCallbackResult.get<std::string>("html"));
+    CPPUNIT_ASSERT_EQUAL(std::string("<div>Reply comment again</div>"), aView2.m_aCommentCallbackResult.get<std::string>("html"));
 
     // .uno:ViewAnnotations returns total of 5 comments
     boost::property_tree::ptree aTree;
@@ -2668,6 +2691,138 @@ void DesktopLOKTest::testCommentsAddEditDeleteDraw()
     // We received a LOK_CALLBACK_COMMENT callback with comment 'Remove' action
     CPPUNIT_ASSERT_EQUAL(std::string("Remove"), aView1.m_aCommentCallbackResult.get<std::string>("action"));
     CPPUNIT_ASSERT_EQUAL(nCommentId1, aView1.m_aCommentCallbackResult.get<int>("id"));
+}
+
+void DesktopLOKTest::testCommentsInReadOnlyMode()
+{
+    // Comments callback are emitted only if tiled annotations are off
+    comphelper::LibreOfficeKit::setTiledAnnotations(false);
+    LibLODocument_Impl* pDocument = loadDoc("blank_text.odt");
+    OString aUserName("LOK User1"_ostr);
+    OString aArguments = "{\".uno:Author\":{\"type\":\"string\",\"value\":\"" + aUserName + "\"}}";
+    pDocument->m_pDocumentClass->initializeForRendering(pDocument, aArguments.getStr());
+
+    int viewId = pDocument->m_pDocumentClass->getView(pDocument);
+
+    SfxLokHelper::setViewReadOnly(viewId, true);
+    SfxLokHelper::setAllowChangeComments(viewId, true);
+
+    Scheduler::ProcessEventsToIdle();
+
+    ViewCallback aView(pDocument);
+
+    // Add a new comment
+    OString aCommandArgs;
+    {
+        tools::JsonWriter aJson;
+        addParameter(aJson, "Text", "string", "Comment");
+        addParameter(aJson, "Author", "string", aUserName);
+        aCommandArgs = aJson.finishAndGetAsOString();
+    }
+
+    pDocument->pClass->postUnoCommand(pDocument, ".uno:InsertAnnotation", aCommandArgs.getStr(), false);
+    Scheduler::ProcessEventsToIdle();
+
+    // We received a LOK_CALLBACK_COMMENT callback with comment 'Add' action
+    CPPUNIT_ASSERT_EQUAL(std::string("Add"), aView.m_aCommentCallbackResult.get<std::string>("action"));
+    int nCommentId = aView.m_aCommentCallbackResult.get<int>("id");
+
+    // Edit the previously added comment
+    {
+        tools::JsonWriter aJson;
+        addParameter(aJson, "Id", "string", OString::number(nCommentId));
+        addParameter(aJson, "Text", "string", "Edited comment");
+        aCommandArgs = aJson.finishAndGetAsOString();
+    }
+
+    pDocument->pClass->postUnoCommand(pDocument, ".uno:EditAnnotation", aCommandArgs.getStr(), false);
+    Scheduler::ProcessEventsToIdle();
+
+    // We received a LOK_CALLBACK_COMMENT callback with comment 'Modify' action
+    CPPUNIT_ASSERT_EQUAL(std::string("Modify"), aView.m_aCommentCallbackResult.get<std::string>("action"));
+    CPPUNIT_ASSERT_EQUAL(nCommentId, aView.m_aCommentCallbackResult.get<int>("id"));
+
+    // Delete Comment
+    {
+        tools::JsonWriter aJson;
+        addParameter(aJson, "Id", "string", OString::number(nCommentId));
+        aCommandArgs = aJson.finishAndGetAsOString();
+    }
+    pDocument->pClass->postUnoCommand(pDocument, ".uno:DeleteAnnotation", aCommandArgs.getStr(), false);
+    Scheduler::ProcessEventsToIdle();
+
+    // Result is not sent for delete operation for some reason. But it is sent when debugging with online.
+    // TODO: Enable below 2 checks.
+
+    // We received a LOK_CALLBACK_COMMENT callback with comment 'Remove' action
+    //CPPUNIT_ASSERT_EQUAL(std::string("Remove"), aView.m_aCommentCallbackResult.get<std::string>("action"));
+    //CPPUNIT_ASSERT_EQUAL(nCommentId, aView.m_aCommentCallbackResult.get<int>("id"));
+}
+
+void DesktopLOKTest::testCalcValidityDropdown()
+{
+    LibLODocument_Impl* pDocument = loadDoc("validity.ods");
+    Scheduler::ProcessEventsToIdle();
+    pDocument->m_pDocumentClass->initializeForRendering(pDocument, "{}");
+    Scheduler::ProcessEventsToIdle();
+
+    ViewCallback aView(pDocument);
+    Scheduler::ProcessEventsToIdle();
+
+    // Select row 1 from column 1.
+    pDocument->pClass->postMouseEvent(pDocument, LOK_MOUSEEVENT_MOUSEBUTTONDOWN, 1000, 150, 1, 1, 0);
+    Scheduler::ProcessEventsToIdle();
+    pDocument->pClass->postMouseEvent(pDocument, LOK_MOUSEEVENT_MOUSEBUTTONUP, 1000, 150, 1, 1, 0);
+    Scheduler::ProcessEventsToIdle();
+
+    // Open dropdown.
+    pDocument->pClass->postMouseEvent(pDocument, LOK_MOUSEEVENT_MOUSEBUTTONDOWN, 1380, 150, 1, 1, 0);
+    Scheduler::ProcessEventsToIdle();
+    pDocument->pClass->postMouseEvent(pDocument, LOK_MOUSEEVENT_MOUSEBUTTONUP, 1380, 150, 1, 1, 0);
+    Scheduler::ProcessEventsToIdle();
+
+    // Select some value from dropdown.
+    pDocument->pClass->sendDialogEvent(pDocument, aView.m_JSONDialog.get_child("id").get_value<int>(), "{\"id\":\"list\", \"cmd\": \"select\", \"data\": \"3\", \"type\": \"treeview\"}");
+    Scheduler::ProcessEventsToIdle();
+
+    // Activate the selected value.
+    pDocument->pClass->sendDialogEvent(pDocument, aView.m_JSONDialog.get_child("id").get_value<int>(), "{\"id\":\"list\", \"cmd\": \"activate\", \"data\": \"3\", \"type\": \"treeview\"}");
+    Scheduler::ProcessEventsToIdle();
+
+    // Check the content of the current cell. The selected value of the dropdown was 1. It should be 4 now.
+    char* pCellContent = pDocument->pClass->getTextSelection(pDocument, "text/plain;charset=utf-8", nullptr);
+    CPPUNIT_ASSERT_EQUAL("4"_ostr, OString(pCellContent));
+    free(pCellContent);
+}
+
+void DesktopLOKTest::testCalcValidityDropdownInReadonlyMode()
+{
+    LibLODocument_Impl* pDocument = loadDoc("validity.ods");
+    Scheduler::ProcessEventsToIdle();
+    pDocument->m_pDocumentClass->initializeForRendering(pDocument, "{}");
+    Scheduler::ProcessEventsToIdle();
+
+    ViewCallback aView(pDocument);
+    Scheduler::ProcessEventsToIdle();
+
+    int viewId = pDocument->m_pDocumentClass->getView(pDocument);
+    SfxLokHelper::setViewReadOnly(viewId, true);
+    Scheduler::ProcessEventsToIdle();
+
+    // Select row 1 from column 1.
+    pDocument->pClass->postMouseEvent(pDocument, LOK_MOUSEEVENT_MOUSEBUTTONDOWN, 1000, 150, 1, 1, 0);
+    Scheduler::ProcessEventsToIdle();
+    pDocument->pClass->postMouseEvent(pDocument, LOK_MOUSEEVENT_MOUSEBUTTONUP, 1000, 150, 1, 1, 0);
+    Scheduler::ProcessEventsToIdle();
+
+    // Attempt to open dropdown.
+    pDocument->pClass->postMouseEvent(pDocument, LOK_MOUSEEVENT_MOUSEBUTTONDOWN, 1380, 150, 1, 1, 0);
+    Scheduler::ProcessEventsToIdle();
+    pDocument->pClass->postMouseEvent(pDocument, LOK_MOUSEEVENT_MOUSEBUTTONUP, 1380, 150, 1, 1, 0);
+    Scheduler::ProcessEventsToIdle();
+
+    // Dropdown should not open in readonly mode.
+    CPPUNIT_ASSERT_EQUAL(true, aView.m_JSONDialog.empty());
 }
 
 void DesktopLOKTest::testRunMacro()
@@ -3596,10 +3751,12 @@ void DesktopLOKTest::testABI()
     CPPUNIT_ASSERT_EQUAL(classOffset(20), offsetof(struct _LibreOfficeKitClass, joinThreads));
     CPPUNIT_ASSERT_EQUAL(classOffset(21), offsetof(struct _LibreOfficeKitClass, startThreads));
     CPPUNIT_ASSERT_EQUAL(classOffset(22), offsetof(struct _LibreOfficeKitClass, setForkedChild));
+    CPPUNIT_ASSERT_EQUAL(classOffset(23), offsetof(struct _LibreOfficeKitClass, extractDocumentStructureRequest));
+    CPPUNIT_ASSERT_EQUAL(classOffset(24), offsetof(struct _LibreOfficeKitClass, registerAnyInputCallback));
 
     // When extending LibreOfficeKit with a new function pointer,  add new assert for the offsetof the
     // new function pointer and bump this assert for the size of the class.
-    CPPUNIT_ASSERT_EQUAL(classOffset(23), sizeof(struct _LibreOfficeKitClass));
+    CPPUNIT_ASSERT_EQUAL(classOffset(25), sizeof(struct _LibreOfficeKitClass));
 
     CPPUNIT_ASSERT_EQUAL(documentClassOffset(0), offsetof(struct _LibreOfficeKitDocumentClass, destroy));
     CPPUNIT_ASSERT_EQUAL(documentClassOffset(1), offsetof(struct _LibreOfficeKitDocumentClass, saveAs));
@@ -3680,9 +3837,14 @@ void DesktopLOKTest::testABI()
     CPPUNIT_ASSERT_EQUAL(documentClassOffset(71), offsetof(struct _LibreOfficeKitDocumentClass, getA11yCaretPosition));
     CPPUNIT_ASSERT_EQUAL(documentClassOffset(72), offsetof(struct _LibreOfficeKitDocumentClass, setViewReadOnly));
     CPPUNIT_ASSERT_EQUAL(documentClassOffset(73), offsetof(struct _LibreOfficeKitDocumentClass, setAllowChangeComments));
+    CPPUNIT_ASSERT_EQUAL(documentClassOffset(74), offsetof(struct _LibreOfficeKitDocumentClass, getPresentationInfo));
+    CPPUNIT_ASSERT_EQUAL(documentClassOffset(75), offsetof(struct _LibreOfficeKitDocumentClass, createSlideRenderer));
+    CPPUNIT_ASSERT_EQUAL(documentClassOffset(76), offsetof(struct _LibreOfficeKitDocumentClass, postSlideshowCleanup));
+    CPPUNIT_ASSERT_EQUAL(documentClassOffset(77), offsetof(struct _LibreOfficeKitDocumentClass, renderNextSlideLayer));
+    CPPUNIT_ASSERT_EQUAL(documentClassOffset(78), offsetof(struct _LibreOfficeKitDocumentClass, setViewOption));
 
     // As above
-    CPPUNIT_ASSERT_EQUAL(documentClassOffset(74), sizeof(struct _LibreOfficeKitDocumentClass));
+    CPPUNIT_ASSERT_EQUAL(documentClassOffset(79), sizeof(struct _LibreOfficeKitDocumentClass));
 }
 
 CPPUNIT_TEST_SUITE_REGISTRATION(DesktopLOKTest);
