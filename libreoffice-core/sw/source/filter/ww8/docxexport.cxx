@@ -100,6 +100,7 @@
 #include <sal/log.hxx>
 #include <unotools/ucbstreamhelper.hxx>
 #include <comphelper/diagnose_ex.hxx>
+#include <unotxdoc.hxx>
 
 using namespace sax_fastparser;
 using namespace ::comphelper;
@@ -1257,7 +1258,7 @@ void DocxExport::WriteSettings()
         m_pAttrOutput->WriteFootnoteEndnotePr( pFS, XML_endnotePr, m_rDoc.GetEndNoteInfo(), XML_endnote );
 
     // Has themeFontLang information
-    uno::Reference< beans::XPropertySet > xPropSet( pDocShell->GetBaseModel(), uno::UNO_QUERY_THROW );
+    rtl::Reference< SwXTextDocument > xPropSet( pDocShell->GetXTextDocument() );
 
     bool bUseGrabBagProtection = false;
     bool bWriterWantsToProtect = false;
@@ -1531,7 +1532,7 @@ void DocxExport::WriteTheme()
 // See OOXMLDocumentImpl::resolveGlossaryStream
 void DocxExport::WriteGlossary()
 {
-    uno::Reference< beans::XPropertySet > xPropSet( m_rDoc.GetDocShell()->GetBaseModel(), uno::UNO_QUERY_THROW );
+    rtl::Reference< SwXTextDocument > xPropSet( m_rDoc.GetDocShell()->GetXTextDocument() );
 
     uno::Reference< beans::XPropertySetInfo > xPropSetInfo = xPropSet->getPropertySetInfo();
     OUString aName = UNO_NAME_MISC_OBJ_INTEROPGRABBAG;
@@ -1574,8 +1575,7 @@ void DocxExport::WriteGlossary()
     uno::Reference< xml::sax::XSAXSerializable > serializer( glossaryDocDom, uno::UNO_QUERY );
     uno::Reference< xml::sax::XWriter > writer = xml::sax::Writer::create( comphelper::getProcessComponentContext() );
     writer->setOutputStream( xOutputStream );
-    serializer->serialize( uno::Reference< xml::sax::XDocumentHandler >( writer, uno::UNO_QUERY_THROW ),
-        uno::Sequence< beans::StringPair >() );
+    serializer->serialize(writer, uno::Sequence< beans::StringPair >());
 
     for (const uno::Sequence<beans::NamedValue>& glossaryElement : glossaryDomList)
     {
@@ -1616,8 +1616,7 @@ void DocxExport::WriteGlossary()
             continue; // External relation, no stream to write
         uno::Reference< xml::sax::XSAXSerializable > gserializer( xDom, uno::UNO_QUERY );
         writer->setOutputStream(GetFilter().openFragmentStream( "word/glossary/" + gTarget, contentType ) );
-        gserializer->serialize( uno::Reference< xml::sax::XDocumentHandler >( writer, uno::UNO_QUERY_THROW ),
-               uno::Sequence< beans::StringPair >() );
+        gserializer->serialize(writer, uno::Sequence< beans::StringPair >());
     }
 }
 
@@ -1694,7 +1693,7 @@ static void lcl_UpdateXmlValues(const SdtData& sdtData, const uno::Reference<css
 
 void DocxExport::WriteCustomXml()
 {
-    uno::Reference< beans::XPropertySet > xPropSet( m_rDoc.GetDocShell()->GetBaseModel(), uno::UNO_QUERY_THROW );
+    rtl::Reference< SwXTextDocument > xPropSet( m_rDoc.GetDocShell()->GetXTextDocument() );
 
     uno::Reference< beans::XPropertySetInfo > xPropSetInfo = xPropSet->getPropertySetInfo();
     if ( !xPropSetInfo->hasPropertyByName( UNO_NAME_MISC_OBJ_INTEROPGRABBAG ) )
@@ -1743,8 +1742,7 @@ void DocxExport::WriteCustomXml()
 
                 writer->setOutputStream(xMemStream->getOutputStream());
 
-                serializer->serialize(uno::Reference< xml::sax::XDocumentHandler >(writer, uno::UNO_QUERY_THROW),
-                    uno::Sequence< beans::StringPair >());
+                serializer->serialize(writer, uno::Sequence< beans::StringPair >());
 
                 uno::Reference< io::XStream > xXSLTInStream = xMemStream;
                 uno::Reference< io::XStream > xXSLTOutStream;
@@ -1775,8 +1773,7 @@ void DocxExport::WriteCustomXml()
             {
                 writer->setOutputStream(xOutStream);
 
-                serializer->serialize(uno::Reference< xml::sax::XDocumentHandler >(writer, uno::UNO_QUERY_THROW),
-                    uno::Sequence< beans::StringPair >());
+                serializer->serialize(writer, uno::Sequence< beans::StringPair >());
             }
         }
 
@@ -1786,8 +1783,7 @@ void DocxExport::WriteCustomXml()
             uno::Reference< xml::sax::XWriter > writer = xml::sax::Writer::create( comphelper::getProcessComponentContext() );
             writer->setOutputStream( GetFilter().openFragmentStream( "customXml/itemProps"+OUString::number(j+1)+".xml",
                 "application/vnd.openxmlformats-officedocument.customXmlProperties+xml" ) );
-            serializer->serialize( uno::Reference< xml::sax::XDocumentHandler >( writer, uno::UNO_QUERY_THROW ),
-                uno::Sequence< beans::StringPair >() );
+            serializer->serialize(writer, uno::Sequence< beans::StringPair >());
 
             // Adding itemprops's relationship entry to item.xml.rels file
             m_rFilter.addRelation( GetFilter().openFragmentStream( "customXml/item"+OUString::number(j+1)+".xml",
@@ -1800,7 +1796,7 @@ void DocxExport::WriteCustomXml()
 
 void DocxExport::WriteVBA()
 {
-    uno::Reference<document::XStorageBasedDocument> xStorageBasedDocument(m_rDoc.GetDocShell()->GetBaseModel(), uno::UNO_QUERY);
+    rtl::Reference<SwXTextDocument> xStorageBasedDocument(m_rDoc.GetDocShell()->GetXTextDocument());
     if (!xStorageBasedDocument.is())
         return;
 
@@ -1859,7 +1855,7 @@ void DocxExport::WriteVBA()
 
 void DocxExport::WriteEmbeddings()
 {
-    uno::Reference< beans::XPropertySet > xPropSet( m_rDoc.GetDocShell()->GetBaseModel(), uno::UNO_QUERY_THROW );
+    rtl::Reference< SwXTextDocument > xPropSet( m_rDoc.GetDocShell()->GetXTextDocument() );
 
     uno::Reference< beans::XPropertySetInfo > xPropSetInfo = xPropSet->getPropertySetInfo();
     OUString aName = UNO_NAME_MISC_OBJ_INTEROPGRABBAG;
@@ -2024,6 +2020,7 @@ rtl::Reference<FastAttributeList> DocxExport::MainXmlNamespaces()
     pAttr->add( FSNS( XML_xmlns, XML_w ), OUStringToOString(m_rFilter.getNamespaceURL(OOX_NS(doc)), RTL_TEXTENCODING_UTF8) );
     pAttr->add( FSNS( XML_xmlns, XML_w10 ), OUStringToOString(m_rFilter.getNamespaceURL(OOX_NS(vmlWord)), RTL_TEXTENCODING_UTF8) );
     pAttr->add( FSNS( XML_xmlns, XML_wp ), OUStringToOString(m_rFilter.getNamespaceURL(OOX_NS(dmlWordDr)), RTL_TEXTENCODING_UTF8) );
+    pAttr->add( FSNS( XML_xmlns, XML_pic ), OUStringToOString(m_rFilter.getNamespaceURL(OOX_NS(dmlPicture)), RTL_TEXTENCODING_UTF8) );
     pAttr->add( FSNS( XML_xmlns, XML_wps ), OUStringToOString(m_rFilter.getNamespaceURL(OOX_NS(wps)), RTL_TEXTENCODING_UTF8) );
     pAttr->add( FSNS( XML_xmlns, XML_wpg ), OUStringToOString(m_rFilter.getNamespaceURL(OOX_NS(wpg)), RTL_TEXTENCODING_UTF8) );
     pAttr->add( FSNS( XML_xmlns, XML_mc ), OUStringToOString(m_rFilter.getNamespaceURL(OOX_NS(mce)), RTL_TEXTENCODING_UTF8) );
@@ -2108,7 +2105,7 @@ sal_Int32 DocxExport::WriteOutliner(const OutlinerParaObject& rParaObj, sal_uInt
 sal_Int32 DocxExport::getWordCompatibilityModeFromGrabBag() const
 {
     sal_Int32 nWordCompatibilityMode = -1;
-    uno::Reference< beans::XPropertySet > xPropSet(m_rDoc.GetDocShell()->GetBaseModel(), uno::UNO_QUERY_THROW);
+    rtl::Reference< SwXTextDocument > xPropSet(m_rDoc.GetDocShell()->GetXTextDocument());
     uno::Reference< beans::XPropertySetInfo > xPropSetInfo = xPropSet->getPropertySetInfo();
     if (xPropSetInfo->hasPropertyByName(UNO_NAME_MISC_OBJ_INTEROPGRABBAG))
     {
