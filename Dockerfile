@@ -1,4 +1,6 @@
-FROM emscripten/emsdk:3.1.73-arm64
+ARG ARCH=
+ARG VER=3.1.73
+FROM docker.io/emscripten/emsdk:${VER}${ARCH}
 
 RUN apt update && apt-get install -y --no-install-recommends \
   git \

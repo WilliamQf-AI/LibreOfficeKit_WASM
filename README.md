@@ -16,7 +16,25 @@ Clone the repo and enter the dev environment:
 
 ```bash
 git clone https://github.com/coparse-inc/lok-wasm
-./macos-docker
+./in-docker
+```
+
+## Linux with Podman
+
+Clone the repo and enter the dev environment:
+
+```bash
+git clone https://github.com/coparse-inc/lok-wasm
+./in-podman
+```
+
+## Linux with Docker
+
+Clone the repo and enter the dev environment:
+
+```bash
+git clone https://github.com/coparse-inc/lok-wasm
+./in-docker
 ```
 
 ## Ubuntu/Debian/Pop_OS!
