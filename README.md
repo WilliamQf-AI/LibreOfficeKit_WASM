@@ -1,8 +1,10 @@
-# Macro LOK
+# LOK WASM
 
-This is a private project that forks LibreOffice to provide functionality and fixes that don't fit in [the upstream project](https://github.com/LibreOffice/core).
+This is a public project that forks LibreOffice to provide functionality and fixes that don't fit in [the upstream project](https://github.com/LibreOffice/core).
 
-This upstream changes are open sourced under the [Mozilla Public License 2.0](LICENSE), newly added files are considered proprietary.
+It also provides a simple to setup environment for working on LOK as a WASM-based app. This was originally developed for [Macro](https://macro.com) and released to the public on 18 Feb 2024.
+
+All changes are open sourced under the [Mozilla Public License 2.0](LICENSE).
 
 This project is not a part of the official LibreOffice project, nor endorsed by the Document Foundation.
 
@@ -122,5 +124,4 @@ Expand the LOK logs to see the full stack trace, clicking on the `.cxx` file wil
 
 <!-- TIP: in neovim, you can use `gf` to go to the file linked if the cursor is between ( ) -->
 
-- [Remote Development](./remote_dev.md)
 - [Important Files](./important_files.md)
