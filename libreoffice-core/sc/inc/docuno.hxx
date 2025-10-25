@@ -134,6 +134,12 @@ protected:
 public:
                             ScModelObj(ScDocShell* pDocSh);
     virtual                 ~ScModelObj() override;
+	
+	// by rqf 20251023
+	void setAuthor(OUString /*sAuthor*/) override
+	{
+		// no-op in WASM/headless build
+	}
 
     /// create ScModelObj and set at pDocSh (SetBaseModel)
     static void             CreateAndSet(ScDocShell* pDocSh);

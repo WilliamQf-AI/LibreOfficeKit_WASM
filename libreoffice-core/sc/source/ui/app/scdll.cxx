@@ -99,6 +99,33 @@ OUString ScResId(TranslateNId aContextSingularPlural, int nCardinality)
 
 void ScDLL::Init()
 {
+    if ( SfxApplication::GetModule(SfxToolsModule::Calc) )
+        return;
+
+    auto pUniqueModule = std::make_unique<ScModule>(&ScDocShell::Factory());
+    ScModule* pMod = pUniqueModule.get();
+    SfxApplication::SetModule(SfxToolsModule::Calc, std::move(pUniqueModule));
+
+    ScDocShell::Factory().SetDocumentServiceName("com.sun.star.sheet.SpreadsheetDocument");
+    ScGlobal::Init();
+
+#if !defined(EMSCRIPTEN) && !defined(__EMSCRIPTEN__)
+    // 所有 RegisterFactory / RegisterInterface / RegisterControl / RegisterChildWindow
+    // 以及 SidebarChildWindow、DevelopmentToolChildWindow 等 UI 注册逻辑
+#endif
+
+    // 保留必要的服务工厂
+    E3dObjFactory();
+    FmFormObjFactory();
+
+    // 保留度量单位设置
+    pMod->PutItem(SfxUInt16Item(SID_ATTR_METRIC,
+        sal::static_int_cast<sal_uInt16>(pMod->GetAppOptions().GetAppMetric())));
+}
+
+
+/*void ScDLL::Init()
+{
     if ( SfxApplication::GetModule(SfxToolsModule::Calc) )    // Module already active
         return;
 
@@ -238,7 +265,7 @@ void ScDLL::Init()
     pMod->PutItem( SfxUInt16Item( SID_ATTR_METRIC, sal::static_int_cast<sal_uInt16>(pMod->GetAppOptions().GetAppMetric()) ) );
 
     //  StarOne Services are now handled in the registry
-}
+}*/
 
 #ifndef DISABLE_DYNLOADING
 

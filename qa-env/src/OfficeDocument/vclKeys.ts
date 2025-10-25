@@ -191,11 +191,12 @@ export function createKeyHandler(
 ) {
   const ignoredShortcuts_ = new Set<string>();
   let lastCtrlAltLocation_: number | undefined = undefined;
-  let isCursorVisible_: boolean = true;
+  //let isCursorVisible_: boolean = true;
 
   createRenderEffect(() => {
     const cb = (payload: string) => {
-      isCursorVisible_ = payload === 'true';
+	console.log('Payload received:', payload);
+      //isCursorVisible_ = payload === 'true';
     };
     const doc_ = doc();
     doc_.on(CallbackType.CURSOR_VISIBLE, cb);

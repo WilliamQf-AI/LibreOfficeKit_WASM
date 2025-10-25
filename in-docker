@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 arch=$(uname -m)
 emsdk_version=3.1.73
 
@@ -10,7 +10,7 @@ fi
 mkdir -p .cache .npm
 
 exec docker run \
-  --rm \
+   --rm \
   -it \
   -v $(pwd)/libreoffice-core:/libreoffice-core \
   -v $(pwd)/scripts:/scripts \

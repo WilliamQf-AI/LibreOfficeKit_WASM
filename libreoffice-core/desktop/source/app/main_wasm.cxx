@@ -48,6 +48,101 @@
 #include <rtl/ref.hxx>
 #include <tools/json_writer.hxx>
 
+
+#include <wasm_docshell_factory.hxx>
+#include <unotools/mediadescriptor.hxx>
+
+#if defined(EMSCRIPTEN) || defined(__EMSCRIPTEN__)
+#include <sw/inc/docsh.hxx>                  // Writer
+#include <sc/source/ui/inc/docsh.hxx>        // Calc
+#include <sd/source/ui/inc/DrawDocShell.hxx> // Impress
+#include <starmath/inc/smdll.hxx>            // Math
+#include <sfx2/objsh.hxx>
+#include <sfx2/medium.hxx>
+#endif
+
+namespace wasm {
+
+    SfxObjectShell* createDocShellForUrl(const OUString& sURL,
+        const OUString& inFilter,
+        OUString& outExportFilter)
+    {
+#if defined(EMSCRIPTEN) || defined(__EMSCRIPTEN__)
+        outExportFilter.clear();
+
+        if (sURL.endsWith(".pdf"))
+        {
+            if (inFilter == "writer_pdf_import")
+                return new SwDocShell(SfxObjectCreateMode::EMBEDDED);
+            else if (inFilter == "impress_pdf_import")
+                return new SdXImpressDocShell(SfxObjectCreateMode::EMBEDDED);
+            else if (inFilter == "calc_pdf_import")
+                return new ScDocShell(SfxObjectCreateMode::EMBEDDED);
+            else
+                return nullptr;
+        }
+
+        if (sURL.endsWith(".doc") || sURL.endsWith(".docx") || sURL.endsWith(".odt"))
+        {
+            outExportFilter = OUString::fromUtf8("writer_pdf_Export"); return new SwDocShell(SfxObjectCreateMode::EMBEDDED);
+        }
+        if (sURL.endsWith(".xls") || sURL.endsWith(".xlsx") || sURL.endsWith(".ods"))
+        {
+            outExportFilter = OUString::fromUtf8("calc_pdf_Export");   return new ScDocShell(SfxObjectCreateMode::EMBEDDED);
+        }
+        if (sURL.endsWith(".ppt") || sURL.endsWith(".pptx") || sURL.endsWith(".odp"))
+        {
+            outExportFilter = OUString::fromUtf8("impress_pdf_Export"); return new SdXImpressDocShell(SfxObjectCreateMode::EMBEDDED);
+        }
+        if (sURL.endsWith(".odg"))
+        {
+            outExportFilter = OUString::fromUtf8("draw_pdf_Export");   return new SdXDrawDocShell(SfxObjectCreateMode::EMBEDDED);
+        }
+        if (sURL.endsWith(".odf"))
+        {
+            outExportFilter = OUString::fromUtf8("math_pdf_Export");   return new SmDocShell(SfxObjectCreateMode::EMBEDDED);
+        }
+
+        return nullptr;
+#else
+        (void)sURL; (void)inFilter; (void)outExportFilter; return nullptr;
+#endif
+    }
+
+    bool performConversion(const OUString& sURL,
+        const css::uno::Sequence<css::beans::PropertyValue>& loadProps,
+        const OUString& inFilter,
+        const OUString& outFilter,
+        const OUString& outURL)
+    {
+#if defined(EMSCRIPTEN) || defined(__EMSCRIPTEN__)
+        OUString pdfExportFilter;
+        std::unique_ptr<SfxMedium> pMedium(new SfxMedium(sURL, loadProps, SFX_STREAM_READONLY));
+
+        std::unique_ptr<SfxObjectShell> pDocShell(createDocShellForUrl(sURL, inFilter, pdfExportFilter));
+        if (!pDocShell) return false;
+
+        if (!pDocShell->DoLoad(pMedium.get())) return false;
+
+        css::uno::Sequence<css::beans::PropertyValue> storeProps(2);
+        auto* pStore = storeProps.getArray(); // 关键：通过 getArray() 访问可写元素
+
+        pStore[0].Name = OUString::fromUtf8("FilterName");
+        pStore[1].Name = OUString::fromUtf8("Overwrite");
+        pStore[1].Value <<= true;
+
+        if (sURL.endsWith(".pdf"))
+            pStore[0].Value <<= outFilter;
+        else
+            pStore[0].Value <<= pdfExportFilter;
+
+        return pDocShell->DoSaveAs(outURL, &storeProps);
+#else
+        (void)sURL; (void)loadProps; (void)inFilter; (void)outFilter; (void)outURL; return false;
+#endif
+    }
+} // namespace wasm
+
 namespace
 {
 using namespace emscripten;
@@ -353,7 +448,7 @@ public:
             if (!xUndoManager.is())
                 return;
 
-            undoListener_.set(new UndoManagerContextListener(xUndoManager, writer(), this));
+            undoListener_.set(new UndoManagerContextListener(xUndoManager, writer(), static_cast<INotifier*>(this)));
         }
         catch (const Exception&)
         {
@@ -384,13 +479,35 @@ public:
             if (!xUndoManager.is())
                 return;
 
-            undoListener_.set(new UndoManagerContextListener(xUndoManager, writer(), this));
+            undoListener_.set(new UndoManagerContextListener(xUndoManager, writer(), static_cast<INotifier*>(this)));
         }
         catch (const Exception&)
         {
             SAL_WARN("wasm", "Failed to setup undo listener");
         }
     }
+	
+	 // by rqf 20251024 新增：支持 inFilter/outFilter/outURL
+    DocumentClient(std::string path, std::string inFilter, std::string outFilter, std::string outURL)
+        : DocumentClient(path) // 调用已有的单参构造
+    {
+        if (!inFilter.empty())
+            m_lMediaDescriptor["InFilterName"] <<= OUString::fromUtf8(inFilter);
+        if (!outFilter.empty())
+            m_lMediaDescriptor["FilterName"] <<= OUString::fromUtf8(outFilter);
+        if (!outURL.empty())
+            m_lMediaDescriptor["OutputURL"] <<= OUString::fromUtf8(outURL);
+    }
+
+    // by rqf 20251024 新增：支持 map<string,string>
+    DocumentClient(std::string path, std::map<std::string,std::string> opts)
+        : DocumentClient(path)
+    {
+        for (auto &kv : opts) {
+            m_lMediaDescriptor[kv.first] <<= OUString::fromUtf8(kv.second);
+        }
+    }
+	
     ~DocumentClient()
     {
         using namespace css::uno;
@@ -411,6 +528,31 @@ public:
     bool saveAs(std::string url, std::optional<std::string> format,
                 std::optional<std::string> filterOptions)
     {
+        // by rqf 20251024
+        // 如果没有传 url，就用 m_lMediaDescriptor 里的 OutputURL
+        if (url.empty())
+        {
+            OUString outURL = m_lMediaDescriptor.getUnpackedValueOrDefault("OutputURL", OUString());
+            if (!outURL.isEmpty())
+                url = outURL.toUtf8();
+        }
+
+        // 如果没有传 format，就用 m_lMediaDescriptor 里的 FilterName
+        if (!format.has_value())
+        {
+            OUString filter = m_lMediaDescriptor.getUnpackedValueOrDefault("FilterName", OUString());
+            if (!filter.isEmpty())
+                format = filter.toUtf8();
+        }
+
+        // 如果没有传 filterOptions，就用 m_lMediaDescriptor 里的 FilterOptions
+        if (!filterOptions.has_value())
+        {
+            OUString opts = m_lMediaDescriptor.getUnpackedValueOrDefault("FilterOptions", OUString());
+            if (!opts.isEmpty())
+                filterOptions = opts.toUtf8();
+        }
+
         return doc_->saveAs(url.c_str(), format.has_value() ? format->c_str() : nullptr,
                             filterOptions.has_value() ? filterOptions->c_str() : nullptr);
     }
@@ -1072,6 +1214,9 @@ private:
                 ref_, type, safePayload.second, safePayload.first);
         }
     }
+    // by rqf 20251024
+    private:
+        utl::MediaDescriptor m_lMediaDescriptor;
 };
 
 }
@@ -1080,6 +1225,17 @@ EMSCRIPTEN_BINDINGS(lok)
 {
     register_optional<bool>();
     register_optional<std::string>();
+	
+	/// by rqf 20251018 这里只作文件格式转换之需
+	 class_<DocumentClient>("Document")
+        .constructor<std::string>()
+		.constructor<std::string, std::string, std::string, std::string>() // 新的：inFilter, outFilter, outURL
+		.constructor<std::string, std::map<std::string,std::string>>()
+        .function("valid", &DocumentClient::valid)
+        .function("saveAs", &DocumentClient::saveAs);
+	
+	/// by rqf 20251018
+    /*
     register_optional<int>();
     function("preload", &preload);
     function("freeSafeString", &freeSafeString);
@@ -1174,5 +1330,5 @@ EMSCRIPTEN_BINDINGS(lok)
         .function("getCursor", &DocumentClient::getCursor)
         .function("newView", &DocumentClient::newView)
         .function("getCustomStringProperty", &DocumentClient::getCustomStringProperty)
-        .function("setCustomStringProperty", &DocumentClient::setCustomStringProperty);
+        .function("setCustomStringProperty", &DocumentClient::setCustomStringProperty);*/
 }

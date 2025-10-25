@@ -24,15 +24,20 @@ gb_EMSCRIPTEN_CPPFLAGS := -pthread -s USE_PTHREADS=1 -D_LARGEFILE64_SOURCE -D_LA
 gb_EMSCRIPTEN_LDFLAGS := $(gb_EMSCRIPTEN_CPPFLAGS)
 
 # Initial memory size and worker thread pool
-gb_EMSCRIPTEN_LDFLAGS += -s INITIAL_MEMORY=2GB
+#gb_EMSCRIPTEN_LDFLAGS += -s INITIAL_MEMORY=2GB
+gb_LinkTarget_LDFLAGS += -s INITIAL_MEMORY=512MB -s ALLOW_MEMORY_GROWTH=1 \
+                         -s FORCE_FILESYSTEM=1 -s EXPORT_ES6=1 -s MODULARIZE=1 \
+                         -lembind
 
 # To keep the link time (and memory) down, prevent all rewriting options from wasm-emscripten-finalize
 # See emscripten.py, finalize_wasm, modify_wasm = True
 # So we need WASM_BIGINT=1 and ASSERTIONS=1 (2 implies STACK_OVERFLOW_CHECK)
-gb_EMSCRIPTEN_LDFLAGS += -lembind -s FORCE_FILESYSTEM=1 -s WASM_BIGINT=1 -s ERROR_ON_UNDEFINED_SYMBOLS=1 -s FETCH=1 -s ASSERTIONS=1 -s EXIT_RUNTIME=0 -s EXPORTED_RUNTIME_METHODS=["UTF16ToString","stringToUTF16","UTF8ToString","err"$(if $(ENABLE_DBGUTIL),$(COMMA)"addOnPostRun"),"registerType","throwBindingError"]
+gb_EMSCRIPTEN_LDFLAGS += -lembind -s FORCE_FILESYSTEM=1 -s WASM_BIGINT=1 -s ERROR_ON_UNDEFINED_SYMBOLS=1 -s FETCH=1 -s ASSERTIONS=1 -s EXIT_RUNTIME=0 -s EXPORTED_RUNTIME_METHODS=["FS","cwrap","ccall","UTF16ToString","stringToUTF16","UTF8ToString","err"$(if $(ENABLE_DBGUTIL),$(COMMA)"addOnPostRun"),"registerType","throwBindingError"]
+# embind runtime: required for emscripten::val / _emval_* symbols
 gb_EMSCRIPTEN_QTDEFS := -DQT_NO_LINKED_LIST -DQT_NO_JAVA_STYLE_ITERATORS -DQT_NO_EXCEPTIONS -DQT_NO_DEBUG -DQT_WIDGETS_LIB -DQT_GUI_LIB -DQT_CORE_LIB
 
-gb_EMSCRIPTEN_LDFLAGS += -s MINIMAL_RUNTIME_STREAMING_WASM_INSTANTIATION=1
+# gb_EMSCRIPTEN_LDFLAGS += -s MINIMAL_RUNTIME=1
+# gb_EMSCRIPTEN_LDFLAGS += -s MINIMAL_RUNTIME_STREAMING_WASM_INSTANTIATION=1
 
 gb_Executable_EXT := .mjs
 ifeq ($(ENABLE_WASM_EXCEPTIONS),TRUE)
@@ -41,7 +46,7 @@ ifeq ($(ENABLE_WASM_EXCEPTIONS),TRUE)
 # and CXX=em++ -pthread -s USE_PTHREADS=1 -fwasm-exceptions -s SUPPORT_LONGJMP=wasm
 # in your autogen.input. Otherwise these flags won't propagate to all external libraries, I fear.
 gb_EMSCRIPTEN_EXCEPT = -fwasm-exceptions -s SUPPORT_LONGJMP=wasm
-gb_EMSCRIPTEN_CPPFLAGS += -s SUPPORT_LONGJMP=wasm
+gb_EMSCRIPTEN_CPPFLAGS += -fwasm-exceptions -s SUPPORT_LONGJMP=wasm
 else
 gb_EMSCRIPTEN_EXCEPT = -s DISABLE_EXCEPTION_CATCHING=0
 endif

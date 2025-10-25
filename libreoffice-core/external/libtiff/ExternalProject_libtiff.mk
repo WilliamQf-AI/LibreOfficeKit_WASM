@@ -32,7 +32,7 @@ $(eval $(call gb_ExternalProject_use_autoconf,libtiff,build))
 
 $(call gb_ExternalProject_get_state_target,libtiff,build) :
 	$(call gb_Trace_StartRange,libtiff,EXTERNAL)
-	$(call gb_ExternalProject_run,build,\
+	$(call gb_ExternalProject_run,build, \
 		export PKG_CONFIG="" \
 		&& MAKE=$(MAKE) $(gb_RUN_CONFIGURE) ./configure \
 			--enable-static \
@@ -50,6 +50,8 @@ $(call gb_ExternalProject_get_state_target,libtiff,build) :
 			--disable-zstd \
 			--with-pic \
 			--without-x \
+			--host=wasm32-unknown-emscripten \
+			--build=x86_64-pc-linux-gnu \
 			$(if $(verbose),--disable-silent-rules,--enable-silent-rules) \
 			CFLAGS="$(CFLAGS) $(call gb_ExternalProject_get_build_flags,libtiff) $(gb_EMSCRIPTEN_CFLAGS)" \
 			$(if $(SYSTEM_ZLIB),,--with-zlib-include-dir="$(call gb_UnpackedTarball_get_dir,zlib)") \
@@ -61,11 +63,26 @@ $(call gb_ExternalProject_get_state_target,libtiff,build) :
 				--with-webp-lib-dir="$(call gb_UnpackedTarball_get_dir,libwebp)/output/lib/libwebp$(if $(MSVC_USE_DEBUG_RUNTIME),_debug)$(gb_StaticLibrary_PLAINEXT)", \
 				--with-webp-lib-dir="$(call gb_UnpackedTarball_get_dir,libwebp)/src/.libs")) \
 			CPPFLAGS="$(CPPFLAGS) $(BOOST_CPPFLAGS) $(gb_EMSCRIPTEN_CPPFLAGS)" \
-			LDFLAGS="$(call gb_ExternalProject_get_link_flags,libtiff) $(gb_EMSCRIPTEN_LDFLAGS)" \
+			LDFLAGS="$(call gb_ExternalProject_get_link_flags,libtiff) " \
 			ac_cv_lib_z_inflateEnd=yes \
 			ac_cv_lib_jpeg_jpeg_read_scanlines=yes \
 			ac_cv_lib_jpeg_jpeg12_read_scanlines=no \
 			ac_cv_lib_webp_WebPDecode=yes \
+			ac_cv_prog_cc_works=yes \
+			ac_cv_prog_cxx_works=yes \
+			ac_cv_func_malloc_0_nonnull=yes \
+			ac_cv_exeext=.js \
+			ac_cv_func_mmap_fixed_mapped=no \
+			ac_cv_func_mmap=no \
+			ac_cv_func_posix_memalign=no \
+			ac_cv_func_vfork_works=yes \
+			ac_cv_prog_cc_cross=yes \
+			CC="emcc" \
+			CXX="em++" \
+			LD="emcc" \
+			AR="emar" \
+			RANLIB="emranlib" \
+			NM="emnm" \
 			$(gb_CONFIGURE_PLATFORMS) \
 		&& cd libtiff && $(MAKE) libtiff.la \
 	)

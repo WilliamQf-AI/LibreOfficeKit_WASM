@@ -16,6 +16,18 @@ $(eval $(call gb_Library_set_include,sofficeapp,\
     -I$(SRCDIR)/desktop/source/deployment/inc \
 ))
 
+# by rqf 20251024
+# Extra include paths for WASM build (DocShell headers from sw/sc/sd/starmath)
+#ifeq ($(OS),EMSCRIPTEN)
+$(eval $(call gb_Library_add_include,sofficeapp,\
+    -I$(SRCDIR)/sw/inc \
+    -I$(SRCDIR)/sc/source/ui/inc \
+    -I$(SRCDIR)/sc/inc \
+    -I$(SRCDIR)/sd/source/ui/inc \
+    -I$(SRCDIR)/starmath/inc \
+))
+#endif
+
 $(eval $(call gb_Library_use_externals,sofficeapp, \
 	$(if $(ENABLE_BREAKPAD),breakpad) \
 	$(if $(filter OPENCL,$(BUILD_TYPE)),clew) \
@@ -83,6 +95,10 @@ $(eval $(call gb_Library_use_libraries,sofficeapp,\
     ucbhelper \
     utl \
     vcl \
+	sw \
+	sc \
+	sd \
+	pdfimport \
 ))
 
 ifeq ($(OS),WNT)
@@ -157,5 +173,6 @@ $(eval $(call gb_Library_add_exception_objects,sofficeapp,\
 $(eval $(call gb_Library_set_componentfile,sofficeapp,desktop/lokclipboard,services))
 endif
 endif
+
 
 # vim: set ts=4 sw=4 et:

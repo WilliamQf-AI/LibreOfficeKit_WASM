@@ -208,20 +208,47 @@ SwModule::~SwModule()
     EndListening( *SfxGetpApp() );
 }
 
+#if defined(EMSCRIPTEN) || defined(__EMSCRIPTEN__)
 void SwDLL::RegisterFactories()
 {
-    // These Id's must not be changed. Through these Id's the View (resume Documentview)
-    // is created by Sfx.
+    // Emscripten 构建：保留文档工厂
+    /*SwDocShell::RegisterFactory();
+    SwWebDocShell::RegisterFactory();
+    SwGlosDocShell::RegisterFactory();
+    SwWebGlosDocShell::RegisterFactory();*/
+}
+
+void SwDLL::RegisterInterfaces()
+{
+    SwModule* pMod = SW_MOD();
+    SwModule::RegisterInterface(pMod);
+    SwDocShell::RegisterInterface(pMod);
+    SwWebDocShell::RegisterInterface(pMod);
+    SwGlosDocShell::RegisterInterface(pMod);
+    SwWebGlosDocShell::RegisterInterface(pMod);
+
+    SwBaseShell::RegisterInterface(pMod);
+    SwTextShell::RegisterInterface(pMod);
+    SwFrameShell::RegisterInterface(pMod);
+    SwDrawShell::RegisterInterface(pMod);
+    SwAnnotationShell::RegisterInterface(pMod);
+}
+
+#else
+
+void SwDLL::RegisterFactories()
+{
+    // 桌面构建：注册视图工厂
     if (utl::ConfigManager::IsFuzzing() || SvtModuleOptions().IsWriter())
-        SwView::RegisterFactory         ( SFX_INTERFACE_SFXDOCSH );
+        SwView::RegisterFactory(SFX_INTERFACE_SFXDOCSH);
 
 #if HAVE_FEATURE_DESKTOP
-    SwWebView::RegisterFactory        ( SFX_INTERFACE_SFXMODULE );
+    SwWebView::RegisterFactory(SFX_INTERFACE_SFXMODULE);
 
     if (utl::ConfigManager::IsFuzzing() || SvtModuleOptions().IsWriter())
     {
-        SwSrcView::RegisterFactory      ( SfxInterfaceId(6) );
-        SwPagePreview::RegisterFactory  ( SfxInterfaceId(7) );
+        SwSrcView::RegisterFactory(SfxInterfaceId(6));
+        SwPagePreview::RegisterFactory(SfxInterfaceId(7));
     }
 #endif
 }
@@ -229,15 +256,16 @@ void SwDLL::RegisterFactories()
 void SwDLL::RegisterInterfaces()
 {
     SwModule* pMod = SW_MOD();
-    SwModule::RegisterInterface( pMod );
-    SwDocShell::RegisterInterface( pMod );
-    SwWebDocShell::RegisterInterface( pMod );
-    SwGlosDocShell::RegisterInterface( pMod );
-    SwWebGlosDocShell::RegisterInterface( pMod );
-    SwView::RegisterInterface( pMod );
-    SwWebView::RegisterInterface( pMod );
-    SwPagePreview::RegisterInterface( pMod );
-    SwSrcView::RegisterInterface( pMod );
+    SwModule::RegisterInterface(pMod);
+    SwDocShell::RegisterInterface(pMod);
+    SwWebDocShell::RegisterInterface(pMod);
+    SwGlosDocShell::RegisterInterface(pMod);
+    SwWebGlosDocShell::RegisterInterface(pMod);
+
+    SwView::RegisterInterface(pMod);
+    SwWebView::RegisterInterface(pMod);
+    SwPagePreview::RegisterInterface(pMod);
+    SwSrcView::RegisterInterface(pMod);
 
     SwBaseShell::RegisterInterface(pMod);
     SwTextShell::RegisterInterface(pMod);
@@ -262,9 +290,11 @@ void SwDLL::RegisterInterfaces()
     SwMediaShell::RegisterInterface(pMod);
     SwAnnotationShell::RegisterInterface(pMod);
 }
+#endif
 
 void SwDLL::RegisterControls()
 {
+#if !defined(EMSCRIPTEN) && !defined(__EMSCRIPTEN__)
     SwModule* pMod = SW_MOD();
 
     SvxTbxCtlDraw::RegisterControl(SID_INSERT_DRAW, pMod );
@@ -333,6 +363,7 @@ void SwDLL::RegisterControls()
     SwNavigatorWrapper::RegisterChildWindow(false, pMod, SfxChildWindowFlags::NEVERHIDE);
 
     SwJumpToSpecificPageControl::RegisterControl(SID_JUMP_TO_SPECIFIC_PAGE, pMod);
+#endif
 }
 
 // Load Module (only dummy for linking of the DLL)

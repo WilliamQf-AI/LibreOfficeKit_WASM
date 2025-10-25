@@ -109,6 +109,7 @@ SfxSlotPool* SfxModule::GetSlotPool() const
 
 void SfxModule::RegisterChildWindow(const SfxChildWinFactory& rFact)
 {
+#if !defined(EMSCRIPTEN) && !defined(__EMSCRIPTEN__)
     DBG_ASSERT( pImpl, "No real Module!" );
 
     for (size_t nFactory=0; nFactory<pImpl->maFactories.size(); ++nFactory)
@@ -122,11 +123,13 @@ void SfxModule::RegisterChildWindow(const SfxChildWinFactory& rFact)
     }
 
     pImpl->maFactories.push_back( rFact );
+#endif
 }
 
 
 void SfxModule::RegisterToolBoxControl( const SfxTbxCtrlFactory& rFact )
 {
+#if !defined(EMSCRIPTEN) && !defined(__EMSCRIPTEN__)
 #ifdef DBG_UTIL
     for ( size_t n=0; n<pImpl->maTbxCtrlFactories.size(); n++ )
     {
@@ -140,11 +143,13 @@ void SfxModule::RegisterToolBoxControl( const SfxTbxCtrlFactory& rFact )
 #endif
 
     pImpl->maTbxCtrlFactories.push_back( rFact );
+#endif
 }
 
 
 void SfxModule::RegisterStatusBarControl( const SfxStbCtrlFactory& rFact )
 {
+#if !defined(EMSCRIPTEN) && !defined(__EMSCRIPTEN__)
 #ifdef DBG_UTIL
     for ( size_t n=0; n<pImpl->maStbCtrlFactories.size(); n++ )
     {
@@ -158,6 +163,7 @@ void SfxModule::RegisterStatusBarControl( const SfxStbCtrlFactory& rFact )
 #endif
 
     pImpl->maStbCtrlFactories.push_back( rFact );
+#endif
 }
 
 

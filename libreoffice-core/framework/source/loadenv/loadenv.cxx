@@ -92,6 +92,12 @@
 #include <classes/taskcreator.hxx>
 #include <tools/fileutil.hxx>
 
+#if defined(EMSCRIPTEN) || defined(__EMSCRIPTEN__)
+#include <wasm_docshell_factory.hxx>
+#include <unotools/mediadescriptor.hxx>
+#endif
+
+
 constexpr OUString PROP_TYPES = u"Types"_ustr;
 constexpr OUString PROP_NAME = u"Name"_ustr;
 
@@ -1020,6 +1026,7 @@ bool LoadEnv::impl_filterHasInteractiveDialog() const
     return !sUIComponent.isEmpty();
 }
 
+// by rqf 20251024
 bool LoadEnv::impl_loadContent()
 {
     // SAFE -> -----------------------------------
@@ -1038,14 +1045,14 @@ bool LoadEnv::impl_loadContent()
         m_xTargetFrame = impl_searchRecycleTarget();
     }
 
-    if (! m_xTargetFrame.is())
+    if (!m_xTargetFrame.is())
     {
         if (
-            (TargetHelper::matchSpecialTarget(sTarget, TargetHelper::ESpecialTarget::Blank  )) ||
-            (TargetHelper::matchSpecialTarget(sTarget, TargetHelper::ESpecialTarget::Default))
-           )
+            TargetHelper::matchSpecialTarget(sTarget, TargetHelper::ESpecialTarget::Blank) ||
+            TargetHelper::matchSpecialTarget(sTarget, TargetHelper::ESpecialTarget::Default)
+        )
         {
-            if (! impl_furtherDocsAllowed())
+            if (!impl_furtherDocsAllowed())
                 return false;
             TaskCreator aCreator(m_xContext);
             m_xTargetFrame = aCreator.createTask(SPECIALTARGET_BLANK, m_lMediaDescriptor);
@@ -1054,55 +1061,46 @@ bool LoadEnv::impl_loadContent()
         else
         {
             sal_Int32 nSearchFlags = m_nSearchFlags & ~css::frame::FrameSearchFlag::CREATE;
-            m_xTargetFrame   = m_xBaseFrame->findFrame(sTarget, nSearchFlags);
-            if (! m_xTargetFrame.is())
+            m_xTargetFrame = m_xBaseFrame->findFrame(sTarget, nSearchFlags);
+            if (!m_xTargetFrame.is())
             {
-                if (! impl_furtherDocsAllowed())
+                if (!impl_furtherDocsAllowed())
                     return false;
-                m_xTargetFrame       = m_xBaseFrame->findFrame(SPECIALTARGET_BLANK, 0);
+                m_xTargetFrame = m_xBaseFrame->findFrame(SPECIALTARGET_BLANK, 0);
                 m_bCloseFrameOnError = m_xTargetFrame.is();
             }
         }
     }
 
-    // If we couldn't find a valid frame or the frame has no container window
-    // we have to throw an exception.
-    if (
-        ( ! m_xTargetFrame.is()                       ) ||
-        ( ! m_xTargetFrame->getContainerWindow().is() )
-       )
+    if (!m_xTargetFrame.is() || !m_xTargetFrame->getContainerWindow().is())
         throw LoadEnvException(LoadEnvException::ID_NO_TARGET_FOUND);
 
-    css::uno::Reference< css::frame::XFrame > xTargetFrame = m_xTargetFrame;
+    css::uno::Reference<css::frame::XFrame> xTargetFrame = m_xTargetFrame;
 
-    // Now we have a valid frame ... and type detection was already done.
-    // We should apply the module dependent window position and size to the
-    // frame window.
+#if defined(EMSCRIPTEN) || defined(__EMSCRIPTEN__)
+    SAL_INFO("lok", "WASM headless: multi-format conversion");
+
+    css::uno::Sequence<css::beans::PropertyValue> lDescriptor;
+    m_lMediaDescriptor >> lDescriptor;
+    OUString sURL = m_aURL.Complete;
+
+    OUString inFilter = m_lMediaDescriptor.getUnpackedValueOrDefault("InFilterName", OUString());
+    OUString outFilter = m_lMediaDescriptor.getUnpackedValueOrDefault("FilterName", OUString());
+    OUString outURL = m_lMediaDescriptor.getUnpackedValueOrDefault(
+        "OutputURL", OUString("file:///work/output/output.pdf"));
+
+    bool ok = wasm::performConversion(sURL, lDescriptor, inFilter, outFilter, outURL);
+    impl_setResult(ok);
+    return ok;
+#else
     impl_applyPersistentWindowState(xTargetFrame->getContainerWindow());
 
-    // Don't forget to lock task for following load process. Otherwise it could die
-    // during this operation runs by terminating the office or closing this task via api.
-    // If we set this lock "close()" will return false and closing will be broken.
-    // Attention: Don't forget to reset this lock again after finishing operation.
-    // Otherwise task AND office couldn't die!!!
-    // This includes gracefully handling of Exceptions (Runtime!) too ...
-    // That's why we use a specialized guard, which will reset the lock
-    // if it will be run out of scope.
-
-    // Note further: ignore if this internal guard already contains a resource.
-    // Might impl_searchRecycleTarget() set it before. But in case this impl-method wasn't used
-    // and the target frame was new created ... this lock here must be set!
-    css::uno::Reference< css::document::XActionLockable > xTargetLock(xTargetFrame, css::uno::UNO_QUERY);
+    css::uno::Reference<css::document::XActionLockable> xTargetLock(xTargetFrame, css::uno::UNO_QUERY);
     m_aTargetLock.setResource(xTargetLock);
 
-    // Add status indicator to descriptor. Loader can show a progress then.
-    // But don't do it, if loading should be hidden or preview is used...!
-    // So we prevent our code against wrong using. Why?
-    // It could be, that using of this progress could make trouble. e.g. He makes window visible...
-    // but shouldn't do that. But if no indicator is available... nobody has a chance to do that!
-    bool bHidden    = m_lMediaDescriptor.getUnpackedValueOrDefault(utl::MediaDescriptor::PROP_HIDDEN, false);
+    bool bHidden = m_lMediaDescriptor.getUnpackedValueOrDefault(utl::MediaDescriptor::PROP_HIDDEN, false);
     bool bMinimized = m_lMediaDescriptor.getUnpackedValueOrDefault(utl::MediaDescriptor::PROP_MINIMIZED, false);
-    bool bPreview   = m_lMediaDescriptor.getUnpackedValueOrDefault(utl::MediaDescriptor::PROP_PREVIEW, false);
+    bool bPreview = m_lMediaDescriptor.getUnpackedValueOrDefault(utl::MediaDescriptor::PROP_PREVIEW, false);
 
     if (!bHidden && !bMinimized && !bPreview)
     {
@@ -1110,8 +1108,7 @@ bool LoadEnv::impl_loadContent()
             utl::MediaDescriptor::PROP_STATUSINDICATOR, css::uno::Reference<css::task::XStatusIndicator>());
         if (!xProgress.is())
         {
-            // Note: it's an optional interface!
-            css::uno::Reference< css::task::XStatusIndicatorFactory > xProgressFactory(xTargetFrame, css::uno::UNO_QUERY);
+            css::uno::Reference<css::task::XStatusIndicatorFactory> xProgressFactory(xTargetFrame, css::uno::UNO_QUERY);
             if (xProgressFactory.is())
             {
                 xProgress = xProgressFactory->createStatusIndicator();
@@ -1120,73 +1117,253 @@ bool LoadEnv::impl_loadContent()
             }
         }
 
-        // Now that we have a target window into which we can load, reinit the interaction handler to have this
-        // window as its parent for modal dialogs and ensure the window is visible
-        css::uno::Reference< css::task::XInteractionHandler > xInteraction = m_lMediaDescriptor.getUnpackedValueOrDefault(
-                                                                                utl::MediaDescriptor::PROP_INTERACTIONHANDLER,
-                                                                                css::uno::Reference< css::task::XInteractionHandler >());
+        css::uno::Reference<css::task::XInteractionHandler> xInteraction = m_lMediaDescriptor.getUnpackedValueOrDefault(
+            utl::MediaDescriptor::PROP_INTERACTIONHANDLER,
+            css::uno::Reference<css::task::XInteractionHandler>());
         css::uno::Reference<css::lang::XInitialization> xHandler(xInteraction, css::uno::UNO_QUERY);
         if (xHandler.is())
         {
             css::uno::Reference<css::awt::XWindow> xWindow = xTargetFrame->getContainerWindow();
-            uno::Sequence<uno::Any> aArguments(comphelper::InitAnyPropertySequence(
-            {
-                {"Parent", uno::Any(xWindow)}
-            }));
+            uno::Sequence<uno::Any> aArguments(comphelper::InitAnyPropertySequence({{"Parent", uno::Any(xWindow)}}));
             xHandler->initialize(aArguments);
-            //show the frame as early as possible to make it the parent of any message dialogs
+
             if (!impl_filterHasInteractiveDialog())
             {
                 impl_makeFrameWindowVisible(xWindow, shouldFocusAndToFront());
-                m_bFocusedAndToFront = true; // no need to ask shouldFocusAndToFront second time
+                m_bFocusedAndToFront = true;
             }
         }
     }
 
-    // convert media descriptor and URL to right format for later interface call!
-    css::uno::Sequence< css::beans::PropertyValue > lDescriptor;
+    css::uno::Sequence<css::beans::PropertyValue> lDescriptor;
     m_lMediaDescriptor >> lDescriptor;
     OUString sURL = m_aURL.Complete;
 
-    // try to locate any interested frame loader
-    css::uno::Reference< css::uno::XInterface >                xLoader     = impl_searchLoader();
-    css::uno::Reference< css::frame::XFrameLoader >            xAsyncLoader(xLoader, css::uno::UNO_QUERY);
-    css::uno::Reference< css::frame::XSynchronousFrameLoader > xSyncLoader (xLoader, css::uno::UNO_QUERY);
+    css::uno::Reference<css::uno::XInterface> xLoader = impl_searchLoader();
+    css::uno::Reference<css::frame::XFrameLoader> xAsyncLoader(xLoader, css::uno::UNO_QUERY);
+    css::uno::Reference<css::frame::XSynchronousFrameLoader> xSyncLoader(xLoader, css::uno::UNO_QUERY);
 
     if (xAsyncLoader.is())
     {
         m_xAsynchronousJob = xAsyncLoader;
         rtl::Reference<LoadEnvListener> xListener = new LoadEnvListener(this);
         aWriteLock.clear();
-        // <- SAFE -----------------------------------
-
         xAsyncLoader->load(xTargetFrame, sURL, lDescriptor, xListener);
-
         return true;
     }
     else if (xSyncLoader.is())
     {
         uno::Reference<beans::XPropertySet> xTargetFrameProps(xTargetFrame, uno::UNO_QUERY);
         if (xTargetFrameProps.is())
-        {
-            // Set the URL on the frame itself, for the duration of the load, when it has no
-            // controller.
             xTargetFrameProps->setPropertyValue("URL", uno::Any(sURL));
-        }
+
         bool bResult = xSyncLoader->load(lDescriptor, xTargetFrame);
-        // react for the result here, so the outside waiting
-        // code can ask for it later.
         impl_setResult(bResult);
-        // But the return value indicates a valid started(!) operation.
-        // And that's true every time we reach this line :-)
         return true;
     }
 
     aWriteLock.clear();
-    // <- SAFE
-
     return false;
+#endif
 }
+
+// bool LoadEnv::impl_loadContent()
+// {
+    // // SAFE -> -----------------------------------
+    // osl::ClearableMutexGuard aWriteLock(m_mutex);
+
+    // // search or create right target frame
+    // OUString sTarget = m_sTarget;
+    // if (TargetHelper::matchSpecialTarget(sTarget, TargetHelper::ESpecialTarget::Default))
+    // {
+        // m_xTargetFrame = impl_searchAlreadyLoaded();
+        // if (m_xTargetFrame.is())
+        // {
+            // impl_setResult(true);
+            // return true;
+        // }
+        // m_xTargetFrame = impl_searchRecycleTarget();
+    // }
+
+    // if (! m_xTargetFrame.is())
+    // {
+        // if (
+            // (TargetHelper::matchSpecialTarget(sTarget, TargetHelper::ESpecialTarget::Blank  )) ||
+            // (TargetHelper::matchSpecialTarget(sTarget, TargetHelper::ESpecialTarget::Default))
+           // )
+        // {
+            // if (! impl_furtherDocsAllowed())
+                // return false;
+            // TaskCreator aCreator(m_xContext);
+            // m_xTargetFrame = aCreator.createTask(SPECIALTARGET_BLANK, m_lMediaDescriptor);
+            // m_bCloseFrameOnError = m_xTargetFrame.is();
+        // }
+        // else
+        // {
+            // sal_Int32 nSearchFlags = m_nSearchFlags & ~css::frame::FrameSearchFlag::CREATE;
+            // m_xTargetFrame   = m_xBaseFrame->findFrame(sTarget, nSearchFlags);
+            // if (! m_xTargetFrame.is())
+            // {
+                // if (! impl_furtherDocsAllowed())
+                    // return false;
+                // m_xTargetFrame       = m_xBaseFrame->findFrame(SPECIALTARGET_BLANK, 0);
+                // m_bCloseFrameOnError = m_xTargetFrame.is();
+            // }
+        // }
+    // }
+
+    // // If we couldn't find a valid frame or the frame has no container window
+    // // we have to throw an exception.
+    // if (
+        // ( ! m_xTargetFrame.is()                       ) ||
+        // ( ! m_xTargetFrame->getContainerWindow().is() )
+       // )
+        // throw LoadEnvException(LoadEnvException::ID_NO_TARGET_FOUND);
+
+    // css::uno::Reference< css::frame::XFrame > xTargetFrame = m_xTargetFrame;
+	// // by rqf 20251024
+// #if defined(EMSCRIPTEN) || defined(__EMSCRIPTEN__)
+
+	// bool bHidden  =  true;// m_lMediaDescriptor.getUnpackedValueOrDefault(utl::MediaDescriptor::PROP_HIDDEN, false);
+	// bool bNoFrames  = true;//m_lMediaDescriptor.getUnpackedValueOrDefault("NoFrames", false); // 自定义属性
+	
+		// SAL_INFO("lok", "WASM headless load: Hidden=" << bHidden << ", NoFrames=" << bNoFrames);
+
+	// if (bHidden || bNoFrames)
+	// {
+		// SAL_INFO("lok", "Headless mode detected: skipping UI initialization");
+
+		// // 转换 media descriptor 并直接调用同步加载器
+		// css::uno::Sequence< css::beans::PropertyValue > lDescriptor;
+		// m_lMediaDescriptor >> lDescriptor;
+		// OUString sURL = m_aURL.Complete;
+
+		// css::uno::Reference< css::uno::XInterface > xLoader = impl_searchLoader();
+		// css::uno::Reference< css::frame::XSynchronousFrameLoader > xSyncLoader(xLoader, css::uno::UNO_QUERY);
+
+		// if (xSyncLoader.is())
+		// {
+			// bool bResult = xSyncLoader->load(lDescriptor, xTargetFrame);
+			// impl_setResult(bResult);
+			// return true;
+		// }
+
+		// return false;
+	// }
+// #endif
+
+    // // Now we have a valid frame ... and type detection was already done.
+    // // We should apply the module dependent window position and size to the
+    // // frame window.
+    // impl_applyPersistentWindowState(xTargetFrame->getContainerWindow());
+
+    // // Don't forget to lock task for following load process. Otherwise it could die
+    // // during this operation runs by terminating the office or closing this task via api.
+    // // If we set this lock "close()" will return false and closing will be broken.
+    // // Attention: Don't forget to reset this lock again after finishing operation.
+    // // Otherwise task AND office couldn't die!!!
+    // // This includes gracefully handling of Exceptions (Runtime!) too ...
+    // // That's why we use a specialized guard, which will reset the lock
+    // // if it will be run out of scope.
+
+    // // Note further: ignore if this internal guard already contains a resource.
+    // // Might impl_searchRecycleTarget() set it before. But in case this impl-method wasn't used
+    // // and the target frame was new created ... this lock here must be set!
+    // css::uno::Reference< css::document::XActionLockable > xTargetLock(xTargetFrame, css::uno::UNO_QUERY);
+    // m_aTargetLock.setResource(xTargetLock);
+
+    // // Add status indicator to descriptor. Loader can show a progress then.
+    // // But don't do it, if loading should be hidden or preview is used...!
+    // // So we prevent our code against wrong using. Why?
+    // // It could be, that using of this progress could make trouble. e.g. He makes window visible...
+    // // but shouldn't do that. But if no indicator is available... nobody has a chance to do that!
+    // bool bHidden    = m_lMediaDescriptor.getUnpackedValueOrDefault(utl::MediaDescriptor::PROP_HIDDEN, false);
+    // bool bMinimized = m_lMediaDescriptor.getUnpackedValueOrDefault(utl::MediaDescriptor::PROP_MINIMIZED, false);
+    // bool bPreview   = m_lMediaDescriptor.getUnpackedValueOrDefault(utl::MediaDescriptor::PROP_PREVIEW, false);
+
+    // if (!bHidden && !bMinimized && !bPreview)
+    // {
+        // css::uno::Reference<css::task::XStatusIndicator> xProgress = m_lMediaDescriptor.getUnpackedValueOrDefault(
+            // utl::MediaDescriptor::PROP_STATUSINDICATOR, css::uno::Reference<css::task::XStatusIndicator>());
+        // if (!xProgress.is())
+        // {
+            // // Note: it's an optional interface!
+            // css::uno::Reference< css::task::XStatusIndicatorFactory > xProgressFactory(xTargetFrame, css::uno::UNO_QUERY);
+            // if (xProgressFactory.is())
+            // {
+                // xProgress = xProgressFactory->createStatusIndicator();
+                // if (xProgress.is())
+                    // m_lMediaDescriptor[utl::MediaDescriptor::PROP_STATUSINDICATOR] <<= xProgress;
+            // }
+        // }
+
+        // // Now that we have a target window into which we can load, reinit the interaction handler to have this
+        // // window as its parent for modal dialogs and ensure the window is visible
+        // css::uno::Reference< css::task::XInteractionHandler > xInteraction = m_lMediaDescriptor.getUnpackedValueOrDefault(
+                                                                                // utl::MediaDescriptor::PROP_INTERACTIONHANDLER,
+                                                                                // css::uno::Reference< css::task::XInteractionHandler >());
+        // css::uno::Reference<css::lang::XInitialization> xHandler(xInteraction, css::uno::UNO_QUERY);
+        // if (xHandler.is())
+        // {
+            // css::uno::Reference<css::awt::XWindow> xWindow = xTargetFrame->getContainerWindow();
+            // uno::Sequence<uno::Any> aArguments(comphelper::InitAnyPropertySequence(
+            // {
+                // {"Parent", uno::Any(xWindow)}
+            // }));
+            // xHandler->initialize(aArguments);
+            // //show the frame as early as possible to make it the parent of any message dialogs
+            // if (!impl_filterHasInteractiveDialog())
+            // {
+                // impl_makeFrameWindowVisible(xWindow, shouldFocusAndToFront());
+                // m_bFocusedAndToFront = true; // no need to ask shouldFocusAndToFront second time
+            // }
+        // }
+    // }
+
+    // // convert media descriptor and URL to right format for later interface call!
+    // css::uno::Sequence< css::beans::PropertyValue > lDescriptor;
+    // m_lMediaDescriptor >> lDescriptor;
+    // OUString sURL = m_aURL.Complete;
+
+    // // try to locate any interested frame loader
+    // css::uno::Reference< css::uno::XInterface >                xLoader     = impl_searchLoader();
+    // css::uno::Reference< css::frame::XFrameLoader >            xAsyncLoader(xLoader, css::uno::UNO_QUERY);
+    // css::uno::Reference< css::frame::XSynchronousFrameLoader > xSyncLoader (xLoader, css::uno::UNO_QUERY);
+
+    // if (xAsyncLoader.is())
+    // {
+        // m_xAsynchronousJob = xAsyncLoader;
+        // rtl::Reference<LoadEnvListener> xListener = new LoadEnvListener(this);
+        // aWriteLock.clear();
+        // // <- SAFE -----------------------------------
+
+        // xAsyncLoader->load(xTargetFrame, sURL, lDescriptor, xListener);
+
+        // return true;
+    // }
+    // else if (xSyncLoader.is())
+    // {
+        // uno::Reference<beans::XPropertySet> xTargetFrameProps(xTargetFrame, uno::UNO_QUERY);
+        // if (xTargetFrameProps.is())
+        // {
+            // // Set the URL on the frame itself, for the duration of the load, when it has no
+            // // controller.
+            // xTargetFrameProps->setPropertyValue("URL", uno::Any(sURL));
+        // }
+        // bool bResult = xSyncLoader->load(lDescriptor, xTargetFrame);
+        // // react for the result here, so the outside waiting
+        // // code can ask for it later.
+        // impl_setResult(bResult);
+        // // But the return value indicates a valid started(!) operation.
+        // // And that's true every time we reach this line :-)
+        // return true;
+    // }
+
+    // aWriteLock.clear();
+    // // <- SAFE
+
+    // return false;
+// }
 
 css::uno::Reference< css::uno::XInterface > LoadEnv::impl_searchLoader()
 {

@@ -108,11 +108,13 @@ SFX_IMPL_INTERFACE(ScModule, SfxShell)
 
 void ScModule::InitInterface_Impl()
 {
+#if !defined(EMSCRIPTEN) && !defined(__EMSCRIPTEN__)
     GetStaticInterface()->RegisterObjectBar(SFX_OBJECTBAR_APPLICATION,
                                             SfxVisibilityFlags::Standard | SfxVisibilityFlags::Client | SfxVisibilityFlags::Viewer,
                                             ToolbarId::Objectbar_App);
 
     GetStaticInterface()->RegisterStatusBar(StatusBarId::CalcStatusBar);
+#endif
 }
 
 ScModule::ScModule( SfxObjectFactory* pFact ) :

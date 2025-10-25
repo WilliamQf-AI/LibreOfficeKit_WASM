@@ -11,7 +11,7 @@ dnl in order to create a configure script.
 
 dnl MACRO: There's a bug in autoconf where it incorrectly assumes there should be a source check for a file "Macro" {
 m4_define([AC_PACKAGE_WANT_SOURCE_DIR],[])
-AC_INIT([Macro],m4_esyscmd([tail -c +2 ../VERSION | tr -d '\n']),[],[],[https://macro.com/])
+AC_INIT([Macro],m4_esyscmd([tail -c +2 ../VERSION | tr -d '\n']),[],[],[ ])
 dnl MACRO: }
 
 dnl libnumbertext needs autoconf 2.68, but that can pick up autoconf268 just fine if it is installed
@@ -7726,47 +7726,10 @@ dnl ===================================================================
 
 if test -z "${CXXFLAGS_CXX11+x}"; then
     AC_MSG_CHECKING([whether $CXX_BASE supports C++20])
-    if test "$COM" = MSC -a "$COM_IS_CLANG" != TRUE; then
-        if test "$with_latest_c__" = yes; then
-            CXXFLAGS_CXX11=-std:c++latest
-        else
-            CXXFLAGS_CXX11=-std:c++20
-        fi
-        CXXFLAGS_CXX11="$CXXFLAGS_CXX11 -permissive- -Zc:__cplusplus,preprocessor"
-    elif test "$GCC" = "yes" -o "$COM_IS_CLANG" = TRUE; then
-        my_flags='-std=c++20 -std=c++2a'
-        if test "$with_latest_c__" = yes; then
-            my_flags="-std=c++26 -std=c++2c -std=c++23 -std=c++2b $my_flags"
-        fi
-        for flag in $my_flags; do
-            if test "$COM" = MSC; then
-                flag="-Xclang $flag"
-            fi
-            save_CXXFLAGS=$CXXFLAGS
-            CXXFLAGS="$CXXFLAGS $flag -Werror"
-            AC_LANG_PUSH([C++])
-            AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
-                #include <algorithm>
-                #include <functional>
-                #include <vector>
-
-                void f(std::vector<int> & v, std::function<bool(int, int)> fn) {
-                    std::sort(v.begin(), v.end(), fn);
-                }
-                ]])],[CXXFLAGS_CXX11=$flag])
-            AC_LANG_POP([C++])
-            CXXFLAGS=$save_CXXFLAGS
-            if test -n "$CXXFLAGS_CXX11"; then
-                break
-            fi
-        done
-    fi
-    if test -n "$CXXFLAGS_CXX11"; then
-        AC_MSG_RESULT([yes ($CXXFLAGS_CXX11)])
-    else
-        AC_MSG_ERROR(no)
-    fi
+    CXXFLAGS_CXX11='-std=c++20'
+    AC_MSG_RESULT([yes ($CXXFLAGS_CXX11)])
 fi
+
 AC_SUBST(CXXFLAGS_CXX11)
 
 if test "$GCC" = "yes"; then

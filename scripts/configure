@@ -2,6 +2,11 @@
 
 set -e
 
+export CC=emcc
+export CXX=em++
+export CCACHE_DISABLE=1
+echo "Using emcc: $(which emcc)"
+emcc --version
 SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE:-$0}")" &> /dev/null && pwd)
 
 # Add emscripten toolchain
@@ -36,4 +41,62 @@ if [[ "$1" == "debug" ]]; then
   BUILD_TYPE=--enable-optimized=no
 fi
 
-./autogen.sh --with-distro=CPWASM-LOKit $BUILD_CC $BUILD_CXX $BUILD_TYPE
+# --- Dependency Paths (PDFium) ---
+#!/bin/bash
+# ... 其他脚本内容 ...
+# 设置 PDFIUM_DIR 
+PDFIUM_RAW_DIR="$SCRIPT_DIR/../libreoffice-core/pdfium-wasm"
+# --- 升级版调试输出 ---
+echo "==================== 高级调试：验证 PDFium 路径 ===================="
+echo "原始相对路径 (PDFIUM_RAW_DIR): $PDFIUM_RAW_DIR"
+# 检查原始路径是否存在
+if [ ! -d "$PDFIUM_RAW_DIR" ]; then
+    echo "错误：原始路径 '$PDFIUM_RAW_DIR' 不存在或不是一个目录！"
+    exit 1
+fi
+# 使用 realpath 获取干净的绝对路径
+export PDFIUM_DIR=$(realpath "$PDFIUM_RAW_DIR")
+echo "解析后的绝对路径 (PDFIUM_DIR): $PDFIUM_DIR"
+echo
+# 验证关键子目录和文件
+INCLUDE_DIR="$PDFIUM_DIR/include"
+LIB_DIR="$PDFIUM_DIR/lib"
+echo "--- 检查 Include 目录 ---"
+echo "路径: $INCLUDE_DIR"
+if [ -d "$INCLUDE_DIR" ]; then
+    echo "内容:"
+    ls -l "$INCLUDE_DIR"
+else
+    echo "错误：Include 目录不存在！"
+    exit 1
+fi
+echo
+echo "--- 检查 Lib 目录 ---"
+echo "路径: $LIB_DIR"
+if [ -d "$LIB_DIR" ]; then
+    echo "内容:"
+    ls -l "$LIB_DIR"
+    # 特别检查我们需要的 libpdfium.a 是否存在
+    if [ -f "$LIB_DIR/libpdfium.a" ]; then
+        echo "检查通过：找到了关键库文件 libpdfium.a"
+    else
+        echo "警告：在 Lib 目录中没有找到 libpdfium.a 文件！"
+    fi
+else
+    echo "错误：Lib 目录不存在！"
+    exit 1
+fi
+echo
+# 现在，使用经过验证和清理的路径来设置环境变量
+export CPPFLAGS="-I$INCLUDE_DIR"
+export LDFLAGS="-L$LIB_DIR -lpdfium"
+echo "--- 最终环境变量 ---"
+echo "CPPFLAGS: $CPPFLAGS"
+echo "LDFLAGS:  $LDFLAGS"
+echo "========================================================================"
+echo "调试验证完成，5秒后继续..."
+sleep 5
+
+./autogen.sh CC=emcc CXX=em++ --disable-ccache --with-distro=CPWASM-LOKit $BUILD_CC $BUILD_CXX $BUILD_TYPE
+echo "Passing CXX=$CXX to autogen.sh"
+

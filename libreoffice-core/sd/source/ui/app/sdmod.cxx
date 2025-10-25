@@ -50,7 +50,9 @@ SFX_IMPL_INTERFACE(SdModule, SfxModule)
 
 void SdModule::InitInterface_Impl()
 {
+#if !defined(EMSCRIPTEN) && !defined(__EMSCRIPTEN__)
     GetStaticInterface()->RegisterStatusBar(StatusBarId::DrawStatusBar);
+#endif
 }
 
 // Ctor

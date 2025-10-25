@@ -150,6 +150,7 @@ public:
     /**
      * Sets the author for the document
      */
+
     virtual void setAuthor(OUString sAuthor) = 0;
     // MACRO: }
 

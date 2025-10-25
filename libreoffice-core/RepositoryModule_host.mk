@@ -129,14 +129,12 @@ $(eval $(call gb_Module_add_moduledirs,libreoffice,\
 	sal \
 	salhelper \
 	sax \
-	$(if $(ENABLE_WASM_STRIP_CALC),, \
 	sc \
 	scaddins \
 	sccomp \
 	) \
 	$(call gb_Helper_optional,DESKTOP,scp2) \
 	scripting \
-    $(if $(ENABLE_WASM_STRIP_BASIC_DRAW_MATH_IMPRESS),, \
 	sd \
 	sdext \
     ) \
@@ -161,7 +159,6 @@ $(eval $(call gb_Module_add_moduledirs,libreoffice,\
 	svgio \
 	emfio \
 	svx \
-	$(if $(ENABLE_WASM_STRIP_WRITER),, \
 	sw \
 	swext \
 	) \

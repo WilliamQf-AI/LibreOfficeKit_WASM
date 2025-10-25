@@ -243,6 +243,7 @@ void SdDLL::Init()
         ::sd::GraphicDocShell::Factory().SetDocumentServiceName( "com.sun.star.drawing.DrawingDocument" );
     }
 
+#if !defined(EMSCRIPTEN) && !defined(__EMSCRIPTEN__)
     // register your view-factories here
     RegisterFactorys();
 
@@ -251,6 +252,7 @@ void SdDLL::Init()
 
     // register your controllers here
     RegisterControllers(pModule);
+#endif
 
     // register 3D-object-factory
     E3dObjFactory();

@@ -180,9 +180,11 @@ void SfxApplication::Initialize_Impl()
 
     pImpl->mxAppDispatch = new SfxStatusDispatcher;
 
+#if !defined(EMSCRIPTEN) && !defined(__EMSCRIPTEN__)
     // SV-Look
     Help::EnableContextHelp();
     Help::EnableExtHelp();
+#endif
 
     pImpl->m_pToolsErrorHdl.emplace(
         RID_ERRHDL, ErrCodeArea::Io, ErrCodeArea::Vcl);
@@ -226,7 +228,9 @@ void SfxApplication::Initialize_Impl()
     {
         SolarMutexGuard aGuard;
         // Set special characters callback on vcl edit control
+#if !defined(EMSCRIPTEN) && !defined(__EMSCRIPTEN__)
         vcl::SetGetSpecialCharsFunction(&SfxGetSpecialCharsForEdit);
+#endif
     }
 }
 
