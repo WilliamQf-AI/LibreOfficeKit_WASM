@@ -1,0 +1,1225 @@
+1.没有源代码的dll无法打包成wasm。
+2.https://www.doubao.com/share/code/e88c248320221123这个实际上没有实现编辑功能，是假的。
+3.编译PoDoFo为wasm，正在进行中。
+
+
+
+1.准备 vcpkg
+git clone https://github.com/Microsoft/vcpkg %USERPROFILE%\vcpkg
+%USERPROFILE%\vcpkg\bootstrap-vcpkg.bat
+set VCPKG_ROOT=%USERPROFILE%\vcpkg
+set PATH=%VCPKG_ROOT%;%PATH%
+
+2.先用vcpkg 先交叉编译依赖的第三方模块
+vcpkg install fontconfig:wasm32-emscripten freetype:wasm32-emscripten libxml2:wasm32-emscripten libjpeg-turbo:wasm32-emscripten libpng:wasm32-emscripten tiff:wasm32-emscripten zlib:wasm32-emscripten  openssl:wasm32-emscripten
+vcpkg install openssl --triplet wasm32-emscripten
+
+3.装 Emscripten on Windows
+git clone https://github.com/emscripten-core/emsdk.git %USERPROFILE%\emsdk
+cd %USERPROFILE%\emsdk
+emsdk install   3.1.51
+emsdk activate  3.1.51
+emsdk_env.bat          # 激活环境变量（这一句每次打开终端都要执行一次）
+
+4.验证：
+emcc --version
+
+5.构建 PoDoFo
+cd podofo
+emcmake cmake -B build -G "Ninja" -DCMAKE_BUILD_TYPE=Release -DPODOFO_BUILD_TOOLS=OFF -DPODOFO_BUILD_STATIC=ON -DCMAKE_TOOLCHAIN_FILE="%VCPKG_ROOT%/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=wasm32-emscripten -DZLIB_LIBRARIES="%VCPKG_ROOT%/installed/wasm32-emscripten/lib/libz.a"
+cmake --build build --parallel
+em++ build/src/libpodofo.a -o podofo.js -s EXPORTED_FUNCTIONS='["_malloc","_free"]' -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap"]' -s MODULARIZE -s EXPORT_NAME=Podofo -s ALLOW_MEMORY_GROWTH=1 -s FORCE_FILESYSTEM=0
+   
+6.适合使用wasm的场景
+不需要本地文件系统持久访问
+不依赖特定 GPU / 驱动扩展
+输出体积 < 20 MB（热启动可接受）
+
+
+mkdir build_wasm
+cd build_wasm
+emcmake cmake .. ^
+ -G "Ninja" ^
+ -DCMAKE_TOOLCHAIN_FILE="%VCPKG_ROOT%/scripts/buildsystems/vcpkg.cmake" ^
+ -DVCPKG_TARGET_TRIPLET="wasm32-emscripten" ^
+ -DBUILD_SHARED_LIBS=OFF ^
+ -DPODOFO_BUILD_TOOLS=OFF ^
+ -DPODOFO_BUILD_TESTS=OFF ^
+ -DPODOFO_BUILD_EXAMPLES=OFF ^
+ -DCMAKE_BUILD_TYPE=Release
+ 
+rmdir /s /q build_wasm
+mkdir build_wasm
+cd build_wasm
+ 
+ set PATH=%EMSDK%\upstream\emscripten;%EMSDK%\upstream\bin;%PATH%
+ 
+ emcmake cmake .. ^
+  -G "Ninja" ^
+  -DCMAKE_TOOLCHAIN_FILE=%VCPKG_ROOT%\scripts\buildsystems\vcpkg.cmake ^
+  -DVCPKG_TARGET_TRIPLET=wasm32-emscripten ^
+  -DBUILD_SHARED_LIBS=OFF ^
+  -DPODOFO_BUILD_TOOLS=OFF ^
+  -DPODOFO_BUILD_TESTS=OFF ^
+  -DPODOFO_BUILD_EXAMPLES=OFF ^
+  -DCMAKE_BUILD_TYPE=Release ^
+  -DCMAKE_RC_COMPILER=FALSE
+  -DPODOFO_HAVE_OPENSSL=OFF
+  
+  
+  vcpkg install openssl:wasm32-emscripten libxml2:wasm32-emscripten
+  
+  emcmake cmake .. ^
+  -G Ninja ^
+  -DCMAKE_TOOLCHAIN_FILE=%VCPKG_ROOT%/scripts/buildsystems/vcpkg.cmake ^
+  -DCMAKE_CROSSCOMPILING_EMULATOR=%EMSDK%/node/*/bin/node.exe
+  -DVCPKG_TARGET_TRIPLET=wasm32-emscripten ^
+  -DVCPKG_CHAINLOAD_TOOLCHAIN_FILE=%EMSDK%/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake
+  -DBUILD_SHARED_LIBS=OFF ^
+  -DPODOFO_BUILD_TOOLS=OFF ^
+  -DPODOFO_BUILD_TEST=OFF ^
+  -DPODOFO_BUILD_EXAMPLES=OFF ^
+  -DPODOFO_BUILD_DLL=FALSE  
+  -DCMAKE_BUILD_TYPE=Release ^
+  -DPODOFO_HAVE_OPENSSL=OFF ^
+  -DCMAKE_DISABLE_FIND_PACKAGE_OpenSSL=TRUE 
+  
+  安装/更新 Emscripten
+  git clone https://github.com/emscripten-core/emsdk.git
+  
+  
+cd emsdk
+.\emsdk install latest
+.\emsdk activate latest
+.\emsdk_env.bat 
+
+cd ..
+rmdir /s /q build_wasm
+mkdir build_wasm
+cd build_wasm
+
+
+cmake .. ^
+  -G Ninja ^
+  -DCMAKE_BUILD_TYPE=Release ^
+  -DCMAKE_TOOLCHAIN_FILE=%VCPKG_ROOT%/scripts/buildsystems/vcpkg.cmake ^
+  -DVCPKG_TARGET_TRIPLET=wasm32-emscripten ^
+  -DVCPKG_CHAINLOAD_TOOLCHAIN_FILE=%EMSDK%/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake ^
+  -DBUILD_SHARED_LIBS=OFF ^
+  -DPODOFO_BUILD_STATIC=ON ^
+  -DPODOFO_BUILD_TOOLS=OFF ^
+  -DPODOFO_BUILD_TEST=OFF ^
+  -DPODOFO_BUILD_EXAMPLES=OFF ^
+  -DPODOFO_HAVE_OPENSSL=OFF
+
+
+cmake --build .
+
+
+下一步:
+
+编写 C++ 文件（例如 main.cpp），在其中 #include <podofo/podofo.h> 并调用 PoDoFo 的 API。
+使用 emcc 将main.cpp 和 libpodofo.a 以及所有 vcpkg 编译的依赖库（vcpkg 在上一步配置时已经告诉了 CMake 它们的位置）链接在一起，生成最终的 a.out.js 和 a.out.wasm。
+一个简化的链接命令会是这样（实际中 vcpkg 会帮你处理大部分 -L 和 -l 参数）：
+
+<CMD>
+emcc main.cpp -o output.html path/to/libpodofo.a path/to/libz.a ...
+PoDoFo 库已经准备好在浏览器或 Node.js 环境中使用
+
+
+
+手动编译openssl：
+第一步：
+vcpkg 已经下载好了 OpenSSL 的源码。可以直接利用它
+G:/code/source/wasm/opensouse/vcpkg/buildtrees/openssl/src/nssl-3.5.2-e03035cfd7.clean 为了避免污染 vcpkg 的目录，把它复制出来。
+创建一个新目录: mkdir G:\code\source\wasm\opensouse\openssl-manual-build
+复制源码: 将 G:/.../nssl-3.5.2-e03035cfd7.clean 文件夹里的所有内容，复制到 G:\code\source\wasm\opensouse\openssl-manual-build\src
+创建安装目录: mkdir G:\code\source\wasm\opensouse\openssl-manual-build\install 这个 install 目录将是编译成果的存放地
+
+把G:\code\source\wasm\opensouse\openssl-manual-build\install 整个目录复制到linux环境
+sudo apt update
+sudo apt upgrade -y
+sudo apt install -y build-essential git python3 perl
+git clone https://github.com/emscripten-core/emsdk.git
+cd emsdk
+./emsdk install 3.1.35
+./emsdk activate 3.1.35
+source ./emsdk_env.sh
+
+cd /home/r/code/openssl-manual-build/src
+# 如果 makefile 存在
+make clean
+# 如果想彻底清理
+git clean -dfx
+
+
+
+sudo add-apt-repository ppa:deadsnakes/ppa
+sudo apt update
+sudo apt install python3.8 python3.8-dev python3.8-venv
+sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.6 1
+sudo update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 2
+python3 --version
+ls -l /usr/bin/python3
+
+cd ~/dev/emsdk
+source ./emsdk_env.sh
+
+cd /home/r/code/openssl-manual-build/src
+ls -l ./Configure
+chmod +x ./Configure
+ls -l ./Configure
+
+# 确保在正确的目录下！可以先运行 pwd 确认一下
+pwd
+# 手动删除旧的 Makefile 和配置文件
+rm -f Makefile
+rm -f configdata.pm
+rm -f builddata.pm
+rm -f installdata.pm
+
+在openssl/Configurations/下新建文件15-wasm.conf，写入内容：
+my %targets = (
+    "wasm32-emscripten" => {
+        inherit_from    => [ "BASE_unix" ],
+        CC              => "emcc",
+        CXX             => "em++",
+        AR              => "emar",
+        RANLIB          => "emranlib",
+
+        bn_ops          => "THIRTY_TWO_BIT RC4_CHAR",
+        asm_arch        => undef,
+        perlasm_scheme  => "void",
+
+        thread_scheme   => "no-threads",
+        dso_scheme      => "no-dso",
+
+        shared_extension=> ".a",
+        enable          => [],
+        disable         => [ "threads", "shared", "dso", "dynamic-engine", "afalgeng" ],
+
+        cflags          => "-s USE_PTHREADS=0 -D_WASI_EMULATED_SIGNAL=1",
+        ex_libs         => "-s INITIAL_MEMORY=64MB",
+        lflags          => "-s MODULARIZE=1 -s EXPORT_ES6=1",
+
+        sys_id          => "WASI",
+    },
+);
+
+
+INSTALL_DIR="/home/r/code/openssl/install"
+EMSDK_PATH="/home/r/code/emsdk/upstream/emscripten"
+make distclean 2>/dev/null || true
+
+./Configure \
+  --prefix=/home/r/code/openssl/install \
+  no-asm no-shared no-tests no-apps \
+  -D_POSIX_C_SOURCE=200809L \
+  -D_WASI_EMULATED_SIGNAL \
+  wasm32-emscripten
+
+	
+emmake make -j$(nproc)
+make install_sw        # 只装库 / 头
+
+
+git clone --depth 1 -b master https://github.com/openssl/openssl.git
+cd openssl
+
+
+cd target
+
+em++ ^
+  -std=c++20 -O2 ^
+  -sMODULARIZE=1 -sEXPORT_ES6=1 ^
+  -sALLOW_MEMORY_GROWTH=1 ^
+  -sEXPORTED_RUNTIME_METHODS="['cwrap','FS']" ^
+  -lembind ^
+  -I ../../src ^
+  -I ../../build_wasm/src/podofo/podofo/auxiliary ^
+  em_link.cpp ^
+  libpodofo.a libpodofo_3rdparty.a libpodofo_private.a ^
+  ../../../vcpkg/installed/wasm32-emscripten/lib/libssl.a ^
+  ../../../vcpkg/installed/wasm32-emscripten/lib/libcrypto.a ^
+  ../../../vcpkg/installed/wasm32-emscripten/lib/libxml2.a ^
+  ../../../vcpkg/installed/wasm32-emscripten/lib/libfontconfig.a ^
+  ../../../vcpkg/installed/wasm32-emscripten/lib/libfreetype.a ^
+  ../../../vcpkg/installed/wasm32-emscripten/lib/libz.a ^
+  ../../../vcpkg/installed/wasm32-emscripten/lib/libturbojpeg.a ^
+  ../../../vcpkg/installed/wasm32-emscripten/lib/libpng.a ^
+  ../../../vcpkg/installed/wasm32-emscripten/lib/libtiff.a ^
+  -o podofo.js
+
+python -m http.server 8080 --bind 0.0.0.0
+
+
+
+
+文件转换：
+https://www.libreoffice.org/download/download-libreoffice/
+https://github.com/LibreOffice/core
+https://github.com/ekoz/kbase-doc?tab=readme-ov-file
+
+
+wasm版本：
+https://github.com/LibreOffice/core/blob/feature/wasm/static/README.wasm.md
+https://github.com/chase/lok-wasm?tab=readme-ov-file
+
+
+wasm重要资料：
+https://blog.allotropia.de/2024/04/30/libreoffice-javascripted/
+https://gitlab.com/allotropia/lowa-demos
+https://git.libreoffice.org/core/+/refs/heads/master/static/README.wasm.md
+
+现成可用的libreoffice wasm：
+https://github.com/elloza/pptx2pdfwasm
+https://github.com/JakeTrock/libreOfficeWasm
+https://github.com/allotropia/zetajs
+https://github.com/liudonghua123/libreoffice_wasm
+
+
+相关资料：
+https://blog.csdn.net/aggs1990/article/details/119008527
+编译libreoffice：
+在主机环境 
+拉代码 
+git clone https://github.com/chase/lok-wasm.git 	或者  git@github.com:chase/lok-wasm.git
+git clone https://chromium.googlesource.com/emscripten-releases
+git checkout 3.1.73
+docker build --build-arg EMSCRIPTEN_VERSION=3.1.73 -t emscripten/emsdk:3.1.73 -f docker/Dockerfile .
+
+sudo nano /etc/docker/daemon.json
+修改文件内容为：
+{
+  "registry-mirrors": [
+    "https://mirror.iscas.ac.cn",
+    "https://docker.nju.edu.cn",
+    "https://docker.m.daocloud.io",
+    "https://mirror.baidubce.com"
+  ]
+}
+保存后：
+sudo systemctl daemon-reload
+sudo systemctl restart docker
+
+
+
+查看当前用户：whoami
+
+进入容器环境：sudo bash ./in-docker
+
+
+一键初始化 + 自动选择编译器 + configure + build + QA 启动
+在容器里（root 用户）执行下面的命令创建脚本：
+
+# 在 Dockerfile 或者一个准备脚本中执行以下命令:
+
+# 定位与结论
+
+你的 configure 仍然卡在 “checking whether ccache emcc supports -gseparate-dwarf... error: no”，根因是 configure 在探测 emcc 时直接命中绝对路径 `/emsdk/upstream/emscripten/emcc`，绕过了我们放在 PATH 前面的假编译器。因此，“过滤 -gseparate-dwarf”的逻辑没有生效。
+
+要彻底解决，必须让 configure 使用我们“假 emcc/em++”的绝对路径，而不是通过 PATH 猜测或被 emconfigure 覆盖。下面给出整合好的一键脚本，它在 emconfigure 执行前强制设置 CC/CXX/EMCC/EMXX 指向 `/tmp/fakecc` 的包装器，并留有命中日志，便于验证。
+
+另外提示：上游仓库目前已被归档为只读，构建脚本可能不会再维护更新，遇到环境偏差更要用这种“强制钩住编译器”的方式兜底。
+
+---
+
+# 一键脚本（覆盖 /build-all.sh，强制命中假编译器）
+
+```bash
+cat <<'EOF' > /build-all.sh
+#!/bin/bash
+set -e
+
+START_TIME=$(date +%s)
+
+echo ">>> 检查并安装基础依赖..."
+apt-get update
+apt-get install -y --no-install-recommends sudo gcc g++ make pkg-config nodejs npm dos2unix rsync
+
+GCC_BIN=$(compgen -c gcc- | grep -E '^gcc-[0-9]+$' | sort -V | tail -n 1)
+GPP_BIN=$(compgen -c g++- | grep -E '^g\+\+-[0-9]+$' | sort -V | tail -n 1)
+[ -z "$GCC_BIN" ] && GCC_BIN="gcc"
+[ -z "$GPP_BIN" ] && GPP_BIN="g++"
+echo ">>> 选用宿主机编译器: $GCC_BIN / $GPP_BIN"
+
+if ! id builder &>/dev/null; then
+    echo ">>> 创建 builder 用户..."
+    useradd -m builder
+    passwd -d builder
+    echo "builder ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+fi
+
+echo ">>> 修正挂载目录权限以备复制..."
+chown -R builder:builder /libreoffice-core /scripts || true
+
+echo ">>> 强制清理上一次的构建产物（在挂载目录）..."
+rm -rf /libreoffice-core/instdir /libreoffice-core/workdir /libreoffice-core/wasm-dist /libreoffice-core/.last_emcc_flags
+echo ">>> 清理完成"
+
+# 修正 npm 缓存目录权限，避免 EACCES
+mkdir -p /root/.npm
+chown -R builder:builder /root/.npm || true
+
+# 创建并授权 /src 目录给 builder
+echo ">>> 创建并授权 /src 目录给 builder 用户..."
+mkdir -p /src
+chown builder:builder /src
+
+# 切到 builder 用户
+sudo -E -u builder bash -s <<'BUILDER_CMDS'
+set -ex
+
+START_TIME_INNER=$(date +%s)
+
+# npm 使用 builder 自己的缓存目录
+export npm_config_cache="/home/builder/.npm"
+mkdir -p "$npm_config_cache"
+
+# 复制源码到容器内部工作区
+echo '>>> 正在将源代码复制到容器内部的 /src 目录...'
+rsync -a --delete --info=progress2 /libreoffice-core/ /src/libreoffice-core/
+echo '>>> 复制完成！将在 /src/libreoffice-core 内进行所有构建操作。'
+SRC_DIR="/src/libreoffice-core"
+
+echo '>>> 加载 Emscripten 环境...'
+cd /emsdk
+. emsdk_env.sh
+emcc --version
+
+# 禁用 ccache 的缓存功能（但仍保留其可执行，以免 configure 强行调用）
+export CCACHE_DISABLE=1
+
+echo '>>> 创建假 emcc/em++/ccache（剔除 -gseparate-dwarf，并打印命中日志）...'
+mkdir -p /tmp/fakecc
+
+# 假 emcc
+cat >/tmp/fakecc/emcc <<'EOCC'
+#!/bin/bash
+args=()
+hit=0
+for a in "$@"; do
+  if [ "$a" = "-gseparate-dwarf" ]; then hit=1; continue; fi
+  args+=("$a")
+done
+if [ "$hit" = "1" ]; then echo "FAKE-EMCC HIT: stripped -gseparate-dwarf" >&2; fi
+exec /emsdk/upstream/emscripten/emcc "${args[@]}"
+EOCC
+chmod +x /tmp/fakecc/emcc
+
+# 假 em++
+cat >/tmp/fakecc/em++ <<'EOXX'
+#!/bin/bash
+args=()
+hit=0
+for a in "$@"; do
+  if [ "$a" = "-gseparate-dwarf" ]; then hit=1; continue; fi
+  args+=("$a")
+done
+if [ "$hit" = "1" ]; then echo "FAKE-EM++ HIT: stripped -gseparate-dwarf" >&2; fi
+exec /emsdk/upstream/emscripten/em++ "${args[@]}"
+EOXX
+chmod +x /tmp/fakecc/em++
+
+# 假 ccache：确保任何 “ccache emcc/em++” 仍会命中我们伪装的编译器搜索路径
+cat >/tmp/fakecc/ccache <<'EOCCC'
+#!/bin/bash
+export CCACHE_PATH="/tmp/fakecc:/emsdk:/emsdk/upstream/emscripten:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+exec /usr/bin/ccache "$@"
+EOCCC
+chmod +x /tmp/fakecc/ccache
+
+# 优先 PATH 与 CCACHE_PATH
+export PATH="/tmp/fakecc:$PATH"
+export CCACHE_PATH="$PATH"
+
+# 显式钉死编译器到假编译器“绝对路径”（关键！）
+export CC="/tmp/fakecc/emcc -pthread -s USE_PTHREADS=1 -fwasm-exceptions -s SUPPORT_LONGJMP=wasm -mbulk-memory -msimd128 -msse4.2 -msse4.1 -mssse3 -msse3 -msse2 -msse"
+export CXX="/tmp/fakecc/em++ -pthread -s USE_PTHREADS=1 -fwasm-exceptions -s SUPPORT_LONGJMP=wasm -mbulk-memory -msimd128 -msse4.2 -msse4.1 -mssse3 -msse3 -msse2 -msse"
+# 兼容某些脚本直接读取 EMCC/EMXX 的情况
+export EMCC="/tmp/fakecc/emcc"
+export EMXX="/tmp/fakecc/em++"
+
+# 打印诊断
+echo ">>> which emcc: $(command -v emcc)"
+echo ">>> which ccache: $(command -v ccache)"
+type -a emcc || true
+ccache -p | grep -E '(^cache_dir|^path = )' || true
+
+echo '>>> 安装 WASM 前端依赖...'
+cd "${SRC_DIR}/desktop/wasm"
+rm -rf node_modules package-lock.json
+npm cache clean --force
+npm install
+
+echo '>>> 设置 Emscripten 导出参数（仅链接阶段使用）...'
+EMCC_EXPORTS="-s EXPORTED_RUNTIME_METHODS=['FS','PATH','WORKERFS']"
+export LDFLAGS="$EMCC_EXPORTS"
+echo "$EMCC_EXPORTS" > "${SRC_DIR}/.last_emcc_flags"
+
+echo '>>> 规范脚本权限与换行符...'
+cd "${SRC_DIR}"
+find . -type f -name "*.sh" -exec dos2unix {} \; &> /dev/null || true
+find . -type f -name "*.sh" -exec chmod +x {} \; || true
+chmod +x autogen.sh
+
+echo '>>> 开始 configure（强制 emconfigure 使用我们假编译器的绝对路径）...'
+cd "${SRC_DIR}"
+emconfigure env \
+  CC="$CC" \
+  CXX="$CXX" \
+  EMCC="$EMCC" \
+  EMXX="$EMXX" \
+  CONFIG_SHELL=/bin/bash \
+  bash ./autogen.sh \
+    --host=wasm32-local-emscripten \
+    --enable-mpl-subset \
+    --with-vendor=Macro \
+    --disable-community-flavor \
+    --disable-poppler \
+    --enable-cairo-rgba \
+    --without-java \
+    --without-junit \
+    --without-help \
+    --with-galleries=no \
+    --disable-dbus \
+    --disable-odk \
+    --disable-kf5 \
+    --disable-gtk3 \
+    --disable-qt5 \
+    --disable-gstreamer-1-0 \
+    --disable-evolution2 \
+    --disable-gio \
+    --disable-gui \
+    --disable-scripting \
+    --disable-ext-wiki-publisher \
+    --disable-report-builder \
+    --disable-ext-nlpsolver \
+    --disable-sdremote \
+    --disable-sdremote-bluetooth \
+    --disable-postgresql-sdbc \
+    --disable-firebird-sdbc \
+    --disable-randr \
+    --disable-ext-numbertext \
+    --disable-online-update \
+    --disable-dconf \
+    --enable-release-build \
+    --disable-lotuswordpro \
+    --disable-lpsolve \
+    --without-templates \
+    --enable-sal-log \
+    --disable-debug \
+    --disable-crashdump \
+    --with-main-module=writer \
+    --enable-wasm-exceptions \
+    --with-fonts \
+    --with-lang=en-US \
+    --without-gssapi \
+    --without-krb5 \
+    CC_FOR_BUILD=$GCC_BIN \
+    CXX_FOR_BUILD=$GPP_BIN
+
+echo '>>> configure 成功！开始 build（可能较久）...'
+cd /scripts
+./build
+
+echo '>>> 导出 WASM 产物到 /libreoffice-core/wasm-dist ...'
+mkdir -p /libreoffice-core/wasm-dist
+cp -v "${SRC_DIR}/instdir/program/soffice."* /libreoffice-core/wasm-dist/ || true
+cp -v "${SRC_DIR}/instdir/program/qt"* /libreoffice-core/wasm-dist/ || true
+
+echo '>>> 打包 WASM 产物为 lo-wasm.tar.gz ...'
+cd /libreoffice-core/wasm-dist
+tar -czf /libreoffice-core/lo-wasm.tar.gz ./*
+echo '>>> 打包完成: /libreoffice-core/lo-wasm.tar.gz'
+
+END_TIME_INNER=$(date +%s)
+ELAPSED=$((END_TIME_INNER - START_TIME_INNER))
+printf ">>> 内部构建耗时: %02d小时 %02d分 %02d秒\n" $((ELAPSED/3600)) $((ELAPSED%3600/60)) $((ELAPSED%60))
+BUILDER_CMDS
+
+END_TIME=$(date +%s)
+ELPASSED=$((END_TIME - START_TIME))
+printf ">>> 总耗时: %02d小时 %02d分 %02d秒\n" $((ELPASSED/3600)) $((ELPASSED%3600/60)) $((ELPASSED
+EOF
+
+
+
+chmod +x /build-all.sh
+/build-all.sh
+
+
+使用方法
+在容器里（root 用户）运行上面的 cat > ... <<'EOF' 代码块。
+
+给脚本执行权限：
+chmod +x /init-and-build.sh
+
+运行：
+/init-and-build.sh
+
+
+运行效果:
+记录开始时间
+
+安装基础依赖（sudo、gcc、g++、make、pkg-config）
+
+自动检测系统可用的最高版本 gcc/g++
+
+创建 builder 用户（如果不存在）
+
+修正挂载目录权限
+
+切到 builder 用户
+
+加载 /emsdk/emsdk_env.sh
+
+预清理并安装 WASM 前端依赖（避免 npm ENOTEMPTY 问题）
+
+执行 ./configure dev
+
+执行 ./build（可能耗时很长）
+
+导出产物到 /libreoffice-core/wasm-dist
+
+打包成 /libreoffice-core/lo-wasm.tar.gz
+
+启动 QA 测试服务器
+
+打印总耗时
+
+编译完成后自动执行 ./launch-qa，容器会启动一个 HTTP 服务（默认 8080 端口）
+
+宿主机浏览器访问 http://localhost:8080 就能直接看到 QA 测试页面
+
+
+
+windows测试脚本：
+@echo off
+setlocal enabledelayedexpansion
+
+REM === 配置你的 WASM 目录路径 ===
+set "WASM_DIR=%~dp0wasm-dist"
+
+REM === 默认端口 ===
+set PORT=8080
+
+REM === 检查文件是否存在 ===
+if not exist "%WASM_DIR%\soffice.wasm" (
+    echo [错误] 没有找到 %WASM_DIR%\soffice.wasm
+    pause
+    exit /b 1
+)
+
+REM === 获取文件大小（字节）===
+for %%I in ("%WASM_DIR%\soffice.wasm") do set FILESIZE=%%~zI
+set /a FILESIZE_MB=!FILESIZE!/1024/1024
+
+echo 检测到 soffice.wasm 大小: !FILESIZE_MB! MB
+
+REM === 判断大小是否合理 ===
+if !FILESIZE_MB! LSS 100 (
+    echo [错误] 文件大小异常（小于 100MB），可能是旧文件或损坏。
+    pause
+    exit /b 1
+)
+
+REM === 校验文件头（魔数）===
+echo 正在校验文件头...
+set "MAGIC="
+for /f "usebackq skip=0 tokens=1-4" %%a in (`certutil -dump "%WASM_DIR%\soffice.wasm" ^| findstr /b "0000"`) do (
+    set "MAGIC=%%a %%b %%c %%d"
+    goto :CHECK_MAGIC
+)
+
+:CHECK_MAGIC
+if "!MAGIC!"=="00 61 73 6d" (
+    echo 文件头校验通过: !MAGIC!
+) else (
+    echo [错误] 文件头不正确: !MAGIC! （应为 00 61 73 6d）
+    pause
+    exit /b 1
+)
+
+REM === 清理浏览器缓存（Chrome/Edge）===
+echo 正在尝试清理 Chrome/Edge 缓存...
+taskkill /f /im chrome.exe >nul 2>&1
+taskkill /f /im msedge.exe >nul 2>&1
+
+if exist "%LOCALAPPDATA%\Google\Chrome\User Data\Default\Cache" (
+    rmdir /s /q "%LOCALAPPDATA%\Google\Chrome\User Data\Default\Cache"
+)
+if exist "%LOCALAPPDATA%\Microsoft\Edge\User Data\Default\Cache" (
+    rmdir /s /q "%LOCALAPPDATA%\Microsoft\Edge\User Data\Default\Cache"
+)
+echo 缓存清理完成。
+
+REM === 检测端口占用并切换 ===
+:CHECK_PORT
+netstat -ano | findstr ":%PORT% " >nul
+if %errorlevel%==0 (
+    echo 端口 %PORT% 已被占用，尝试下一个端口...
+    set /a PORT+=1
+    goto CHECK_PORT
+)
+echo 使用端口 %PORT% 启动服务器...
+
+REM === 启动 HTTP 服务器 ===
+cd /d "%WASM_DIR%"
+start "" cmd /c "npx http-server -p %PORT% --cors --ext wasm --mime 'application/wasm:wasm'"
+
+REM === 等待服务器启动，然后打开浏览器 ===
+timeout /t 2 >nul
+start "" "http://localhost:%PORT%/index.html"
+
+endlocal
+
+
+
+确保 .wasm 文件大小正确
+
+确保文件头合法
+
+避免浏览器缓存干扰
+
+自动避开端口冲突
+
+一键启动 QA 页面
+
+
+在wasm文件同目录下执行：
+npm install express
+
+并新建server.js，内容：
+// lok-wasm/server.js (新版本)
+const express = require('express');
+const path = require('path');
+const app = express();
+
+const port = process.argv[2] || 8080;
+
+// 核心改动在这里！
+// 我们告诉 Express： "将我这个脚本所在的目录 (__dirname) 作为静态文件根目录"
+app.use((req, res, next) => {
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+  next();
+});
+
+// 因为 server.js 就在 lok-wasm 目录里，
+// 所以 __dirname 就是 G:\...\libreoffice\lok-wasm
+// 我们直接把它设为静态文件目录。
+app.use(express.static(__dirname));
+
+app.listen(port, () => {
+  console.log(`Server running at http://localhost:${port}`);
+  console.log('Serving files from: ' + __dirname); // 日志会明确告诉你它在服务哪个目录
+});
+
+
+在上一级目录新建脚本start-test-node.bat，内容：
+@echo off
+chcp 65001 >nul
+setlocal enabledelayedexpansion
+
+REM === 配置你的 WASM 目录路径 ===
+set "WASM_DIR=%~dp0lok-wasm"
+
+REM === 默认端口 ===
+set PORT=8080
+
+REM === 省略文件检查部分（你的检查逻辑很棒，可以保留）... ===
+echo 文件检查通过...
+
+REM === 清理浏览器缓存（你的清理逻辑很好，保留）... ===
+echo 缓存清理完成。
+
+REM === 检测端口占用并切换 ===
+:CHECK_PORT
+netstat -ano | findstr ":%PORT% " >nul
+if %errorlevel%==0 (
+    echo 端口 %PORT% 已被占用，尝试下一个端口...
+    set /a PORT+=1
+    goto CHECK_PORT
+)
+echo 使用端口 %PORT% 启动服务器...
+
+REM === 启动新的、更可靠的 Node.js 服务器 ===
+cd /d "%WASM_DIR%"
+node server.js %PORT%
+
+REM === 等待服务器启动，然后打开浏览器 ===
+timeout /t 2 >nul
+start "" "http://localhost:%PORT%/index.html"
+
+endlocal
+
+
+
+cd libreoffice-core/ && make clean
+
+
+./scripts/configure release \
+  -DCMAKE_EXE_LINKER_FLAGS="-s EXPORTED_RUNTIME_METHODS=['FS','PATH','WORKERFS'] -s FORCE_FILESYSTEM=1" \
+  -DLO_WASM_LINKER_FLAGS="-s EXPORTED_RUNTIME_METHODS=['FS','PATH','WORKERFS'] -s FORCE_FILESYSTEM=1"
+  
+  
+./scripts/configure release \
+  -DCMAKE_EXE_LINKER_FLAGS='-s EXPORTED_RUNTIME_METHODS="[\"FS\",\"PATH\",\"WORKERFS\",\"ccall\",\"cwrap\",\"callMain\"]" -s FORCE_FILESYSTEM=1' \
+  -DLO_WASM_LINKER_FLAGS='-s EXPORTED_RUNTIME_METHODS="[\"FS\",\"PATH\",\"WORKERFS\",\"ccall\",\"cwrap\",\"callMain\"]" -s FORCE_FILESYSTEM=1'
+  
+  
+./scripts/configure release \
+  -DCMAKE_EXE_LINKER_FLAGS="-sEXPORTED_RUNTIME_METHODS=[FS,PATH,WORKERFS,ccall,cwrap,callMain] -sFORCE_FILESYSTEM=1" \
+  -DLO_WASM_LINKER_FLAGS="-sEXPORTED_RUNTIME_METHODS=[FS,PATH,WORKERFS,ccall,cwrap,callMain] -sFORCE_FILESYSTEM=1"
+  
+  
+
+./scripts/configure release \
+  -DLO_WASM_LINKER_FLAGS:STRING="\
+-sEXPORTED_RUNTIME_METHODS=FS,PATH,WORKERFS,ccall,cwrap,callMain;\
+-sFORCE_FILESYSTEM=1"
+
+cd libreoffice-core/ && make clean
+
+./scripts/configure release
+
+./scripts/clangd
+
+./scripts/build
+
+
+
+set -e
+FLAGS="-sEXPORTED_RUNTIME_METHODS=FS,PATH,WORKERFS,ccall,cwrap,callMain -sFORCE_FILESYSTEM=1"
+
+# 1. 把变量追加到 RepositoryExternal.mk（实体机文件，已被挂载）
+./in-docker -c "
+  echo 'gb_EMSCRIPTENLDFLAGS := $FLAGS' >> /libreoffice-core/solenv/gbuild/RepositoryExternal.mk
+"
+
+
+set -e
+FLAGS="-sEXPORTED_RUNTIME_METHODS=FS,PATH,WORKERFS,ccall,cwrap,callMain -sFORCE_FILESYSTEM=1"
+./in-docker -c "
+  set -e
+  export EMMAKEN_LDFLAGS=\"$FLAGS\"
+  ./scripts/configure release
+  ./scripts/clangd
+  ./scripts/build
+"
+
+
+查看生成产物：
+ls -l /libreoffice-core/instdir/program/*.wasm \
+      /libreoffice-core/instdir/program/*.js 2>/dev/null
+
+
+
+
+
+r@DESKTOP-URSM14A:~/core_bundle/core$ cat > autogen.input <<EOF
+CC_FOR_BUILD=gcc-12
+CXX_FOR_BUILD=g++-12
+--disable-debug
+--enable-sal-log
+--disable-crashdump
+--host=wasm32-local-emscripten
+--disable-gui
+--with-main-module=writer
+--without-java
+--disable-ccache
+--enable-option-checking=fatal
+EOF
+
+ ./autogen.sh
+ 
+ make -j$(nproc)
+
+
+
+cd ~/emsdk
+./emsdk install 3.1.46
+./emsdk activate 3.1.46
+source ./emsdk_env.sh
+
+
+cd external/tarballs
+# 1. 先跑 10 秒观察
+timeout 10s make fetch 2>&1 | tee fetch.log
+
+# 2. 提取 **wget 后面的直链**（保持后缀）
+grep -oP 'wget.*? \Khttps://[^ ]+\.tar\.(gz|bz2|xz)' fetch.log | sort -u > missing.txt
+
+# 3. 一次性补完
+aria2c -x16 -s16 -c -i missing.txt
+
+# 4. 继续编
+cd ../..
+./autogen.sh --with-distro=LibreOfficeKit --enable-libreofficekit --disable-gui
+make -j$(nproc)
+
+
+文档中心：
+https://wiki.documentfoundation.org/Development/WASM
+https://wiki.documentfoundation.org/Development
+
+设置 gcc/g++版本：
+sudo update-alternatives --config gcc
+查看版本：
+g++ --version
+
+
+cat > autogen.input <<EOF
+CC_FOR_BUILD=gcc-12
+CXX_FOR_BUILD=g++-12
+--disable-debug
+--enable-sal-log
+--disable-crashdump
+--host=wasm32-local-emscripten
+--disable-gui
+--without-java
+--disable-ccache
+--enable-option-checking=fatal
+--disable-cairo-canvas
+--disable-skia
+--disable-dbus
+--disable-scripting
+EMCC_CFLAGS="-s MODULARIZE=1 -s EXPORT_ES6=1"
+EMCC_CXXFLAGS="-s MODULARIZE=1 -s EXPORT_ES6=1"
+EMCC_LDFLAGS="-s MODULARIZE=1 -s EXPORT_ES6=1"
+EOF
+
+
+
+
+
+
+# 1. 重新 configure，确保 --enable-libreofficekit 打开
+# 进入 core 目录
+cd ~/core_bundle/core
+
+
+rm -rf autom4te.cache/
+rm -rf workdir
+
+make distclean
+make clean
+
+# 获取目录和文件的所有权
+sudo chown -R r:r /home/r/core_bundle/core/external/tarballs
+# 赋予你对目录和文件的写权限
+chmod -R u+w /home/r/core_bundle/core/external/tarballs
+
+
+touch /home/r/core_bundle/core/external/tarballs
+touch /home/r/core_bundle/core/external/tarballs/*.*
+touch /home/r/core_bundle/core/external/tarballs/*.tar
+touch /home/r/core_bundle/core/external/tarballs/*.zip
+touch /home/r/core_bundle/core/external/tarballs/*.gz
+touch /home/r/core_bundle/core/external/tarballs/*.tgz
+touch /home/r/core_bundle/core/external/tarballs/*.xz
+touch /home/r/core_bundle/core/external/tarballs/*.bz2
+
+# 加上了 --enable-libreofficekit 这个关键参数！
+# 进入 core 目录
+cd ~/core_bundle/core
+
+# 使用为 WebAssembly 量身定做的 distro 配置！
+./autogen.sh --with-distro=LibreOfficeWASM32 \
+--disable-qt5 \
+--disable-gui \
+--enable-lpsolve=no --without-java \
+--without-doxygen --disable-odk --disable-online-update \
+--with-external-tar=/home/r/core_bundle/core/external/tarballs/
+
+
+make EMCC_CFLAGS="-s MODULARIZE=1 -s EXPORT_ES6=1"
+EMCC_CXXFLAGS="-s MODULARIZE=1 -s EXPORT_ES6=1"
+EMCC_LDFLAGS="-s MODULARIZE=1 -s EXPORT_ES6=1"
+
+
+# 2. 收集所有需要的 .a（务必包含 libreofficekitlo.a）
+find workdir -name "*.a" \
+! -path "*/psprint/*" \
+! -path "*/test/*" \
+! -path "*/qa/*" \
+! -path "*/solenv/*" \
+! -path "*/Headers/*" > libs.txt
+
+
+
+# 首先，让我们用 nm 工具再次确认 LOKit 函数名，这次直接指定 libreofficekitlo.a
+nm -gC workdir/LinkTarget/Library/libreofficekitlo.a | grep -i "LOKit_"
+
+# 假设上面的命令确认了 LOKit_initialize, LOKit_destroy_document 等函数存在
+# 那么，就运行最终的链接命令
+
+emcc -O3 -s WASM=1 -s EXPORT_ES6=1 \
+     -s MODULARIZE=1 -s EXPORT_NAME=LibreOfficeKitModule \
+     -s EXPORTED_RUNTIME_METHODS='["FS","ccall","cwrap"]' \
+     -s ALLOW_MEMORY_GROWTH=1 -s INITIAL_MEMORY=256MB -s MAXIMUM_MEMORY=4GB \
+     -s FILESYSTEM=1 --preload-file fonts-subset.tar@/usr/share/fonts \
+     --no-entry \
+     -s EXPORTED_FUNCTIONS='["_LOKit_initialize", "_LOKit_shutdown", "_LOKit_load_document", "_LOKit_save_document", "_LOKit_destroy_document", "_malloc", "_free"]' \
+     $(cat libs.txt | tr '\n' ' ') \
+     -o instdir/program/libreofficekit.js
+
+  
+  
+  file fonts-subset.tar
+tar -tf fonts-subset.tar | head -5
+  
+  ls -lh instdir/program/liblibreofficekit.{js,wasm} fonts-subset.tar
+  
+  
+  修改源代码libreoffice-core/desktop/source/app/main_wasm.cxx的文件内容到如下：
+EMSCRIPTEN_BINDINGS(lok)
+{
+    register_optional<bool>();
+    register_optional<std::string>();
+	
+	/// by rqf 20251018 这里只作文件格式转换之需
+	 class_<DocumentClient>("Document")
+        .constructor<std::string>()
+        .function("valid", &DocumentClient::valid)
+        .function("saveAs", &DocumentClient::saveAs);
+	
+	/// by rqf 20251018
+    /*register_optional<int>();
+    function("preload", &preload);
+    function("freeSafeString", &freeSafeString);
+    function("yield", &yield);
+
+    class_<wasm::ITextRanges>("TextRanges")
+        .smart_ptr<std::shared_ptr<wasm::ITextRanges>>("TextRanges")
+        .function("length", &wasm::ITextRanges::length)
+        .function("rect", &wasm::ITextRanges::rect)
+        .function("rects", &wasm::ITextRanges::rects)
+        .function("isCursorAt", &wasm::ITextRanges::isCursorAt)
+        .function("indexAtCursor", &wasm::ITextRanges::indexAtCursor)
+        .function("moveCursorTo", &wasm::ITextRanges::moveCursorTo)
+        .function("description", &wasm::ITextRanges::description)
+        .function("descriptions", &wasm::ITextRanges::descriptions)
+        .function("replace", &wasm::ITextRanges::replace)
+        .function("replaceAll", &wasm::ITextRanges::replaceAll);
+
+    class_<desktop::ExpandedDocument>("ExpandedDocument")
+        .constructor()
+        .function("addPart", &desktop::ExpandedDocument::addPart);
+
+    class_<desktop::ExpandedPart>("ExpandedDocPart").constructor<std::string, std::string>();
+
+    register_vector<desktop::ExpandedPart>("ExpandedPartVector");
+
+    class_<DocumentClient>("Document")
+        .constructor<std::string>()
+        .constructor<desktop::ExpandedDocument, std::string, std::optional<bool>>()
+        .function("valid", &DocumentClient::valid)
+        .function("save", &DocumentClient::save)
+        .function("saveAs", &DocumentClient::saveAs)
+        .function("getParts", &DocumentClient::getParts)
+        .function("pageRects", &DocumentClient::pageRects)
+        .function("paintTile", &DocumentClient::paintTile)
+        .function("getDocumentSize", &DocumentClient::getDocumentSize)
+        .function("initializeForRendering", &DocumentClient::initializeForRendering)
+        .function("postTextInputEvent", &DocumentClient::postTextInputEvent)
+        .function("postKeyEvent", &DocumentClient::postKeyEvent)
+        .function("postMouseEvent", &DocumentClient::postMouseEvent)
+        .function("setTextSelection", &DocumentClient::setTextSelection)
+        .function("getClipboard", &DocumentClient::getClipboard)
+        .function("setClipboard", &DocumentClient::setClipboard)
+        .function("paste", &DocumentClient::paste)
+        .function("setGraphicSelection", &DocumentClient::setGraphicSelection)
+        .function("resetSelection", &DocumentClient::resetSelection)
+        .function("getCommandValues", &DocumentClient::getCommandValues)
+        .function("subscribe", &DocumentClient::subscribe)
+        .function("unsubscribe", &DocumentClient::unsubscribe)
+        .function("getViewId", &DocumentClient::getViewId)
+        .function("setCurrentView", &DocumentClient::setCurrentView)
+        .function("dispatchCommand", &DocumentClient::dispatchCommand)
+        .function("removeText", &DocumentClient::removeText)
+        .function("startTileRenderer", &DocumentClient::startTileRenderer)
+        .function("paintTiles", &DocumentClient::paintTiles)
+        .function("stopTileRenderer", &DocumentClient::stopTileRenderer)
+        .function("ref", &DocumentClient::ref)
+        .function("setClientVisibleArea", &DocumentClient::setClientVisibleArea)
+        .function("getSelectionText", &DocumentClient::getSelectionText)
+        .function("getParagraphStyle", &DocumentClient::getParagraphStyle)
+        .function("getPropertyValue", &DocumentClient::getPropertyValue)
+        .function("setPropertyValue", &DocumentClient::setPropertyValue)
+        .function("saveCurrentSelection", &DocumentClient::saveCurrentSelection)
+        .function("restoreCurrentSelection", &DocumentClient::restoreCurrentSelection)
+        .function("headerFooterRect", &DocumentClient::headerFooterRect)
+        .function("paragraphStyles", &DocumentClient::paragraphStyles)
+        .function("findAll", &DocumentClient::findAll)
+        .function("comments", &DocumentClient::comments)
+        .function("addComment", &DocumentClient::addComment)
+        .function("replyComment", &DocumentClient::replyComment)
+        .function("updateComment", &DocumentClient::updateComment)
+        .function("deleteCommentThreads", &DocumentClient::deleteCommentThreads)
+        .function("deleteComment", &DocumentClient::deleteComment)
+        .function("resolveCommentThread", &DocumentClient::resolveCommentThread)
+        .function("resolveComment", &DocumentClient::resolveComment)
+        .function("sanitize", &DocumentClient::sanitize)
+        .function("gotoOutline", &DocumentClient::gotoOutline)
+        .function("getOutline", &DocumentClient::getOutline)
+        .function("setAuthor", &DocumentClient::setAuthor)
+        .function("newView", &DocumentClient::newView)
+        .function("getExpandedPart", &DocumentClient::getExpandedPart)
+        .function("removeExpandedPart", &DocumentClient::removePart)
+        .function("listExpandedParts", &DocumentClient::listExpandedParts)
+        .function("addExternalUndo", &DocumentClient::addExternalUndo)
+        .function("getNextUndoId", &DocumentClient::getNextUndoId)
+        .function("getNextRedoId", &DocumentClient::getNextRedoId)
+        .function("getUndoCount", &DocumentClient::getUndoCount)
+        .function("getRedoCount", &DocumentClient::getRedoCount)
+        .function("undo", &DocumentClient::undo)
+        .function("redo", &DocumentClient::redo)
+        .function("getRedlineTextRange", &DocumentClient::getRedlineTextRange)
+        .function("getCursor", &DocumentClient::getCursor)
+        .function("newView", &DocumentClient::newView)
+        .function("getCustomStringProperty", &DocumentClient::getCustomStringProperty)
+        .function("setCustomStringProperty", &DocumentClient::setCustomStringProperty);*/
+}
+
+
+--bind -s INITIAL_MEMORY=268435456 -s ALLOW_MEMORY_GROWTH=1 -s FORCE_FILESYSTEM=1 -s EXPORT_ES6=1 -s MODULARIZE=1 
+
+pdfium:
+https://github.com/paulocoutinhox/pdfium-lib
+
+编译：
+可选：docker pull emscripten/emsdk:3.1.73
+./in-docker
+cd ~
+mkdir -p my-emsdk
+cd my-emsdk
+git clone https://github.com/emscripten-core/emsdk.git
+cd emsdk
+./emsdk update
+./emsdk list
+./emsdk install 4.0.17
+./emsdk activate 4.0.17
+source ./emsdk_env.sh
+emcc --version
+
+注释scripts/configure靠近开始的位置，激活emsdk的代码，因为我们已经在外部手动激活了，这就重新激活，会改变环境
+并且在文件set -e下方增加一行：
+export CC=emcc
+export CXX=em++
+export CCACHE_DISABLE=1
+echo "Using emcc: $(which emcc)"
+emcc --version
+
+cd /
+export CC=emcc
+export CXX=em++
+export CCACHE_DISABLE=1
+
+把libreoffice-core/configure.ac的7723行改成：
+dnl ===================================================================
+dnl C++11
+dnl ===================================================================
+
+if test -z "${CXXFLAGS_CXX11+x}"; then
+    AC_MSG_CHECKING([whether $CXX_BASE supports C++20])
+    CXXFLAGS_CXX11='-std=c++20'
+    AC_MSG_RESULT([yes ($CXXFLAGS_CXX11)])
+fi
+
+AC_SUBST(CXXFLAGS_CXX11)
+
+在./libreoffice-core/solenv/gbuild/platform/EMSCRIPTEN_INTEL_GCC.mk文件中找到这一行：
+gb_EMSCRIPTEN_LDFLAGS += -s MINIMAL_RUNTIME_STREAMING_WASM_INSTANTIATION=1
+注释掉
+找到gb_EMSCRIPTEN_LDFLAGS += -s INITIAL_MEMORY=2GB改成：
+gb_LinkTarget_LDFLAGS += -s INITIAL_MEMORY=512MB -s ALLOW_MEMORY_GROWTH=1 \
+                         -s FORCE_FILESYSTEM=1 -s EXPORT_ES6=1 -s MODULARIZE=1 \
+                         -lembind
+
+把gb_EMSCRIPTEN_LDFLAGS += -lembind -s FORCE_FILESYSTEM=1 -s WASM_BIGINT=1 -s ERROR_ON_UNDEFINED_SYMBOLS=1 -s FETCH=1 -s ASSERTIONS=1 -s EXIT_RUNTIME=0 -s EXPORTED_RUNTIME_METHODS=["UTF16ToString","stringToUTF16","UTF8ToString","err"$(if $(ENABLE_DBGUTIL),$(COMMA)"addOnPostRun"),"registerType","throwBindingError"]
+改成：gb_EMSCRIPTEN_LDFLAGS += -lembind -s FORCE_FILESYSTEM=1 -s WASM_BIGINT=1 -s ERROR_ON_UNDEFINED_SYMBOLS=1 -s FETCH=1 -s ASSERTIONS=1 -s EXIT_RUNTIME=0 -s EXPORTED_RUNTIME_METHODS=["FS","cwrap","ccall","UTF16ToString","stringToUTF16","UTF8ToString","err"$(if $(ENABLE_DBGUTIL),$(COMMA)"addOnPostRun"),"registerType","throwBindingError"]
+
+在 libreoffice-core/external/mythes/ExternalProject_mythes.mk 中，找到LDFLAGS="$(call gb_ExternalProject_get_link_flags,libtiff) $(gb_EMSCRIPTEN_LDFLAGS)" \
+改成 LDFLAGS="$(call gb_ExternalProject_get_link_flags,libtiff)" \
+
+在CPWASM-LOKit.conf删除这三行
+--enable-mpl-subset
+--enable-ccache
+--with-main-module=writer
+把
+--with-build-platform-configure-options=--enable-ccache
+换成--disable-ccache
+
+在lok-wasm\libreoffice-core\sc\inc\docuno.hxx里面的ScModelObj类里面补一个函数：
+void setAuthor(OUString /*sAuthor*/) override
+	{
+		// no-op in WASM/headless build
+	}
+
+编译：
+./scripts/configure
+
+./scripts/clangd
+
+./scripts/build
+
+# --with-main-module=writer
+--disable-poppler
+--enable-pdfium
+    --with-distro=CPWASM-LOKit \
+	--disable-gui \
+    --disable-dynamic-loading \
+    --with-vcl=headless \
+	--with-vcl-plugins=headless 
+
+CC=emcc -pthread -s USE_PTHREADS=1 -fwasm-exceptions -s SUPPORT_LONGJMP=wasm -mbulk-memory -msimd128 -msse4.2 -msse4.1 -mssse3 -msse3 -msse2 -msse
+CXX=em++ -pthread -s USE_PTHREADS=1 -fwasm-exceptions -s SUPPORT_LONGJMP=wasm -mbulk-memory -msimd128 -msse4.2 -msse4.1 -mssse3 -msse3 -msse2 -msse
+
+其它工具：
+git clean -dfx
+清理中间产物	
+清理缓存	
+ccache -C 
+rm -rf workdir
+rm -rf workdir/ExternalProject/libtiff 
+rm -rf workdir/UnpackedTarball/libtiff
+rm -rf workdir/LinkTarget/Executable
+rm -rf workdir/CxxObject/desktop/source/app
+
+
+
+
+可能的必须文件清单：
+index.html	304	document	其他	232 B	2 ms	
+main.js	304	script	
+index.html:14	232 B	292 ms	
+soffice.mjs	200	script	
+main.js:2	398 kB	323 ms	
+soffice.mjs	200	script	其他	260 B	600 ms	
+soffice.mjs	200	script	其他	260 B	812 ms	
+soffice.mjs	200	script	其他	260 B	872 ms	
+soffice.wasm	200	wasm	其他
+soffice.mjs:1965	124 MB	489 ms	
+favicon.ico	200	x-icon	其他	0 B	0 ms	(disk cache)
+soffice_fonts.data.js.metadata	200	fetch	
+soffice.mjs:924	0 B	1 ms	(disk cache)
+soffice.data.js.metadata	200	fetch	
+soffice.mjs:594	0 B	1 ms	(disk cache)
+
+源代码修改记录：
+#if !defined(EMSCRIPTEN) && !defined(__EMSCRIPTEN__)
+#endif
+
+\libreoffice-core\sc\source\ui\app\scdll.cxx -> void ScDLL::Init()
+\libreoffice-core\sc\source\ui\app\scmod.cxx -> void ScModule::InitInterface_Impl()
+
+\libreoffice-core\sd/source/ui/app/sddll.cxx -> void SdDLL::Init()
+\libreoffice-core\sd/source/ui/app/sdmod.cxx -> void SdModule::InitInterface_Impl()
+
+\libreoffice-core\sw/source/uibase/app/swmodule.cxx -> void SwDLL::RegisterControls() void SwDLL::RegisterInterfaces() void SwDLL::RegisterFactories()
+
+sfx2/source/appl/appinit.cxx -> void SfxApplication::Initialize_Impl()
+sfx2/source/appl/module.cxx -> void SfxModule::RegisterChildWindow(const SfxChildWinFactory& rFact) void SfxModule::RegisterToolBoxControl( const SfxTbxCtrlFactory& rFact ) void SfxModule::RegisterStatusBarControl( const SfxStbCtrlFactory& rFact )
+
