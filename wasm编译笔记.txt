@@ -1223,3 +1223,18 @@ soffice.mjs:594	0 B	1 ms	(disk cache)
 sfx2/source/appl/appinit.cxx -> void SfxApplication::Initialize_Impl()
 sfx2/source/appl/module.cxx -> void SfxModule::RegisterChildWindow(const SfxChildWinFactory& rFact) void SfxModule::RegisterToolBoxControl( const SfxTbxCtrlFactory& rFact ) void SfxModule::RegisterStatusBarControl( const SfxStbCtrlFactory& rFact )
 
+
+# 1. 告诉 Git 你是谁（全局只用设一次）
+git config --global user.name  "r187"
+git config --global user.email "r187@foxmail.com"
+
+# 2. 把刚才列出的所有改动提交
+git add .
+git commit -m "本地编译适配与代码修改"
+
+# 3. 再推送分支 & 标签
+git push origin --all
+git push origin --tags
+
+githubtoken：
+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
