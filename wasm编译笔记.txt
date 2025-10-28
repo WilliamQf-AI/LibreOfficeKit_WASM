@@ -1238,3 +1238,7 @@ git push origin --tags
 
 githubtoken：
 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
+
+zetaoffice分支：
+https://git.libreoffice.org/core/+/refs/heads/distro/allotropia/zeta-24-2
+
